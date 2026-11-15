@@ -1,0 +1,22 @@
+# Maven Central JARs byte-matched to Apache Struts Showcase 7.1.1.
+# Each PURL resolves to the same coordinate under https://repo.maven.apache.org/maven2/.
+# Uncompressed bytes, SHA-256, PURL (exact artifact bytes only).
+126113	876eab6a83daecad5ca67eb9fcabb063c97b5aeb8cf1fca7a989ecde17522051	pkg:maven/org.ow2.asm/asm@9.8
+1358054	a2c732fce8b24ead7caf4a21a157167bce991048638805cf1277a5ed6a568057	pkg:maven/org.springframework/spring-context@6.2.11
+160705	8e10de1d332d6eec698e3aeafab8e88ed366758d04203bf38c9bd387c6ee0187	pkg:maven/org.sitemesh/sitemesh@3.2.2
+16836	571b43ab268119f4cf9b005755486c3c3a560e301e9fa311bce95099cdd23229	pkg:maven/org.codehaus.groovy/groovy-jsr223@3.0.22
+1886604	9a9fb91cd64199232eb1ca9766148a5d30ef8944be5fac051018f96c70c8f6a3	pkg:maven/org.freemarker/freemarker@2.3.34
+1968177	a1de6ff2d88c05442468360b89f881b77ff7a393b8cd5b1d5758756b2e247f8a	pkg:maven/org.springframework/spring-core@6.2.11
+2090527	b8a7000ac68dea59f208148bf40a1e02cf3f1f6c120e9eb6696d7d46f57d7ed0	pkg:maven/org.springframework/spring-web@6.2.11
+24540	a5d92923b658637c62c481dc44eab029afc1b816b10d8d0fda5ed63715f3cf85	pkg:maven/org.springframework/spring-jcl@6.2.11
+287192	a93e4485d274277177480c4afe6ddd8355cda1cacfe356c134e25d65193935fd	pkg:maven/cglib/cglib@2.2.2
+317833	0fd8753b1ad861019ab1e1cedbba82c1354bab0313f0c8509799edd3fc98bbb3	pkg:maven/org.springframework/spring-expression@6.2.11
+3819	1fad6e6be7557781e4d33729d49ae1cdc8fdda6fe477bb0cc68ce351eafdfbab	pkg:maven/org.jspecify/jspecify@1.0.0
+420148	91e6cd420cd601a34dc41fc33364cfe77d40b6281ee472a0b72d43791f06a1dd	pkg:maven/org.springframework/spring-aop@6.2.11
+47932	040cba58fe2dc346da0d4ba5dc338641b58acf5e165f0661d5decf64f623f42d	pkg:maven/io.micrometer/micrometer-commons@1.14.11
+51934	14b7880cb7c85eed101e2710432fc3ffb83275532a6a894dc4c4095d49ad59f1	pkg:maven/org.ow2.asm/asm-tree@9.8
+73498	3301a1c1cb4c59fcc5292648dac1d7c5aed4c0f067dfbe88873b8cdfe77404f4	pkg:maven/org.ow2.asm/asm-commons@9.8
+75082	205b18f696aeebcf4c01e7fb3535cad74ed25833672ea9af906e8405dd13f4a9	pkg:maven/io.micrometer/micrometer-observation@1.14.11
+8053888	c92c92c4b9b183f9981ba7399f36592e5e3ad6f4cdac7101b5a22cc17998d13f	pkg:maven/org.codehaus.groovy/groovy@3.0.22
+890054	f9ba5dedee94947b11d930209ff1a12bbe9e28b1b4f73c5baeba2fb3fe32d08e	pkg:maven/org.springframework/spring-beans@6.2.11
+895419	c74a6c72221dfb76eb92f2bb40108ea561a7da2f315dc3b1e64afa8f077f210c	pkg:maven/com.github.ben-manes.caffeine/caffeine@3.2.2

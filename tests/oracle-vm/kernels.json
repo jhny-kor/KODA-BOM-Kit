@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "distribution": "Oracle Linux",
+  "distributionVersion": "8.2",
+  "architecture": "x86_64",
+  "releaseKind": "GA",
+  "releaseNotesUrl": "https://docs.oracle.com/en/operating-systems/oracle-linux/8/relnotes8.2/ol8-AboutOracleLinux8.html",
+  "releaseNotesPdfUrl": "https://docs.oracle.com/cd/F22978_01/relnotes8.2/OL8-RELNOTES8-2.pdf",
+  "verification": {
+    "metadataCheckedOn": "2026-10-29",
+    "packageUrlCheck": "All four package URLs returned HTTP 200 to HEAD requests.",
+    "sizeSource": "Content-Length from official package URL HEAD response, in bytes.",
+    "hashSource": "Expected SHA-256 values from official Oracle security errata; not a claim that downloaded RPM contents or signatures have already been verified.",
+    "signatureVerification": "Import the verified Oracle Linux 8 public key into an isolated RPM database, then require rpm -Kv output to report digests and signatures OK for every downloaded RPM.",
+    "signatureVerificationReferenceUrl": "https://linux.oracle.com/security/gpg/index.html"
+  },
+  "signingKey": {
+    "url": "https://yum.oracle.com/RPM-GPG-KEY-oracle-ol8",
+    "fingerprint": "76FD3DB13AB67410B89DB10E82562EA9AD986DA3",
+    "keyId": "AD986DA3",
+    "fingerprintReferenceUrl": "https://yum.oracle.com/faq.html",
+    "verification": "Fingerprint published in the Oracle Linux 8 section of the official FAQ also matches the directly computed OpenPGP v4 primary-key fingerprint."
+  },
+  "packages": [
+    {
+      "id": "rhck-core",
+      "name": "kernel-core",
+      "flavor": "RHCK",
+      "version": "4.18.0",
+      "release": "193.el8",
+      "kernelRelease": "4.18.0-193.el8.x86_64",
+      "architecture": "x86_64",
+      "filename": "kernel-core-4.18.0-193.el8.x86_64.rpm",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL8/2/baseos/base/x86_64/getPackage/kernel-core-4.18.0-193.el8.x86_64.rpm",
+      "sha256": "d993d4106532fe823fec4442107b88e087e79fbd74339c2c542fb0c3d87d4c2f",
+      "sizeBytes": 29460048,
+      "vmlinuzPath": "/boot/vmlinuz-4.18.0-193.el8.x86_64",
+      "minimumForDirectBoot": true,
+      "officialReferenceUrls": [
+        "https://linux.oracle.com/errata/ELSA-2020-1769.html",
+        "https://yum.oracle.com/repo/OracleLinux/OL8/2/baseos/base/x86_64/index.html",
+        "https://repowatch.ulni.us-ashburn-1.oci.oraclecloud.com/repowatch/oraclelinux8.x86_64/ol8_baseos_latest/d993d4106532fe823fec4442107b88e087e79fbd74339c2c542fb0c3d87d4c2f?display=filelist"
+      ]
+    },
+    {
+      "id": "rhck-modules",
+      "name": "kernel-modules",
+      "flavor": "RHCK",
+      "version": "4.18.0",
+      "release": "193.el8",
+      "kernelRelease": "4.18.0-193.el8.x86_64",
+      "architecture": "x86_64",
+      "filename": "kernel-modules-4.18.0-193.el8.x86_64.rpm",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL8/2/baseos/base/x86_64/getPackage/kernel-modules-4.18.0-193.el8.x86_64.rpm",
+      "sha256": "f201823976aafb039397ac3a9eb93875c9e747f7ca77553893b19eb5e15bbddf",
+      "sizeBytes": 24613728,
+      "minimumForDirectBoot": false,
+      "officialReferenceUrls": [
+        "https://linux.oracle.com/errata/ELSA-2020-1769.html",
+        "https://yum.oracle.com/repo/OracleLinux/OL8/2/baseos/base/x86_64/index.html"
+      ]
+    },
+    {
+      "id": "rhck-kernel",
+      "name": "kernel",
+      "flavor": "RHCK",
+      "version": "4.18.0",
+      "release": "193.el8",
+      "kernelRelease": "4.18.0-193.el8.x86_64",
+      "architecture": "x86_64",
+      "filename": "kernel-4.18.0-193.el8.x86_64.rpm",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL8/2/baseos/base/x86_64/getPackage/kernel-4.18.0-193.el8.x86_64.rpm",
+      "sha256": "8dd414fd28bf24711b228dfd30c8f0a7f861f63884f249d413dc12abd444ee4c",
+      "sizeBytes": 2894604,
+      "minimumForDirectBoot": false,
+      "officialReferenceUrls": [
+        "https://linux.oracle.com/errata/ELSA-2020-1769.html",
+        "https://yum.oracle.com/repo/OracleLinux/OL8/2/baseos/base/x86_64/index.html"
+      ]
+    },
+    {
+      "id": "uek-r6",
+      "name": "kernel-uek",
+      "flavor": "UEK R6",
+      "version": "5.4.17",
+      "release": "2011.1.2.el8uek",
+      "kernelRelease": "5.4.17-2011.1.2.el8uek.x86_64",
+      "architecture": "x86_64",
+      "filename": "kernel-uek-5.4.17-2011.1.2.el8uek.x86_64.rpm",
+      "url": "https://yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/getPackage/kernel-uek-5.4.17-2011.1.2.el8uek.x86_64.rpm",
+      "sha256": "c75748d8fde1d61c497fbe2f3ba7bcafd5ea1666b53776dd4587e2542faa923e",
+      "sizeBytes": 63276656,
+      "vmlinuzPath": "/boot/vmlinuz-5.4.17-2011.1.2.el8uek.x86_64",
+      "minimumForDirectBoot": true,
+      "officialReferenceUrls": [
+        "https://linux.oracle.com/errata/ELSA-2020-5663.html",
+        "https://yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/index.html",
+        "https://repowatch.ulni.us-ashburn-1.oci.oraclecloud.com/repowatch/oraclelinux8.x86_64/ol8_UEKR6/c75748d8fde1d61c497fbe2f3ba7bcafd5ea1666b53776dd4587e2542faa923e?display=filelist"
+      ]
+    }
+  ],
+  "directBoot": {
+    "qemuReferenceUrl": "https://www.qemu.org/docs/master/system/linuxboot.html",
+    "requiredAdditionalInput": "An independently prepared x86_64 initramfs containing /init, the Oracle Linux 8.2 user space, and the collector under test.",
+    "notes": [
+      "RHCK kernel-core contains vmlinuz; the UEK R6 kernel-uek RPM includes vmlinuz and kernel modules in one package, as shown by official Oracle file lists.",
+      "All four RPMs are retained for installed-kernel inventory validation even though only kernel-core and kernel-uek provide the direct-boot kernel images.",
+      "A memory-root initramfs does not need a virtual disk or a network interface. Extra modules are needed only when the selected virtual hardware or file systems require them.",
+      "Do not assume a listed initramfs entry contains a usable prebuilt initramfs; build the test initramfs explicitly.",
+      "QEMU system TCG can run the actual Oracle guest kernel; this is distinct from Docker or QEMU user-mode testing and does not establish physical-server validation."
+    ]
+  }
+}

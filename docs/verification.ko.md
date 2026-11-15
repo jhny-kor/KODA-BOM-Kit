@@ -1,0 +1,247 @@
+# 빌드·검증과 증거 구분
+
+## .NET·Ruby 배포본 비교
+
+```bash
+python3 tests/dotnet_ruby_integration.py --stage /path/to/linux-build --cache /path/to/upstream-cache
+```
+
+.NET 10 SDK와 Docker를 사용합니다. 공식 패키지와 비교 도구의 배포 파일은 SHA-256으로
+검증하고, Ruby 설치와 세 도구의 SBOM 수집은 네트워크를 차단한 Linux x86-64에서
+수행합니다. 같은 배포물을 읽기 전용으로 마운트해 알려진 패키지 버전의 PURL, 단독 DLL의
+관측 여부, 설치되지 않은 항목과 선언만 남은 항목을 비교합니다. `--koda-only`로 KODA의
+두 SBOM 형식, 발견 경로, 디렉터리 제외 및 부분 수집 표시만 확인할 수 있습니다.
+`--tracker-root /path/to/tracker`를 지정하면 Tracker가 두 형식에서 PURL과 부분 수집 사유를
+같게 읽는지 확인합니다.
+
+## Go·Rust 배포 바이너리 검증
+
+```bash
+python3 tests/go_rust_binary_integration.py --stage /path/to/linux-build --go /path/to/go
+```
+
+Go 모듈이 로컬 캐시에 있어야 하며, 시험 준비 과정에서 SHA-256을 고정한 Alpine `ripgrep`
+패키지를 받습니다. 이미 확보한 동일 ELF는 `--rust-binary`로 지정할 수 있습니다.
+네트워크를 차단한 Linux x86_64 컨테이너에서 두 표준 SBOM의 PURL·파일 경로·의존성 관계,
+디렉터리 제외, 손상된 Rust 정보의 부분 수집 표시, 원본 파일과 빌드 도구를 실행하지 않는지
+확인합니다.
+`--tracker-root /path/to/tracker`를 지정하면 실제 로컬 Tracker 파서로 두 SBOM을 읽고
+Go·Rust PURL과 부분 수집 사유가 보존되는지 비교합니다.
+
+## Fancytree 파일 해시와 출처 검증
+
+외부 빌드 PC에서 공식 배포 자료를 받아, 목록에 고정한 npm SHA-512 또는 GitHub
+아카이브 SHA-256을 검증하고 파일 해시 목록을 다시 계산합니다. 기존 목록 검증에는
+`--check`를 사용합니다. npm의 신규 릴리스를 추가할 때는 `--refresh-npm`으로
+목록을 갱신한 뒤, 기존의 단일 버전 해시가 여러 버전에 해당하게 된 경우도 검토합니다.
+
+```bash
+python3 scripts/generate-fancytree-fingerprints.py --cache /path/to/upstream-cache --check
+# 검증이 끝난 공식 배포 자료 캐시와 Linux x86_64 바이너리를 사용합니다.
+python3 tests/fancytree_fingerprint_integration.py --stage /path/to/linux-build --cache /path/to/upstream-cache
+```
+
+## 여러 디렉터리 수집 검증
+
+```bash
+python3 tests/multi_directory_integration.py --stage /path/to/linux-build
+python3 tests/multi_directory_integration.py --stage /path/to/linux-build --tracker-root /path/to/tracker
+```
+
+네트워크를 차단한 Linux x86_64 컨테이너에서 디렉터리별 제외, 공통 제외 패턴, 공유
+파일 수 제한, SBOM 형식별 발견 경로와 의존성 관계를 확인합니다. Tracker 옵션은 두 형식의
+구성요소와 수집 상태를 실제 Tracker 파서로 읽어 비교합니다.
+
+## 배포 파일과 공급사 SBOM 대조 검증
+
+```bash
+python3 tests/supplier_reconcile_integration.py --stage /path/to/linux-build
+```
+
+테스트는 네트워크가 차단되고 루트 파일시스템이 읽기 전용인 Linux x86_64 컨테이너에서
+WAR와 EAR를 각각 CycloneDX 및 SPDX 공급사 문서와 대조합니다. 해시 불일치·누락·충돌,
+깨진 아카이브, 시간 초과 시 결과가 발행되지 않는지 확인합니다. 해시가 일치할 때는
+직접 수집과 공급사 기록의 차이, 파일명 기반 항목의 식별 보류, 아카이브 밖 파일의 제외,
+출력 스키마와 체크섬을 검증합니다. 합성 자료를 사용하며 운영 배포본은 별도 확인이 필요합니다.
+
+## 중첩 웹 아카이브와 AIX 증적 검증
+
+Linux x86_64 실행 파일을 준비한 후 다음 통합 테스트를 실행합니다.
+검증 환경은 네트워크를 차단한 Linux 컨테이너와 로컬 스키마를 사용합니다.
+
+```bash
+python3 tests/detailed_sbom_integration.py --stage /path/to/linux-build
+# 로컬 Tracker 체크아웃과 해당 저장소의 .venv가 준비된 경우
+python3 tests/detailed_sbom_integration.py --stage /path/to/linux-build --tracker-root /path/to/tracker
+```
+
+테스트는 EAR 안의 WAR·JAR과 Spring Boot JAR의 JS 식별과 발견 경로, 두 표준 SBOM의
+스키마 및 체크섬, 같은 버전의 Oracle Listener를 Home별로 분리하는지 확인합니다.
+OPatch의 RU 패치 ID와 설치 패치 전체 목록, 증적 파일 해시를 대조합니다. 버전 근거가
+누락된 Home은 Listener 파일 관측이 남고 버전·CPE가 비어 있는지 확인합니다.
+Tracker 옵션은 생성한 SBOM을 실제 파서에 넣고 테스트용 NVD 조건과 매칭해 Home별 발견과
+패치 적용의 미확인 상태가 보존되는지 확인합니다.
+AIX 증적은 테스트 자료를 사용하며 실제 IBM AIX의 수집 명령이나 운영 Tracker 데이터에
+대한 검증은 별도로 수행합니다.
+
+## 0.1.4 디렉터리 전용 실행 검증
+
+최종 패키지의 실행파일과 `scan-directory.sh`를 함께 검증합니다.
+
+```bash
+python3 tests/directory_integration.py --stage /path/to/final-stage
+```
+
+지정 디렉터리 안의 구성요소는 발견하고, 형제 디렉터리·범위 밖 링크의 구성요소는 표준 SBOM에서 제외하며 호스트 컨텍스트가 비활성인지 확인합니다. 공백 경로·두 표준 스키마·체크섬·잘못된 옵션의 부작용 없는 거부와 파일 수·시간 해제도 검사합니다. 실제 실행 결과와 최종 바이너리 해시는 동봉 검증 보고서를 기준으로 합니다.
+
+## 0.1.3 파일 수·시간 옵션 검증 절차
+
+`scan --max-files N`은 기본 1,000,000개이며 `0`은 수집 대상으로 채택하는 일반 파일 수 상한을 해제합니다. `--timeout D`는 기본 30분이며 `0` 또는 `0s`는 수집 시간 제한을 해제합니다. 옵션은 서로 독립적이고 두 제한을 모두 해제해도 Ctrl+C에 의한 취소를 처리해야 합니다. 음수와 잘못된 옵션, 작은 파일 상한 초과, `--max-files 0` 및 `--timeout 0` 실행을 회귀 시나리오로 확인합니다.
+
+```bash
+sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results --max-files 0 --timeout 0
+sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results --max-files 0 --timeout 0
+```
+
+위 두 명령은 수집기 단독과 선택 helper의 각각 다른 실행 예시입니다. helper는 부모 출력 경로 뒤의 수집 옵션을 전달하고 기존 클라이언트 상태 조회 자체의 30초/10초 제한은 유지해야 합니다. `/data/docker` 같은 경로를 `--exclude`하는 시험에서는 실제 대상 경로와 제외 결과를 확인합니다. 예시 경로를 회사 경로로 전제하지 않습니다.
+
+검사할 출력은 `collection.json`의 `limits.maxFiles`, `limits.timeoutSeconds`, `filesystemFileCount`와 `issues`의 `code=file_limit_exceeded`, `limit`, `observed`입니다. 파일 수는 소프트웨어 구성요소 수와 구분합니다. 상한 초과는 중간 결과를 완성 SBOM으로 표시하지 않아야 하며 일반 오류 메시지에 민감한 경로를 추가하지 않습니다.
+
+기존 읽기 범위, 무통신·추가 명령 비실행, symlink, 파일 하나당 2 GiB 및 이미지 압축 해제 경계의 회귀도 유지합니다. 최종 통과 여부는 동봉 `VERIFICATION.json`과 `dist/evidence/v0.1.4/final-verification.json`의 **동일 바이너리 SHA-256**으로 식별합니다. 아래 절차나 과거 0.1.2 결과만으로 새 빌드가 검증됐다고 주장하지 않습니다.
+
+## Ubuntu·라이브패치 검증
+
+Ubuntu 24.04.1/`6.8.0-47-generic` 실제 커널 검증 절차는
+[`tests/ubuntu-vm/README.md`](../tests/ubuntu-vm/README.md)에 있습니다.
+Ubuntu CD 서명키로 인증한 Base rootfs와 서명된 Ubuntu Snapshot 인덱스의 커널 DEB를 사용하며,
+원본 DEB를 unpack한 시험용 사용자 공간을 custom initramfs로 부팅합니다.
+독립 uname·proc release·실제 `dummy` 모듈 로드와 수집 결과를 비교하고,
+DEB 버전/source/PURL·설치 커널·모듈·두 SBOM 공식 스키마와 체크섬을 검사합니다.
+일반 systemd 설치·GRUB·물리 서버 또는 구독 라이브패치 적용 시험과 구분합니다.
+
+라이브패치 단위 테스트는 적용/비활성/전환, 변경 중 속성, 읽기 제한·권한·symlink,
+타 부팅/커널·오래된 보고서·Canonical의 Last-Check와 CheckState,
+실행하지 않는 커널의 항목, Ksplice 탐지 기능과 available 목록, 원문 비밀값 정제를 확인합니다.
+선택 실행 helper의 통합 시험은 **합성 클라이언트**를 Linux 컨테이너에서 실행합니다.
+
+```bash
+python3 tests/livepatch_integration.py --stage /path/to/extracted-release
+```
+
+기본 수집기 syscall 시험은 외부 명령/통신 시도를 추적합니다. 선택 helper가 실행하는
+서버의 기존 공급자 클라이언트나 그 daemon의 동작은 이 검증에 포함하지 않습니다.
+실제 구독이 활성화된 Oracle Ksplice/Canonical 클라이언트에 보안 패치를 적용하는 시험은 별도이며,
+합성 보고서 파싱 성공을 그 시험의 완료로 표현하지 않습니다.
+
+최종 포장은 `scripts/finalize-release.py`로 수행합니다. 동일 바이너리 SHA-256의
+Go·fixture·helper·syscall 시험 및 Ubuntu·Oracle RHCK·UEK VM 검증이 모두 통과해야 하며,
+실제 보고서와 한계를 압축 안의 `VERIFICATION.json`에 담습니다.
+압축 후 전체 파일을 다시 읽어 SHA-256을 대조합니다. 원본 VM 실행 로그와 반출 결과는
+`dist/evidence/v0.1.4/system-vms`에 보존합니다.
+
+구현 참고: [Linux sysfs ABI](https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/sysfs-kernel-livepatch),
+[Oracle 상태 조회](https://docs.oracle.com/en/operating-systems/oracle-linux/ksplice-user/ksplice-UsingthekspliceCommandtoManagetheKspliceEnhancedClient.html),
+[Canonical 상태 조회](https://ubuntu.com/security/livepatch/docs/client/how-to-guides/operations/check-client-status/).
+
+## 빌드 PC 검사
+
+```bash
+go test ./...
+go vet ./...
+python3 -m pip install "jsonschema>=4,<5"  # 외부 빌드 PC의 검증 환경에서만
+GO_BIN=/path/to/go ./scripts/build-release.sh
+python3 tests/check_binary.py /path/to/linux-amd64-koda-sbom
+python3 tests/integration.py --binary /path/to/linux-amd64-koda-sbom  # Linux x86_64 빌드 호스트에서만
+python3 tests/docker_integration.py --binary /path/to/linux-amd64-koda-sbom --pull
+python3 tests/oracle82.py --binary /path/to/linux-amd64-koda-sbom
+```
+
+macOS/ARM64 빌드 호스트에서는 직접 실행 검사 대신 `docker_integration.py`를 사용합니다. Oracle 이미지 준비는 `docker pull --platform linux/amd64 oraclelinux:8.2`로 빌드 호스트에서 수행합니다.
+
+검증용 Python·Docker·jsonschema는 빌드 PC에서만 사용합니다. 배포 실행 파일은 이 프로그램들에 의존하지 않습니다. 표준 스키마는 `tests/schemas`에 버전 고정해 두며 검증 시 외부 참조를 다운로드하지 않습니다.
+
+## 확인 항목
+
+- Linux ELF x86_64, 동적 interpreter/공유 라이브러리 의존 없음, GOAMD64 v1.
+- 읽기 전용 rootfs, `--network none`, `--cap-drop ALL`, 비루트 환경에서 fixture 수집.
+- trace 가능한 격리 컨테이너에서 실제 네트워크 syscall 시도와 추가 execve 유무 확인.
+- CycloneDX 1.6·SPDX 2.3 전체 스키마, 구성요소 이름/버전/PURL, SHA256SUMS 확인.
+- Java/PHP/Python/Node/DEB/APK fixture, 원본 메타데이터·위치 보존, 사용자 비밀 canary가 결과에 노출되지 않음.
+- Docker/OCI archive에 host kernel/프로세스 데이터 혼입 없음. 경로 탈출·symlink·압축 과다 입력 거부.
+- root/nonroot·권한 부족·시간 초과·손상·중복 설치·서버 메타데이터 충돌.
+
+## Oracle Linux 8.2 검증 수준
+
+Oracle Linux 8.2 container image는 OS release/RPM DB 데이터와 사용자 공간 실행 호환성을 검증하는 데 사용합니다. **Docker는 호스트 커널을 공유하므로 RHCK 4.18·UEK 5.4에서의 실제 실행 증거가 아닙니다.** 실제 Oracle 게스트 커널 실행은 별도의 QEMU 시스템 VM으로 확인합니다.
+
+검증용 VM에는 공식 Oracle Linux 8.2 사용자 공간과 다음 x86_64 GA 커널을 함께 배치하고, 각 커널 이미지로 따로 부팅합니다.
+
+| 커널 | 정확한 실행 버전 | 설치 자료 |
+|---|---|---|
+| RHCK | `4.18.0-193.el8.x86_64` | 같은 버전의 `kernel-core`, `kernel-modules`, `kernel` RPM |
+| UEK R6 | `5.4.17-2011.1.2.el8uek.x86_64` | `kernel-uek` RPM |
+
+RPM URL·SHA-256·크기와 Oracle 서명키 지문은 `tests/oracle-vm/kernels.json`에 고정했습니다. 준비 스크립트는 SHA-256과 키 지문을 대조하고 격리된 RPM DB에서 패키지 서명을 확인합니다. 검증할 두 커널 RPM은 그 시험 파일시스템에만 `--noscripts --notriggers`로 설치하며 기존 KODA·Tracker DB나 호스트 커널을 변경하지 않습니다.
+
+현재 runner는 macOS ARM64 빌드 호스트의 Linux ARM64 Docker 안에서 `qemu-system-x86_64 -accel tcg,thread=single`을 실행합니다. 게스트 메모리는 4 GiB, 가상 CPU는 2개이며 가상 디스크·네트워크 인터페이스를 제공하지 않습니다. QEMU 컨테이너도 network none·읽기 전용 rootfs·capability 제거 상태입니다. 사용자 공간은 Oracle Linux 8.2지만 PID 1은 검증 전용 정적 Go 프로그램입니다. 실제 커널의 uname·proc release·로드 모듈 baseline을 수집 결과와 독립적으로 기록합니다.
+
+### VM 재현
+
+아래 도구와 다운로드는 외부 빌드 PC에서만 필요합니다. Python 3·Go·Docker·jsonschema를 준비하고 Docker에 최소 6 GiB 메모리 여유를 둡니다. `/path/to/koda-sbom`에는 검증할 **최종 배포 파일에서 추출한 바이너리**를 지정합니다.
+
+```bash
+docker pull --platform linux/amd64 oraclelinux:8.2
+docker build --platform linux/arm64 -t local/koda-sbom-oracle-vm:20261029 \
+  -f tests/oracle-vm/Dockerfile .
+
+python3 tests/oracle-vm/prepare.py --work-dir /tmp/koda-oracle-vm-check \
+  --binary /path/to/koda-sbom --go /path/to/go1.26.11/bin/go
+python3 tests/oracle-vm/run.py --work-dir /tmp/koda-oracle-vm-check --flavor both --timeout 1200
+
+# run.py가 출력한 각 실행 디렉터리를 사용합니다. 두 명령은 각각 따로 실행합니다.
+python3 tests/oracle-vm/validate.py /tmp/koda-oracle-vm-check/runs/rhck-<ID>/results \
+  --expected-kernel 4.18.0-193.el8.x86_64 --binary /path/to/koda-sbom \
+  --report /tmp/koda-oracle-vm-check/runs/rhck-<ID>/validation.json
+python3 tests/oracle-vm/validate.py /tmp/koda-oracle-vm-check/runs/uek-<ID>/results \
+  --expected-kernel 5.4.17-2011.1.2.el8uek.x86_64 --binary /path/to/koda-sbom \
+  --report /tmp/koda-oracle-vm-check/runs/uek-<ID>/validation.json
+```
+
+`input-provenance.json`, `rpm-signature-install.log`, QEMU `command.json`·`serial.log`, `boot-report.json`, baseline·검증 결과와 두 SBOM을 보존합니다. 같은 작업 디렉터리에서 바이너리만 바꿔 `prepare.py`를 다시 실행하면 입력 initramfs를 새 바이너리로 다시 만듭니다. 새 release의 검증은 이전 실행 파일의 결과와 SHA-256을 혼용하지 않아야 합니다. 공개 태그는 바뀔 수 있으므로 실제 사용한 Oracle·QEMU 이미지 ID도 provenance로 식별합니다.
+
+이 VM 검증은 실제 RHCK·UEK 게스트 커널에서의 실행, 설치된 두 커널과 현재 실행 중인 커널의 구분, 실제 `loop` 모듈 로드와 관측, RPM 원래 릴리스·source RPM 보존을 검사합니다. GRUB 부트로더 설치, UEFI/Secure Boot, systemd 서비스 부팅, SELinux enforcing 정책 및 물리 장비의 드라이버·디스크·성능은 별도 검증 범위입니다. VM 수집 종료 `3`은 오류를 감춘 성공 코드가 아니라 출력에 사유가 남은 **부분 수집**입니다. VM 자체의 부팅·기능 검증 통과와 모든 파일의 완전 수집을 구분합니다.
+
+실제 서버에서는 아래 명령으로 권한·SELinux·noexec·파일시스템 조건을 추가 검증합니다.
+
+```bash
+./koda-sbom doctor
+sudo ./koda-sbom scan --output-dir ./oracle82-verification
+```
+
+실제 서버에서 실행 중 커널과 설치된 다른 커널이 구분되는지 확인하고 실행 조건을 함께 기록합니다. 커널 3.2 이상은 Go 실행 최소 조건이며 모든 해당 커널/제품 조합을 검증했다는 의미가 아닙니다.
+
+## Tracker 연계 검증
+
+기존 운영 Tracker DB를 쓰지 않고 임시 격리 DB에서 두 표준 파일을 각각 업로드합니다. 구성요소·버전·PURL·관계 보존을 비교합니다. `context.json`, 패치 근거, 배포판 필드의 후속 자동 활용 여부는 별도로 확인하며, 표준 업로드 성공을 해당 기능의 완료로 해석하지 않습니다.
+
+## 메모리·시간
+
+시간 제한은 `--timeout`(기본 30분, `0`/`0s`는 무제한), 파일 수 상한은 `--max-files`(기본 1,000,000, `0`은 무제한)로 제어합니다. Ctrl+C 취소와 각 제한의 실패 상태도 검증합니다. 실제 파일 수·archive 크기·권한·CPU·메모리에 따라 달라지므로 실행 파일 크기, wall time, peak RSS를 실제 테스트 결과에 기록합니다. 수집 병렬도 2는 hard memory cap이 아니며 제한 해제도 자원 사용 상한을 보장하지 않습니다. 운영 서버의 자원 한도는 관리자의 실행 환경 정책과 함께 적용해야 합니다.
+
+## syscall 추적용 격리 이미지
+
+```bash
+docker build --platform linux/amd64 -t local/koda-sbom-trace:20261029 -f tests/Dockerfile.trace .
+bash tests/trace-network.sh /path/to/koda-sbom /path/to/fixture /path/to/qa-results
+```
+
+이 디버그 이미지는 빌드 PC 검증에만 사용하며 대상 서버 배포물에 포함하지 않습니다. amd64 에뮬레이션에서 ptrace가 지원되지 않으면 시도 0회라고 주장하지 않고, 네이티브 x86_64 Linux에서 별도 추적해야 합니다.
+
+ARM64 빌드 PC에서 ptrace 레지스터 해석이 깨지는 경우 `trace-network.sh`는 exit 77로 미지원 상태를 반환합니다. 다음 대안은 동일한 amd64 실행 파일의 **QEMU guest syscall**을 기록하며 실제 x86_64 커널에서의 ptrace 검증과 구분합니다.
+
+```bash
+docker build --platform linux/arm64 -t local/koda-sbom-qemu-trace:20261029 -f tests/Dockerfile.qemu-trace .
+bash tests/trace-qemu.sh /path/to/koda-sbom /path/to/fixture /path/to/qa-results
+# 기본 호스트 수집과 새 livepatch sysfs 읽기도 추적
+bash tests/trace-qemu.sh /path/to/koda-sbom /path/to/fixture /path/to/qa-live-host live-host
+```

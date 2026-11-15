@@ -1,0 +1,355 @@
+폐쇄망 실행 및 결과 확인 안내
+KODA SBOM Linux 0.1.5
+안내 보완일: 2026-11-02 (한국 표준시)
+
+이 안내는 폐쇄망 서버에 최종 배포 파일을 반입하고, Ksplice·Livepatch 상태와
+SBOM을 수집한 뒤 결과를 확인하는 순서를 설명합니다.
+특정 디렉터리 하위만 수집하려면 5-1을, 서버 전체와 라이브패치를 수집하려면 5-2를 선택합니다.
+프로그램은 Linux x86_64용이며 커널 3.2 이상이 필요합니다.
+Python, Go, Docker, jq를 새로 설치할 필요는 없습니다.
+
+1. Ksplice와 Livepatch의 의미
+
+커널은 메모리, 프로세스, 파일과 네트워크를 관리하는 Linux의 핵심 부분입니다.
+일반적인 커널 업데이트는 새 커널 패키지를 설치한 뒤 재부팅하여 적용합니다.
+라이브패치는 실행 중인 커널의 일부 보안 문제를 재부팅 없이 수정하는 기술입니다.
+
+  Ksplice             Oracle의 라이브패치 기술
+  Uptrack             Oracle Ksplice 관련 클라이언트와 명령 체계 중 하나
+  Canonical Livepatch Ubuntu의 커널 라이브패치 서비스
+
+Ksplice는 패치를 적용해도 uname -r의 버전이 그대로일 수 있습니다.
+따라서 커널 버전과 실제 패치 상태를 따로 확인해야 합니다.
+라이브패치는 모든 커널 업데이트와 재부팅을 대신하지 않습니다.
+
+이 도구는 이미 존재하는 패치 상태를 확인하고 SBOM을 작성합니다.
+Ksplice·Livepatch 클라이언트 설치, 활성화, 새 패치 적용은 수행하지 않습니다.
+조회할 클라이언트 명령을 찾지 못하면 그 사실을 기록하고 SBOM 수집을 계속합니다.
+Ubuntu에서는 canonical-livepatch, Oracle에서는 ksplice 또는 uptrack 항목을
+중심으로 확인합니다. 다른 공급자의 항목이 미관측이어도 그것만으로 오류는 아닙니다.
+
+2. 폐쇄망에 반입할 파일
+
+아래 두 파일을 같은 서버 로컬 작업 폴더에 둡니다.
+
+  koda-sbom-linux-amd64-0.1.5-<배포일시>-<소스식별자>-verified.tar.gz
+  koda-sbom-linux-amd64-0.1.5-<배포일시>-<소스식별자>-verified.tar.gz.sha256
+
+<배포일시>와 <소스식별자>는 실제 받은 파일명에 들어 있는 값을 사용합니다.
+0.1.2 등 다른 배포본의 압축파일과 체크섬을 혼용하지 않고 같은 묶음을 반입합니다.
+USB가 noexec로 마운트되어 있으면 실행 가능한 서버 로컬 작업 폴더로 복사합니다.
+이하 명령은 반입한 두 파일이 있는 폴더에서 시작합니다.
+root로 로그인했다면 아래 명령의 sudo를 생략할 수 있습니다.
+
+3. 체크섬 확인과 압축 해제
+
+아래 명령은 현재 폴더에서 0.1.5 최종 압축파일 한 개를 찾습니다.
+일치하는 파일이 없거나 여러 개면 파일을 확인한 뒤 다시 실행합니다.
+pkg 변수는 압축파일과 내부 폴더의 공통 이름입니다.
+
+  set -- koda-sbom-linux-amd64-0.1.5-*-verified.tar.gz
+  if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+    echo "0.1.5 최종 압축파일 한 개가 있는 폴더에서 실행하세요."
+  else
+    pkg=${1%.tar.gz}
+    sha256sum -c "${pkg}.tar.gz.sha256" &&
+    tar -xzf "${pkg}.tar.gz" &&
+    cd "$pkg" &&
+    sha256sum -c SHA256SUMS
+  fi
+
+압축파일과 내부 파일들이 모두 OK로 표시되어야 합니다.
+FAILED가 표시되면 다음 단계로 진행하지 말고 반입 파일을 확인합니다.
+체크섬은 전달 중 변경을 확인하며 제작자 서명을 대신하지 않습니다.
+
+4. 서버 환경 확인
+
+  uname -m
+  uname -r
+  ./koda-sbom doctor
+
+확인할 항목:
+  CPU                         x86_64
+  Ubuntu 회사 서버의 기존 커널 6.8.0-47-generic
+  Oracle 회사 서버의 기존 커널 5.4.17-2011.1.2.el8uek.x86_64
+  doctor 결과                 "supported": true
+
+서버를 업데이트했다면 현재 커널은 위 버전과 달라질 수 있습니다.
+supported=true는 실행 조건을 통과했다는 뜻이며 안전·패치 완료 판정은 아닙니다.
+doctor의 커널 버전 필드는 kernel이며, 수집 후 context.json의 필드는 runningKernel입니다.
+Ubuntu에서 kernelFlavor가 unknown/unconfirmed여도 해당 커널 버전 필드가
+기록되어 있다면 그것만으로 커널 버전 수집 실패를 뜻하지 않습니다.
+
+실행 권한 오류가 있으면 다음을 확인합니다.
+
+  chmod u+x koda-sbom scan-directory.sh collect-livepatch-status.sh
+
+noexec 마운트에서는 chmod만으로 해결되지 않으므로 실행 가능한 경로를 사용합니다.
+
+5. 수집 범위 선택
+
+5-1. 특정 디렉터리와 그 하위만 수집
+
+아래 /opt/application을 실제 수집할 디렉터리로 바꿉니다.
+
+  sudo ./scan-directory.sh /opt/application /var/tmp/koda-sbom-results \
+    --max-files 0 --timeout 0
+  rc=$?
+  echo "종료 코드: $rc"
+
+공백이 있는 경로 예시:
+
+  sudo ./scan-directory.sh "/data/My Application" "/var/tmp/application results" \
+    --max-files 0 --timeout 0
+
+첫 번째 인수는 수집할 디렉터리이며 두 번째는 결과 부모 폴더입니다.
+두 번째를 생략하면 현재 폴더의 sbom-output을 사용합니다.
+표준 출력의 마지막 줄이 이번 결과 하위 폴더입니다. 결과 확인 방법은 6번부터 같습니다.
+기본 파일 수·시간 제한을 사용하려면 --max-files 0 --timeout 0을 생략합니다.
+
+특정 하위 폴더를 제외하려면 --exclude-dir을 반복해서 지정합니다.
+상대 경로는 수집 대상 폴더 기준입니다.
+
+  sudo ./scan-directory.sh /opt/application /var/tmp/koda-sbom-results \
+    --exclude-dir logs --exclude-dir '/opt/application/archive [old]'
+
+collection.json의 excludedDirectories에 적용된 경로가 기록됩니다.
+패턴으로 제외하려면 --exclude '**/*.bak'처럼 지정합니다.
+자세한 경로 조건은 README의 디렉터리 수집 안내를 참고하세요.
+
+이 스크립트는 --target <디렉터리> --no-context를 적용하므로 서버 전체의
+RPM/DEB·실행 커널·프로세스·Ksplice/Livepatch 상태를 수집하지 않습니다.
+지정한 디렉터리 밖의 런타임·라이브러리와 밖으로 향하는 심볼릭 링크는
+수집하지 않습니다. 예를 들어 앱이 쓰는 Java가 /usr/java에 있고 수집 대상이
+/opt/application이면 Java 설치 정보는 이 결과에 포함되지 않을 수 있습니다.
+디렉터리 전용 스크립트는 / 전체를 거부합니다.
+
+5-2. 서버 전체의 라이브패치 상태와 SBOM을 한 번에 수집
+
+압축을 푼 폴더에서 다음을 실행합니다.
+
+  sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results
+  rc=$?
+  echo "종료 코드: $rc"
+
+rc=$?는 스크립트가 끝난 직후 실행해야 합니다.
+스크립트 안에서 scan도 실행하므로 별도의 scan을 다시 실행할 필요는 없습니다.
+
+0.1.5의 기본 제한은 사전 순회에서 채택하는 일반 파일 1,000,000개와 수집 시간
+30분입니다. 큰 서버에서 두 제한을 해제하려면 위 기본 실행 대신 아래 하나를 실행합니다.
+
+  sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results \
+    --max-files 0 --timeout 0
+  rc=$?
+  echo "종료 코드: $rc"
+
+라이브패치 클라이언트 상세 조회 없이 기본 SBOM·커널 직접 관측만 수집할 때의 예시:
+
+  sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results \
+    --max-files 0 --timeout 0
+  rc=$?
+  echo "종료 코드: $rc"
+
+두 예시는 선택지이므로 같은 목적의 실행을 모두 반복할 필요는 없습니다.
+--max-files N은 파일 수 상한이며 0은 무제한입니다. --timeout D는 10m, 2h 같은
+시간이며 0 또는 0s는 시간 제한 해제입니다. Ctrl+C로 수집을 중단할 수 있습니다.
+helper는 결과 부모 폴더 뒤의 수집 옵션을 scan에 전달합니다. 이 옵션으로 SBOM의
+시간 제한을 풀어도 helper의 각 클라이언트 상태 조회 제한(30초, 실효 커널 10초)은
+그대로 유지됩니다.
+
+파일이 많은 경로를 의도적으로 제외할 때는 실제 경로를 확인한 뒤 지정합니다.
+아래 /data/docker는 예시입니다. 회사 서버에서 제외할 실제 경로로 바꿉니다.
+
+  sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results \
+    --max-files 0 --timeout 0 --exclude /data/docker
+
+제외한 경로의 구성요소는 결과에 포함되지 않습니다. 파일 수·시간 제한을 해제해도
+권한·네트워크/가상 파일시스템 경계, symlink 처리, 파일 하나당 2 GiB 상한과
+이미지 압축 해제 제한 등 다른 수집 경계는 유지됩니다. 무제한은 실행 시간이나
+메모리·디스크 사용량의 상한을 보장하지 않으며 모든 파일의 완전 수집을 뜻하지 않습니다.
+
+기존 클라이언트가 있으면 다음 상태 조회를 사용합니다.
+  canonical-livepatch status --verbose --format json
+  ksplice kernel show
+  uptrack-show
+  uptrack-uname -r
+
+조회 시도는 시간과 출력 크기를 제한합니다. 클라이언트가 없거나 조회 실패,
+시간 초과 또는 지원하지 않는 보고서 형식이면 사유를 정제된 증거에 기록합니다.
+원문 임시 파일은 삭제하며 정제된 증거만 결과 폴더 옆에 남깁니다.
+기본 수집기는 외부 명령을 실행하지 않습니다. 선택 실행 스크립트가 호출하는
+기존 공급자 클라이언트·daemon의 통신 동작은 별개입니다.
+
+종료 코드:
+  0  수집 완료
+  3  부분 수집. 결과가 생성되며 누락·제한 사유 확인 필요
+  2  실패. 오류 메시지 확인 필요
+
+다른 비정상 종료 코드도 권한이나 스크립트 실행 오류를 확인합니다.
+기존 결과는 덮어쓰지 않고 실행마다 새 하위 폴더를 생성합니다.
+
+5-3. 실제 배포 WAR·EAR과 공급사 SBOM을 대조하는 경우
+
+reconcile 명령을 지원하는 수집기에서 실행합니다. 공급사에게 실제 WAR·EAR 파일의
+SHA-256을 최상위 구성요소(CycloneDX) 또는 문서가 설명하는 배포 패키지(SPDX)에
+기록한 JSON SBOM을 받습니다.
+
+  ./koda-sbom reconcile --artifact /opt/application/app.war \
+    --supplier-sbom /var/tmp/supplier.cdx.json --output-dir /var/tmp/koda-sbom-results
+
+수집기는 SHA-256이 일치한 배포 파일에서만 구성요소를 수집합니다. Tracker에는
+sbom.cdx.json 또는 sbom.spdx.json을 제출하고, reconcile.json은 차이 검토에 사용합니다.
+종료 코드 3이 나오면 collection.json의 부분 수집 사유와 reconcile.json의 식별 보류
+항목을 확인합니다. 해시 누락·불일치나 실행 실패의 종료 코드는 2입니다.
+
+5-4. 여러 디렉터리를 하나의 SBOM으로 수집
+
+  ./koda-sbom scan --target /opt/application --target /opt/runtime \
+    --exclude-dir /opt/application/cache --exclude-dir /opt/runtime/logs \
+    --output-dir /var/tmp/koda-sbom-results
+
+서로 겹치지 않는 디렉터리를 --target으로 각각 지정합니다. --exclude-dir는
+제외할 하위 디렉터리의 절대 경로입니다. --exclude 패턴은 모든 대상에 공통 적용합니다.
+파일 수와 시간 제한은 전체 실행에 적용합니다. collection.json의 targets에서 대상별
+수집 상태와 제외 경로를 확인합니다. SBOM의 target-1, target-2는 입력한 순서입니다.
+
+6. 실제 결과 폴더 찾기와 무결성 확인
+
+이하 결과 확인은 종료 코드 0 또는 3인 실행을 기준으로 합니다. 2나 비정상 종료에서는
+폴더가 생성되어 있어도 완성된 SBOM 결과로 보지 않습니다.
+
+5-1의 디렉터리 스크립트는 결과 경로를 표시합니다.
+5-2의 라이브패치 스크립트 stdout에는 doctor JSON, 정제 증거 JSON 경로 세 개, 마지막으로
+실제 SBOM 결과 폴더가 표시됩니다. 전체 stdout을 result 변수로 잡지 않습니다.
+마지막에 표시된 koda-sbom-... 폴더 경로를 사용합니다.
+
+다음은 경로 형식 예시이며 회사 서버에서 실행한 실제 결과가 아닙니다.
+  /var/tmp/koda-sbom-results/koda-sbom-20261030T010000Z-123456789
+
+아래 result 값을 화면에 표시된 실제 경로로 바꿉니다.
+
+  result='/var/tmp/koda-sbom-results/화면에_표시된_koda-sbom-실행폴더'
+
+  sudo ls -lh "$result"
+  sudo sh -c 'cd "$1" && sha256sum -c SHA256SUMS' sh "$result"
+
+결과 폴더와 파일은 root 권한으로 생성되므로 확인에도 sudo가 필요할 수 있습니다.
+모든 결과 파일의 체크섬이 OK인지 확인합니다.
+
+주요 결과 파일:
+  collection.json     전체 수집 상태, 구성요소 수, 누락·오류와 식별 근거
+  context.json        실제 실행 커널, 로드 모듈, 라이브패치 상태와 확인 한계
+  sbom.cdx.json       CycloneDX 1.6 형식 SBOM
+  sbom.spdx.json      SPDX 2.3 형식 SBOM
+  inventory.syft.json 패키지 상세 버전, source package, 설치 근거
+  SHA256SUMS          결과 파일 체크섬
+
+7. 수집 상태와 라이브패치 결과 읽기
+
+  sudo cat "$result/collection.json"
+  sudo cat "$result/context.json"
+
+collection.json에서 확인할 값:
+  status                  completed, partial 또는 failed 등의 수집 상태
+  packageCount            식별한 구성요소 수
+  packageTypes            종류별 구성요소 수
+  limits.maxFiles         이번 실행의 파일 수 상한. 0이면 무제한
+  limits.timeoutSeconds   이번 실행의 시간 제한(초). 0이면 무제한
+  filesystemFileCount     사전 순회에서 수집 대상으로 채택한 일반 파일 수
+  issues                  누락, 오류와 확인 제한
+
+filesystemFileCount는 소프트웨어 구성요소 수인 packageCount와 다릅니다.
+파일 수 상한 초과는 issues의 code=file_limit_exceeded, limit, observed로 확인합니다.
+일반 오류 메시지에 민감한 경로 원문이 없더라도 code와 수치를 먼저 확인합니다.
+실패한 실행은 완성 SBOM으로 사용하지 않고, 옵션이나 제외 범위를 검토한 뒤 다시 수집합니다.
+
+partial이면 issues의 경로와 사유를 확인합니다. 부분 수집 결과를 전체 수집
+성공이나 취약점 없음으로 해석하지 않습니다. 건수는 서버에 따라 다릅니다.
+
+context.json에서 확인할 값:
+  runningKernel 현재 실제 실행 중인 커널
+  livepatch     소스·공급자별 관측 결과와 패치 상태
+  livepatch[].limitations 각 라이브패치 소스의 확인 한계
+
+라이브패치 상태 해석:
+  공급자 status=observed
+    해당 자료를 관측하거나 수입했다는 뜻입니다. 패치 적용 여부는 별도로 봅니다.
+  패치 state=applied
+    커널 sysfs에서 적용 상태를 직접 관측했습니다.
+  패치 state=reported-applied
+    클라이언트가 적용됐다고 보고했습니다. 독립적인 CVE 조치 완료 증명은 아닙니다.
+  패치 state=disabled
+    비활성 상태입니다.
+  패치 state=transitioning
+    적용·해제 전환 중입니다.
+  패치 state=not-reported-patched
+    해당 보고서에 라이브패치 적용 근거가 없습니다. 일반 커널 패키지에 수정이
+    포함됐는지는 별도로 판단해야 합니다.
+  공급자 status=stale
+    우리 도구의 시점 검사에서 오래된 보고서 등으로 분류했습니다.
+  공급자 status=identity_mismatch
+    다른 커널이나 부팅에서 만들어진 보고서입니다.
+  status 또는 state=unknown
+    현재 적용 상태를 확정할 수 없습니다.
+  status=not_observed 또는 빈 patches
+    해당 소스에서 관측하지 못했습니다. 미설치·미패치·안전 판정이 아닙니다.
+
+항상 현재 status와 patches[].state를 함께 확인합니다.
+reportedState=applied는 이전 보고 상태로 남을 수 있습니다. 현재 상태가
+stale/unknown이면 reportedState만 보고 현재 적용 확인으로 해석하지 않습니다.
+
+보고서는 캡처 시각, 실행 커널과 부팅 ID 해시를 연결해 검사합니다.
+24시간을 넘은 캡처, 다른 커널·부팅, 허용 범위를 넘는 미래 시각은 현재 적용
+근거로 사용하지 않습니다. Canonical의 Last-Check와 CheckState도 검사합니다.
+폐쇄망에서 마지막 서버 확인 시각이 오래되면 stale/unknown으로 표시될 수 있지만,
+이미 메모리에 적용된 패치가 사라졌다는 뜻은 아닙니다. 커널 직접 관측과 함께 봅니다.
+
+SBOM에는 설치된 과거 커널도 들어갈 수 있습니다. 현재 실행 중인 커널은
+context.json의 runningKernel을 기준으로 확인합니다.
+
+jq가 이미 설치되어 있다면 다음으로 필요한 항목만 볼 수 있습니다.
+jq가 없으면 설치하지 않고 위 cat 명령으로 확인하면 됩니다.
+
+  sudo jq '{status,packageCount,packageTypes,limits,filesystemFileCount,issues}' "$result/collection.json"
+  sudo jq '{runningKernel,kernelFlavor,livepatch}' "$result/context.json"
+  sudo jq '.components[:20] | map({name,version,purl})' "$result/sbom.cdx.json"
+
+마지막 명령은 SBOM 구성요소 중 앞의 20개를 보여줍니다.
+
+8. 결과와 증거 함께 보관
+
+/var/tmp/koda-sbom-results 아래에는 SBOM 결과 폴더와 livepatch-evidence.*
+폴더가 함께 생깁니다. 부모 폴더 전체를 보관하면 둘 다 포함됩니다.
+
+  archive="/var/tmp/koda-sbom-results-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+
+  sudo tar -C /var/tmp -czf "$archive" koda-sbom-results
+  sudo sha256sum "$archive"
+
+9. 검증 범위와 후속 분석
+
+0.1.2에서는 Ubuntu 24.04.1의 6.8.0-47-generic, Oracle Linux 8.2의
+RHCK 4.18.0-193.el8.x86_64 및 UEK 5.4.17-2011.1.2.el8uek.x86_64를
+실제로 부팅한 QEMU 시스템 VM 검증 이력이 있습니다. 이 이전 결과만으로
+새 0.1.5 바이너리 검증이 통과했다고 판단하지 않습니다.
+0.1.5의 최종 바이너리 해시·실제 시험 결과·한계는 동봉 VERIFICATION.json과
+빌드 PC의 dist의 압축파일과 함께 제공한 .verification.json으로 식별합니다.
+디렉터리 전용 실행은 지정 경로 밖의 구성요소가 포함되지 않는지도 별도로 검증합니다.
+회사 물리 서버, 일반 systemd 전체 부팅, 실제 구독 계정의 Ksplice·Livepatch
+패치 설치·활성화 여부는 검증 보고서에 기록된 범위만 인정합니다.
+
+Tracker에 올릴 파일은 sbom.cdx.json 또는 sbom.spdx.json입니다.
+collection.json, context.json, inventory.syft.json은 표준 SBOM 업로드 파일이 아닙니다.
+업로드 서버의 CycloneDX 검증 시간 제한은 이 수집기의 --timeout과 별개입니다.
+업로드 검증에서 30초 시간 초과가 나면 Tracker API 버전·설정을 확인합니다.
+
+생성된 SBOM과 라이브패치 기록은 후속 분석 자료입니다.
+이 도구 자체는 특정 CVE의 취약 여부나 조치 완료를 자동 판정하지 않습니다.
+
+공식 참고 자료 (폐쇄망 실행에 인터넷 접속은 필요하지 않음):
+  Oracle Ksplice FAQ
+  https://ksplice.oracle.com/help/faq
+  Ubuntu Livepatch 지원 범위
+  https://ubuntu.com/security/livepatch/docs/client/explanation/architecture/what-kind-of-updates-are-not-provided-by-livepatch/
+  Ubuntu Livepatch 상태 조회
+  https://ubuntu.com/security/livepatch/docs/client/how-to-guides/operations/check-client-status/
