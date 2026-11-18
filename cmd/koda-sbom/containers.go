@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	"koda.local/security-sbom-linux/internal/certs"
 	"koda.local/security-sbom-linux/internal/collect"
 	"koda.local/security-sbom-linux/internal/containers"
 	"koda.local/security-sbom-linux/internal/hostcontext"
@@ -33,18 +34,19 @@ type containerSummary struct {
 }
 
 type containerCollection struct {
-	Schema              string               `json:"schema"`
-	Status              string               `json:"status"`
-	Container           containers.Container `json:"container"`
-	Host                *model.HostIdentity  `json:"host,omitempty"`
-	Tool                toolInfo             `json:"tool"`
-	StartedAt           string               `json:"startedAt"`
-	FinishedAt          string               `json:"finishedAt"`
-	PackageCount        int                  `json:"packageCount"`
-	FilesystemFileCount int64                `json:"filesystemFileCount"`
-	ListeningSockets    []executableSockets  `json:"listeningSockets,omitempty"`
-	Issues              []model.Issue        `json:"issues"`
-	Limitations         []string             `json:"limitations"`
+	Schema              string                   `json:"schema"`
+	Status              string                   `json:"status"`
+	Container           containers.Container     `json:"container"`
+	Host                *model.HostIdentity      `json:"host,omitempty"`
+	Tool                toolInfo                 `json:"tool"`
+	StartedAt           string                   `json:"startedAt"`
+	FinishedAt          string                   `json:"finishedAt"`
+	PackageCount        int                      `json:"packageCount"`
+	FilesystemFileCount int64                    `json:"filesystemFileCount"`
+	ListeningSockets    []executableSockets      `json:"listeningSockets,omitempty"`
+	Integrity           *collect.IntegrityResult `json:"integrity,omitempty"`
+	Issues              []model.Issue            `json:"issues"`
+	Limitations         []string                 `json:"limitations"`
 }
 
 // executableSockets lists the sockets one container executable holds; the
@@ -138,7 +140,8 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	}
 	productList, productIssues := products.Collect(ctx, plan.Root, plan.Paths)
 	javascript, javascriptIssues := staticjs.Collect(ctx, plan.Root, plan.Paths)
-	report.Issues = append(append(report.Issues, productIssues...), javascriptIssues...)
+	certificates, certificateIssues := certs.Collect(ctx, plan.Root, plan.Paths)
+	report.Issues = append(append(append(report.Issues, productIssues...), javascriptIssues...), certificateIssues...)
 	inventory, auditIssue, err := catalogScanTarget(ctx, plan)
 	if err != nil {
 		finish(err)
@@ -147,10 +150,16 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	if auditIssue != nil {
 		report.Issues = append(report.Issues, *auditIssue)
 	}
+	// ponytail: fixed per-container budget; share one budget across containers if fleets get large.
+	integrity := collect.VerifyPackageFiles(ctx, inventory, plan, collect.DefaultIntegrityBudget/8)
 	report.Issues = append(report.Issues, collect.DeployedCollectionIssues(inventory, plan.Root)...)
 	collect.AddProducts(inventory, productList)
 	collect.AddStaticJavaScript(inventory, javascript)
 	collect.Scrub(inventory)
+	if integrity.Status != "not_applicable" {
+		integrity.ResolvePURLs(inventory)
+		report.Integrity = &integrity
+	}
 	report.PackageCount = inventory.Artifacts.Packages.PackageCount()
 	// Read the container's own network namespace through its processes.
 	byExecutable, socketIssues := hostcontext.NamespaceSockets(ctx, s.PIDs)
@@ -165,9 +174,9 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 		return
 	}
 	coverage := collect.NewCollectionCoverage(report.Status, "container-filesystem", report.PackageCount, 0, 0, report.Issues)
-	err = collect.WriteSBOMsWithAssets(ctx, out, options.format, inventory, report.Status == "partial", &coverage, nil, options.cyclonedx17)
+	err = collect.WriteSBOMsWithAssets(ctx, out, options.format, inventory, report.Status == "partial", &coverage, certificates, options.cyclonedx17)
 	if err == nil {
-		err = collect.AnnotateSBOMs(out, append(collect.HostProperties(options.host), containerProperties(s.Container)...), exposure)
+		err = collect.AnnotateSBOMs(out, append(collect.HostProperties(options.host), containerProperties(s.Container)...), collect.MergeProperties(exposure.Properties(), integrity.Properties()))
 	}
 	if err != nil {
 		for _, name := range []string{"inventory.syft.json", "sbom.cdx.json", "sbom.spdx.json", collect.CycloneDX17Filename} {

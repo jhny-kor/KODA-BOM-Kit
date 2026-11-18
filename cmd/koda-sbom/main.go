@@ -19,6 +19,7 @@ import (
 	"github.com/anchore/syft/syft/artifact"
 	"github.com/anchore/syft/syft/sbom"
 	"koda.local/security-sbom-linux/internal/aixevidence"
+	"koda.local/security-sbom-linux/internal/certs"
 	"koda.local/security-sbom-linux/internal/collect"
 	"koda.local/security-sbom-linux/internal/hardware"
 	"koda.local/security-sbom-linux/internal/hostcontext"
@@ -55,34 +56,35 @@ type collectorResult struct {
 	PackageCount int    `json:"packageCount"`
 }
 type summary struct {
-	Schema                             string                 `json:"schema"`
-	Status                             string                 `json:"status"`
-	Source                             sourceInfo             `json:"source"`
-	Tool                               toolInfo               `json:"tool"`
-	StartedAt                          string                 `json:"startedAt"`
-	FinishedAt                         string                 `json:"finishedAt"`
-	PackageCount                       int                    `json:"packageCount"`
-	AssetCount                         int                    `json:"assetCount,omitempty"`
-	Host                               *model.HostIdentity    `json:"host,omitempty"`
-	ImageIdentity                      *imagearchive.Identity `json:"imageIdentity,omitempty"`
-	PackageTypes                       map[string]int         `json:"packageTypes"`
-	Distribution                       any                    `json:"distribution,omitempty"`
-	Products                           []model.Product        `json:"products"`
-	Catalogers                         []string               `json:"catalogers"`
-	Collectors                         []collectorResult      `json:"collectorResults"`
-	ExcludedPaths                      []string               `json:"excludedPaths"`
-	ExcludedDirectories                []string               `json:"excludedDirectories,omitempty"`
-	Issues                             []model.Issue          `json:"issues"`
-	Limitations                        []string               `json:"limitations"`
-	ElapsedSeconds                     float64                `json:"elapsedSeconds"`
-	PhaseSeconds                       map[string]float64     `json:"phaseSeconds,omitempty"`
-	Limits                             scanLimits             `json:"limits"`
-	FilesystemFileCount                int64                  `json:"filesystemFileCount"`
-	AIXEvidence                        *aixevidence.Inventory `json:"aixEvidence,omitempty"`
-	Targets                            []targetSummary        `json:"targets,omitempty"`
-	JavaScriptFingerprintCatalogSHA256 string                 `json:"javascriptFingerprintCatalogSha256,omitempty"`
-	JavaScriptFingerprints             []staticjs.Fingerprint `json:"javascriptFingerprints,omitempty"`
-	Containers                         []containerSummary     `json:"containers,omitempty"`
+	Schema                             string                   `json:"schema"`
+	Status                             string                   `json:"status"`
+	Source                             sourceInfo               `json:"source"`
+	Tool                               toolInfo                 `json:"tool"`
+	StartedAt                          string                   `json:"startedAt"`
+	FinishedAt                         string                   `json:"finishedAt"`
+	PackageCount                       int                      `json:"packageCount"`
+	AssetCount                         int                      `json:"assetCount,omitempty"`
+	Host                               *model.HostIdentity      `json:"host,omitempty"`
+	Integrity                          *collect.IntegrityResult `json:"integrity,omitempty"`
+	ImageIdentity                      *imagearchive.Identity   `json:"imageIdentity,omitempty"`
+	PackageTypes                       map[string]int           `json:"packageTypes"`
+	Distribution                       any                      `json:"distribution,omitempty"`
+	Products                           []model.Product          `json:"products"`
+	Catalogers                         []string                 `json:"catalogers"`
+	Collectors                         []collectorResult        `json:"collectorResults"`
+	ExcludedPaths                      []string                 `json:"excludedPaths"`
+	ExcludedDirectories                []string                 `json:"excludedDirectories,omitempty"`
+	Issues                             []model.Issue            `json:"issues"`
+	Limitations                        []string                 `json:"limitations"`
+	ElapsedSeconds                     float64                  `json:"elapsedSeconds"`
+	PhaseSeconds                       map[string]float64       `json:"phaseSeconds,omitempty"`
+	Limits                             scanLimits               `json:"limits"`
+	FilesystemFileCount                int64                    `json:"filesystemFileCount"`
+	AIXEvidence                        *aixevidence.Inventory   `json:"aixEvidence,omitempty"`
+	Targets                            []targetSummary          `json:"targets,omitempty"`
+	JavaScriptFingerprintCatalogSHA256 string                   `json:"javascriptFingerprintCatalogSha256,omitempty"`
+	JavaScriptFingerprints             []staticjs.Fingerprint   `json:"javascriptFingerprints,omitempty"`
+	Containers                         []containerSummary       `json:"containers,omitempty"`
 }
 
 func main() { os.Exit(run(os.Args[1:])) }
@@ -430,6 +432,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	var observed []reconcile.Component
 	var combined collect.DirectoryInventory
 	var catalogIssues, javascriptIssues, tempExcluded bool
+	var integrity collect.IntegrityResult
 	deployedIssues := map[string]bool{}
 	for i, scope := range scopes {
 		currentTarget = scope.id
@@ -481,6 +484,17 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			}
 		}
 		javascriptIssues = javascriptIssues || len(jsIssues) > 0
+		certificates, certificateIssues := certs.Collect(ctx, plan.Root, plan.Paths)
+		finishPhase("certificates")
+		issues = append(issues, certificateIssues...)
+		for _, a := range certificates {
+			if scope.id != "" && a.Source != "x509" {
+				a.Source = scope.id + "/" + a.Source
+				a.Properties["path"] = a.Source
+			}
+			assets = append(assets, a)
+		}
+		assetScope = assetScope || len(certificates) > 0
 		if err := ctx.Err(); err != nil {
 			record("failed")
 			return fail("static-javascript", err)
@@ -509,6 +523,14 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			catalogIssues = true
 			issues = append(issues, *auditIssue)
 		}
+		if !multiple {
+			// Before Scrub: verification needs the package file lists.
+			integrity = collect.VerifyPackageFiles(ctx, collected, plan, collect.DefaultIntegrityBudget)
+			finishPhase("packageIntegrity")
+			if integrity.Status == "partial" {
+				issues = append(issues, model.Issue{Collector: "package-integrity", Status: "incomplete", Message: "package file verification stopped at its time or size budget"})
+			}
+		}
 		for _, issue := range collect.DeployedCollectionIssues(collected, plan.Root) {
 			issues = append(issues, issue)
 			deployedIssues[issue.Collector] = true
@@ -529,6 +551,10 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			identities = collect.MergeableDirectoryPackages(ctx, collected, plan)
 		}
 		collect.Scrub(collected)
+		if integrity.Status != "not_applicable" && integrity.Status != "" {
+			integrity.ResolvePURLs(collected)
+			report.Integrity = &integrity
+		}
 		progress.PackageCount = collected.Artifacts.Packages.PackageCount()
 		progress.Distribution = collected.Artifacts.LinuxDistribution
 		if progress.PackageCount == 0 {
@@ -576,7 +602,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	coverage.IncludeAllOccurrences = multiple
 	e = collect.WriteSBOMsWithAssets(ctx, dir, format, inventory, report.Status == "partial", &coverage, assets, cyclonedx17)
 	if e == nil {
-		e = collect.AnnotateSBOMs(dir, collect.HostProperties(host), collect.ListeningByPURL(contextData))
+		e = collect.AnnotateSBOMs(dir, collect.HostProperties(host), collect.MergeProperties(collect.ListeningByPURL(contextData).Properties(), integrity.Properties()))
 	}
 	if e != nil {
 		finishPhase("sbomOutput")

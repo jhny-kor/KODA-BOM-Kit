@@ -15,6 +15,8 @@
 | SSH 서버 설정 | `sshd_config`·`sshd_config.d/*.conf`의 전역 구역 선언값 | 파일별 선언 관측이며 `Include` 순서에 따른 실제 적용값을 계산하지 않음. `Match` 구역 제외 |
 | 커널 taint·모듈 | `kernel.tainted`, `/proc/modules`의 taint 플래그와 `/sys/module/<이름>/version`·`srcversion` | 모듈이 버전을 제공하지 않으면 이름과 플래그만 기록 |
 | 식별되지 않은 실행 파일 | 수집기와 같은 root의 프로세스 중 패키지 소유·구성요소 위치·제품 설치 경로 어디에도 해당하지 않는 실행 파일 | 다른 mount namespace(컨테이너)의 프로세스는 제외. 목록에 있다는 것이 악성이라는 뜻은 아님 |
+| 패키지 파일 무결성 | RPM·dpkg·apk DB에 해시가 있는 실행 파일·공유 라이브러리와 실제 파일의 비교 | 설정·ghost 파일 제외. 해시 예산(호스트 8 GiB, 컨테이너 1 GiB) 초과 시 부분 확인. prelink 바이너리는 오탐 가능. 불일치 원인은 별도 판단 |
+| 인증서·CBOM | 수집 범위의 PEM·DER X.509 인증서, 서명·공개키 알고리즘 | 주체·발급자 이름 미기록. 개인키·PKCS#12·Java keystore는 읽지 않음. 배포판 신뢰 저장소와 20개 초과 번들 제외 |
 | 커널 | 현재 uname, 설치 커널 이미지·모듈, vermagic, RPM 버전 | 설치된 옛 커널과 실제 부팅 커널 구분. 모듈 미관측은 내장 기능 부재를 뜻하지 않음 |
 | 라이브패치 | Linux livepatch sysfs, Oracle raw Ksplice stage, 선택 실행 helper의 Ksplice·Uptrack·Canonical 상태 보고 | 관측과 클라이언트 보고 구분. 부팅·커널·시간이 다른 증거는 적용 상태로 사용하지 않음. CVE 취약성 자동판정 없음 |
 | Java | JDK/JRE release, JAR/WAR/EAR manifest·Maven 메타데이터 | 식별정보 제거·수정된 shaded archive는 부분 식별 가능 |

@@ -97,6 +97,9 @@ func addCycloneDXAssets(doc map[string]json.RawMessage, assets []model.Asset) er
 		if asset.SHA256 != "" {
 			row["hashes"] = []map[string]string{{"alg": "SHA-256", "content": asset.SHA256}}
 		}
+		if len(asset.Crypto) > 0 {
+			row["cryptoProperties"] = asset.Crypto
+		}
 		rows = append(rows, row)
 		if asset.Kind == "device-driver" && asset.ParentID != "" {
 			drivers[asset.ParentID] = append(drivers[asset.ParentID], asset.ID)
@@ -139,7 +142,7 @@ func addSPDXAssets(doc map[string]json.RawMessage, assets []model.Asset) error {
 		id := assetSPDXID(asset.ID)
 		purpose := strings.ToUpper(asset.Kind)
 		switch asset.Kind {
-		case "device-driver":
+		case "device-driver", "cryptographic-asset":
 			purpose = "OTHER"
 		case "operating-system":
 			purpose = "OPERATING_SYSTEM"

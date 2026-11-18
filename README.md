@@ -14,6 +14,28 @@ KODA SBOM Maker는 폐쇄망에서 **실행 파일 하나로 소프트웨어와 
 
 마지막 명령은 **한 번 수집한 결과**를 CycloneDX 1.6·1.7과 SPDX 2.3으로 저장합니다. BMC·NIC 등 외부 장비의 내보내기 파일 반입, macOS·Windows 실행법, 오프라인 권고 대조는 [단일 파일 CLI 안내](docs/asset-inventory.ko.md)에 있습니다. 검증한 플랫폼과 확인 한계는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
 
+## 0.1.6 배포본 반입 후 실행
+
+빌드 PC의 `dist/`에서 만든 `koda-sbom-linux-amd64-0.1.6-<UTC일시>-<소스식별자>.tar.gz`와 같은 이름의 `.sha256`을 반입합니다. 0.1.6 배포본은 아래 [새 수집 항목](#서버-보안-관리-정보)을 포함하며, 0.1.5처럼 실제 커널 VM 검증 보고서(`VERIFICATION.json`)를 동봉한 `-verified` 묶음은 아닙니다. 검증한 범위와 미검증 범위는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
+
+```bash
+set -- koda-sbom-linux-amd64-0.1.6-*.tar.gz
+if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+  echo "0.1.6 압축파일 한 개가 있는 폴더에서 실행하세요."
+else
+  pkg=${1%.tar.gz}
+  sha256sum -c "${pkg}.tar.gz.sha256" &&
+  tar -xzf "${pkg}.tar.gz" &&
+  cd "$pkg" &&
+  sha256sum -c SHA256SUMS
+fi
+```
+
+```bash
+./koda-sbom doctor
+sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results --asset-tag "$(hostname)" --max-files 0 --timeout 0
+```
+
 ## 0.1.5 검증 배포본 반입 후 실행
 
 반입부터 압축 해제, 실행, Ksplice·Livepatch 및 SBOM 결과 해석까지의 순서는 [폐쇄망 실행 및 결과 확인 안내](docs/폐쇄망_실행_결과확인_안내.ko.txt)를 확인하세요.
@@ -129,6 +151,23 @@ sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results \
 
 이 옵션은 실제 `/` 호스트 수집에서만 사용할 수 있으며 `--no-context`, 이미지 또는 앱 경로 수집과 함께 사용할 수 없습니다. 공급자별 최대 한 보고서, 합계 세 보고서를 허용합니다. 다른 커널·부팅의 보고서, 24시간을 넘은 증거 또는 허용 범위를 넘는 미래 시각은 현재 적용 근거로 사용하지 않습니다. Canonical의 마지막 서버 확인 `Last-Check`와 `CheckState`도 기록하며, 확인 실패·시각 미확인·24시간 초과 캐시는 보수적으로 unknown/stale로 표시합니다. 장기간 폐쇄망에서도 예전 보고 상태를 현재 새로 확인한 CVE 수정으로 승격하지 않습니다. Canonical은 실행 중인 커널의 항목과 실제 적용으로 보고된 수정만 취급합니다. Ksplice 목록의 탐지 기능·단순 CVE 언급을 CVE 수정 완료로 해석하지 않습니다. 클라이언트가 보고한 적용 상태이며 진위가 서명 검증된 증명이나 CVE 취약성 판정은 아닙니다. 실제 구독/패치가 적용된 운영 클라이언트의 검증 여부는 동봉 검증 보고서의 한계를 확인하세요.
 
+## 서버 보안 관리 정보
+
+호스트 `/` 수집은 소프트웨어 구성요소 외에 취약점 우선순위와 공격 가능성 판단에 쓰는 정보를 함께 기록합니다. 모두 파일·procfs·sysfs 읽기와 읽기 전용 ioctl로 얻으며 외부 명령을 실행하거나 런타임 API에 연결하지 않습니다. 상세 해석은 [단일 파일 CLI 안내](docs/asset-inventory.ko.md)에 있습니다.
+
+| 항목 | 기록 위치 | 내용 |
+|---|---|---|
+| 호스트 식별 | `collection.json`의 `host`, SBOM `koda:host:*` | machine-id·DMI UUID·시리얼의 SHA-256, 운영자 라벨 `--asset-tag`. 원문 식별자는 남기지 않음 |
+| 수신 대기 포트 | `context.json`의 `processLinks[].listeningSockets`, SBOM `koda:runtime:*` | 포트 → 프로세스 → 패키지. 바인딩 범위(`all-interfaces`·`loopback`·`address`)이며 방화벽 노출 판정은 아님 |
+| 실행 중인 컨테이너 | `containers/<이름>/` | 컨테이너마다 별도 SBOM·`collection.json`·체크섬. 컨테이너 네트워크 네임스페이스의 포트 연결 포함. `--no-containers`로 끔 |
+| 펌웨어 | `assets.json`, SBOM 장치·펌웨어 구성요소 | RAID/HBA, RDMA, GPU VBIOS, NIC(`ethtool -i`와 같은 ioctl), BMC(IPMI `Get Device ID`) |
+| snap·flatpak·conda | SBOM 구성요소 | 활성 snap 리비전·flatpak 배포, conda 패키지 PURL |
+| 보안 설정 | `context.json`의 `settings` | SELinux·AppArmor·lockdown·FIPS, `sshd_config` 노출 설정, 재부팅 필요 신호 |
+| 배포판 밖 커널 모듈 | `context.json`의 `taintedModules` | out-of-tree·서명 없음·독점 모듈과 버전 |
+| 식별되지 않은 실행 프로그램 | `context.json`의 `unidentifiedExecutables` | 패키지·수집기·제품 설치 경로 어디에도 속하지 않는 실행 파일 |
+| 패키지 파일 무결성 | `collection.json`의 `integrity`, SBOM `koda:integrity:*` | 패키지 DB 해시와 다른 실행 파일·라이브러리(`rpm -V`와 같은 방식) |
+| 인증서·암호 인벤토리 | SBOM `cryptographic-asset`(CBOM), `assets.json` | 인증서 만료·서명 알고리즘·키 길이와 약한 설정. 주체·발급자 이름과 개인키는 기록하지 않음 |
+
 ## 수집 범위 선택
 
 ```bash
@@ -141,6 +180,9 @@ sudo ./koda-sbom scan --output-dir /var/tmp/sbom-output --max-files 0 --timeout 
 # 실제 제외할 경로를 확인한 뒤 지정. /data/docker는 예시
 sudo ./collect-livepatch-status.sh /var/tmp/sbom-output \
   --max-files 0 --timeout 0 --exclude /data/docker
+
+# 자산 라벨을 붙여 수집. 실행 중인 컨테이너별 SBOM을 만들지 않으려면 --no-containers
+sudo ./koda-sbom scan --output-dir /var/tmp/sbom-output --asset-tag 'web-01' --no-containers
 
 # 특정 애플리케이션 / 가상환경의 설치 파일
 ./koda-sbom scan --target /opt/application --no-context --output-dir ./application-sbom
@@ -380,9 +422,10 @@ Tracker에 등록할 때는 수집 회차당 필요한 버전 하나를 선택�
 | `sbom.cdx-1.7.json` | CycloneDX 1.7 JSON (`--cyclonedx-17`을 지정할 때 함께 저장) |
 | `sbom.spdx.json` | SPDX 2.3 JSON (`--format cyclonedx`이면 생략) |
 | `inventory.syft.json` | 패키지 릴리스·설치 메타데이터를 보존하는 개인정보 정제 Syft JSON |
-| `context.json` | 실행 파일·라이브러리, 실행 커널·로드 모듈, 라이브패치, 확인 가능한 설정값과 한계 |
-| `assets.json` | 호스트에서 관측하거나 파일로 반입한 장치·펌웨어·드라이버 증거 |
-| `collection.json` | 도구 버전, 범위, 수량, 누락, 오류, 제품 식별 근거 |
+| `context.json` | 실행 파일·라이브러리와 수신 대기 포트, 실행 커널·로드 모듈·taint 모듈, 라이브패치, 보안 설정·재부팅 신호, 식별되지 않은 실행 프로그램과 한계 |
+| `assets.json` | 호스트에서 관측하거나 파일로 반입한 장치·펌웨어·드라이버·인증서 증거 |
+| `collection.json` | 도구 버전, 범위, 수량, 누락, 오류, 제품 식별 근거, 호스트 식별(`host`), 패키지 파일 무결성(`integrity`), 컨테이너 목록(`containers`) |
+| `containers/<이름>/` | 실행 중인 컨테이너별 `sbom.cdx.json`·`sbom.spdx.json`·`collection.json`·`SHA256SUMS` (호스트 `/` 수집 시) |
 | `reconcile.json` | 배포 파일·공급사 SBOM 해시와 PURL 대조 결과 (`reconcile` 실행 시) |
 | `SHA256SUMS` | 결과 파일의 SHA-256 |
 
@@ -392,17 +435,18 @@ CycloneDX와 SPDX에는 수집 대상 유형, 구성요소 수, 사용자가 설
 확인이 필요한 사유별 건수를 함께 담습니다. Tracker의 회차 상세에서 이 수집 요약을
 볼 수 있습니다. 제외 경로와 상세 오류는 로컬 `collection.json`에서 확인합니다.
 
-`collection.json`의 `limits.maxFiles`, `limits.timeoutSeconds`는 이번 실행의 상한이며 `0`은 해당 제한 해제입니다. `filesystemFileCount`는 사전 순회에서 수집 대상으로 채택한 일반 파일 수로, 구성요소 수 `packageCount`와 다릅니다. 파일 수 상한 초과는 `issues`의 `code=file_limit_exceeded`, `limit`, `observed`를 확인합니다. Linux 스캔의 `phaseSeconds`에서 파일 탐색, 정적 JS 확인, 패키지 수집, SBOM 출력에 걸린 시간을 비교할 수 있습니다.
+`collection.json`의 `limits.maxFiles`, `limits.timeoutSeconds`는 이번 실행의 상한이며 `0`은 해당 제한 해제입니다. `filesystemFileCount`는 사전 순회에서 수집 대상으로 채택한 일반 파일 수로, 구성요소 수 `packageCount`와 다릅니다. 파일 수 상한 초과는 `issues`의 `code=file_limit_exceeded`, `limit`, `observed`를 확인합니다. Linux 스캔의 `phaseSeconds`에서 파일 탐색, 정적 JS 확인, 인증서 확인, 패키지 수집, 패키지 파일 무결성 확인, SBOM 출력, 컨테이너 수집에 걸린 시간을 비교할 수 있습니다. 컨테이너별 결과는 각 폴더의 `SHA256SUMS`로 따로 검증합니다.
 
 ## 수집과 보안 경계
 
 - OS의 RPM/DEB/APK 정보, Java/JDK/JRE, PHP/Composer, Python 설치·가상환경, Node.js 설치 패키지를 수집합니다. 미설치 의존성 선언과 실제 설치 정보를 혼합하지 않습니다.
 - 알려진 서버 제품과 수동 설치 구성요소는 읽을 수 있는 manifest·release·설치 inventory·바이너리 증거로 식별합니다. 파일명만으로 제품 버전이나 CPE를 확정하지 않습니다.
 - 실행 중인 커널과 설치된 커널은 별개입니다. Oracle/Red Hat의 백포트 검토를 위해 epoch/version/release/architecture와 source package 정보를 유지해야 합니다.
-- 호스트 컨텍스트는 실행 파일·공유 라이브러리 연결, 로드 모듈, 허용된 설정만 수집합니다. 전체 `/proc`, 원문 명령줄, 환경변수, 설정 원문, 비밀번호·인증서 본문은 저장하지 않습니다.
+- 호스트 컨텍스트는 실행 파일·공유 라이브러리 연결, 로드 모듈, 허용된 설정만 수집합니다. 전체 `/proc`, 원문 명령줄, 환경변수, 설정 원문, 비밀번호·개인키·인증서 본문은 저장하지 않습니다. 인증서는 지문·유효기간·알고리즘만 기록합니다.
 - 설정 파일에 선언된 값은 실제 적용값이나 네트워크 노출의 증명이 아닙니다. PHP `ini_set()` 같은 실행 중 변경까지 확인하지 않습니다.
 - 생성 결과에는 소프트웨어 이름·버전·설치 경로가 포함됩니다. 경로 자체에 사용자 이름이나 내부 프로젝트명이 있을 수 있으므로 결과를 외부에 공유하기 전 검토하세요.
-- 장치와 펌웨어의 수집 범위는 커널이 노출하는 속성과 관리자가 제공한 증적에 따릅니다. BMC나 NIC가 별도 관리를 요구하면 Redfish·fwupd·devlink 등에서 내보낸 파일을 반입합니다. 식별정보가 제거된 바이너리와 소스코드 논리 결함의 검토에는 별도 근거가 필요합니다.
+- 장치와 펌웨어의 수집 범위는 커널이 노출하는 속성, 읽기 전용 ioctl(NIC `ETHTOOL_GDRVINFO`, BMC IPMI `Get Device ID`)과 관리자가 제공한 증적에 따릅니다. megaraid_sas처럼 커널이 펌웨어 버전을 노출하지 않거나 정확한 빌드 대조가 필요하면 Redfish·fwupd·devlink 등에서 내보낸 파일을 반입합니다.
+- 패키지 파일 무결성은 패키지 DB에 해시가 있는 실행 파일·공유 라이브러리만 대상으로 하며 설정 파일은 제외합니다. 불일치는 수동 교체·변조의 단서이며 원인 판정은 별도 확인이 필요합니다. 식별정보가 제거된 바이너리와 소스코드 논리 결함의 검토에는 별도 근거가 필요합니다.
 
 자세한 [지원 범위와 한계](docs/support-matrix.ko.md), [빌드·검증 방법](docs/verification.ko.md)을 참고하세요. 기본 수집은 인벤토리와 증적을 생성합니다. 같은 파일의 선택 기능인 `assess`는 로컬 권고를 생성된 SBOM과 비교합니다. 표준 SBOM을 KODA/Tracker에 반입해 관리할 수도 있습니다.
 

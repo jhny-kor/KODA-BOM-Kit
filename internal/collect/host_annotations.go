@@ -76,11 +76,38 @@ func HostProperties(host model.HostIdentity) [][2]string {
 	return pairs
 }
 
+// ComponentProperties are SBOM properties to add to components, keyed by PURL.
+type ComponentProperties map[string][][2]string
+
+// Properties converts listening sockets into component properties.
+func (e Exposure) Properties() ComponentProperties {
+	out := ComponentProperties{}
+	for purl, sockets := range e {
+		pairs := [][2]string{{RuntimeBindScopeProperty, widestScope(sockets)}}
+		for _, s := range sockets {
+			pairs = append(pairs, [2]string{RuntimeListeningProperty, socketLabel(s)})
+		}
+		out[purl] = pairs
+	}
+	return out
+}
+
+// MergeProperties combines component property sets.
+func MergeProperties(sets ...ComponentProperties) ComponentProperties {
+	out := ComponentProperties{}
+	for _, set := range sets {
+		for purl, pairs := range set {
+			out[purl] = append(out[purl], pairs...)
+		}
+	}
+	return out
+}
+
 // AnnotateSBOMs adds document properties (host or container identity) and
-// runtime exposure to the SBOM files already written in dir. It must run
-// before Checksums.
-func AnnotateSBOMs(dir string, pairs [][2]string, exposure Exposure) error {
-	if len(pairs) == 0 && len(exposure) == 0 {
+// component properties (runtime exposure, integrity) to the SBOM files already
+// written in dir. It must run before Checksums.
+func AnnotateSBOMs(dir string, pairs [][2]string, components ComponentProperties) error {
+	if len(pairs) == 0 && len(components) == 0 {
 		return nil
 	}
 	for _, name := range []string{"sbom.cdx.json", CycloneDX17Filename, "sbom.spdx.json"} {
@@ -97,9 +124,9 @@ func AnnotateSBOMs(dir string, pairs [][2]string, exposure Exposure) error {
 			return err
 		}
 		if name == "sbom.spdx.json" {
-			err = annotateSPDX(doc, pairs, exposure)
+			err = annotateSPDX(doc, pairs, components)
 		} else {
-			err = annotateCycloneDX(doc, pairs, exposure)
+			err = annotateCycloneDX(doc, pairs, components)
 		}
 		if err != nil {
 			return err
@@ -120,7 +147,7 @@ type namedValue struct {
 	Value string `json:"value"`
 }
 
-func annotateCycloneDX(doc map[string]json.RawMessage, pairs [][2]string, exposure Exposure) error {
+func annotateCycloneDX(doc map[string]json.RawMessage, pairs [][2]string, components ComponentProperties) error {
 	if len(pairs) > 0 {
 		metadata := map[string]json.RawMessage{}
 		if raw := doc["metadata"]; len(raw) > 0 {
@@ -140,30 +167,29 @@ func annotateCycloneDX(doc map[string]json.RawMessage, pairs [][2]string, exposu
 			return err
 		}
 	}
-	if len(exposure) == 0 || len(doc["components"]) == 0 {
+	if len(components) == 0 || len(doc["components"]) == 0 {
 		return nil
 	}
-	var components []map[string]json.RawMessage
-	if err := json.Unmarshal(doc["components"], &components); err != nil {
+	var rows []map[string]json.RawMessage
+	if err := json.Unmarshal(doc["components"], &rows); err != nil {
 		return err
 	}
-	for _, component := range components {
+	for _, row := range rows {
 		var purl string
-		_ = json.Unmarshal(component["purl"], &purl)
-		sockets := exposure[purl]
-		if len(sockets) == 0 {
+		_ = json.Unmarshal(row["purl"], &purl)
+		var props []namedValue
+		for _, p := range components[purl] {
+			props = append(props, namedValue{p[0], p[1]})
+		}
+		if len(props) == 0 {
 			continue
 		}
-		props := []namedValue{{RuntimeBindScopeProperty, widestScope(sockets)}}
-		for _, s := range sockets {
-			props = append(props, namedValue{RuntimeListeningProperty, socketLabel(s)})
-		}
-		if err := appendRecords(component, "properties", props); err != nil {
+		if err := appendRecords(row, "properties", props); err != nil {
 			return err
 		}
 	}
 	var err error
-	doc["components"], err = json.Marshal(components)
+	doc["components"], err = json.Marshal(rows)
 	return err
 }
 
@@ -174,7 +200,7 @@ type spdxAnnotation struct {
 	Comment        string `json:"comment"`
 }
 
-func annotateSPDX(doc map[string]json.RawMessage, pairs [][2]string, exposure Exposure) error {
+func annotateSPDX(doc map[string]json.RawMessage, pairs [][2]string, components ComponentProperties) error {
 	var creation struct {
 		Created string `json:"created"`
 	}
@@ -191,7 +217,7 @@ func annotateSPDX(doc map[string]json.RawMessage, pairs [][2]string, exposure Ex
 			return err
 		}
 	}
-	if len(exposure) == 0 || len(doc["packages"]) == 0 {
+	if len(components) == 0 || len(doc["packages"]) == 0 {
 		return nil
 	}
 	var packages []map[string]json.RawMessage
@@ -204,19 +230,19 @@ func annotateSPDX(doc map[string]json.RawMessage, pairs [][2]string, exposure Ex
 			Locator string `json:"referenceLocator"`
 		}
 		_ = json.Unmarshal(item["externalRefs"], &refs)
-		var sockets []model.Socket
+		var props [][2]string
 		for _, ref := range refs {
-			if ref.Type == "purl" && len(exposure[ref.Locator]) > 0 {
-				sockets = exposure[ref.Locator]
+			if ref.Type == "purl" && len(components[ref.Locator]) > 0 {
+				props = components[ref.Locator]
 				break
 			}
 		}
-		if len(sockets) == 0 {
+		if len(props) == 0 {
 			continue
 		}
-		notes := []spdxAnnotation{note(RuntimeBindScopeProperty, widestScope(sockets))}
-		for _, s := range sockets {
-			notes = append(notes, note(RuntimeListeningProperty, socketLabel(s)))
+		var notes []spdxAnnotation
+		for _, p := range props {
+			notes = append(notes, note(p[0], p[1]))
 		}
 		if err := appendRecords(item, "annotations", notes); err != nil {
 			return err

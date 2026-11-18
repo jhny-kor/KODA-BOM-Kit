@@ -40,7 +40,7 @@ func TestAnnotateSBOMsAddsHostIdentityAndListeningSockets(t *testing.T) {
 		t.Fatalf("only the comparable executable owner should be linked once per socket: %+v", exposure)
 	}
 	host := model.HostIdentity{AssetTag: "web-01", MachineIDSHA256: "ab"}
-	if err := AnnotateSBOMs(dir, HostProperties(host), exposure); err != nil {
+	if err := AnnotateSBOMs(dir, HostProperties(host), exposure.Properties()); err != nil {
 		t.Fatal(err)
 	}
 	type property struct{ Name, Value string }
@@ -90,7 +90,7 @@ func TestAnnotateSBOMsWithoutDataLeavesFilesUnchanged(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "sbom.cdx.json"), []byte("not json"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := AnnotateSBOMs(dir, nil, Exposure{}); err != nil {
+	if err := AnnotateSBOMs(dir, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }

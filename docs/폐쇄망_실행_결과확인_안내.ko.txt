@@ -1,6 +1,6 @@
 폐쇄망 실행 및 결과 확인 안내
 KODA SBOM Linux 안내
-안내 보완일 2026-11-18 (한국 표준시)
+안내 보완일 2026-11-19 (한국 표준시)
 
 현재 소스(0.1.6-dev)의 단일 실행 파일 사용법
   ./koda-sbom version
@@ -14,7 +14,21 @@ assets.json에는 확인한 장치와 펌웨어 증거가 있는 경우 그 내�
 외부 증적 반입과 오프라인 권고 대조는 같은 폴더의 asset-inventory.ko.md를
 참조합니다.
 
+0.1.6 배포본 반입
+  반입 파일: koda-sbom-linux-amd64-0.1.6-<UTC일시>-<소스식별자>.tar.gz 와 같은 이름의 .sha256
+  sha256sum -c koda-sbom-linux-amd64-0.1.6-*.tar.gz.sha256
+  tar -xzf koda-sbom-linux-amd64-0.1.6-*.tar.gz
+  cd koda-sbom-linux-amd64-0.1.6-*/ && sha256sum -c SHA256SUMS
+  ./koda-sbom doctor
+  sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results --asset-tag "$(hostname)" --max-files 0 --timeout 0
+0.1.6 배포본에는 실제 커널 VM 검증 보고서(VERIFICATION.json)가 없습니다.
+검증 범위는 docs/검증결과.ko.md의 2026-11-19 항목을 확인합니다.
+실행 중인 컨테이너별 SBOM을 만들지 않으려면 --no-containers를 추가합니다.
+root로 실행해야 DMI 시리얼, BMC(IPMI), 다른 사용자 프로세스의 포트와
+컨테이너를 모두 확인할 수 있습니다.
+
 아래 1~9절은 0.1.5 검증 배포본을 반입하는 경우의 절차입니다.
+결과 확인(6~8절)은 0.1.6에도 같으며 0.1.6에서 추가된 값은 7-1절에 있습니다.
 
 이 안내는 폐쇄망 서버에 최종 배포 파일을 반입하고, Ksplice·Livepatch 상태와
 SBOM을 수집한 뒤 결과를 확인하는 순서를 설명합니다.
@@ -256,7 +270,12 @@ sbom.cdx.json 또는 sbom.spdx.json을 제출하고, reconcile.json은 차이 �
   sbom.cdx.json       CycloneDX 1.6 형식 SBOM
   sbom.spdx.json      SPDX 2.3 형식 SBOM
   inventory.syft.json 패키지 상세 버전, source package, 설치 근거
+  assets.json         장치·펌웨어·BMC·인증서 증거 (관측된 경우)
+  containers/<이름>/  실행 중인 컨테이너별 SBOM과 collection.json, SHA256SUMS (0.1.6)
   SHA256SUMS          결과 파일 체크섬
+
+컨테이너 폴더는 각각 따로 체크섬을 확인합니다.
+  sudo sh -c 'cd "$1" && for d in containers/*/; do (cd "$d" && sha256sum -c --quiet SHA256SUMS) || echo "FAILED $d"; done' sh "$result"
 
 7. 수집 상태와 라이브패치 결과 읽기
 
@@ -329,6 +348,39 @@ jq가 없으면 설치하지 않고 위 cat 명령으로 확인하면 됩니다.
   sudo jq '.components[:20] | map({name,version,purl})' "$result/sbom.cdx.json"
 
 마지막 명령은 SBOM 구성요소 중 앞의 20개를 보여줍니다.
+
+7-1. 0.1.6에서 추가된 값 읽기
+
+collection.json:
+  host          자산 라벨(assetTag)과 machine-id·DMI 식별자의 SHA-256.
+                같은 서버의 수집 회차를 묶는 데 사용합니다.
+  integrity     패키지 DB 해시와 실제 실행 파일·라이브러리 비교 결과.
+                findings[].state=modified 는 내용이 다름, missing 은 파일 없음.
+                수동 교체·변조의 단서이며 원인은 별도로 확인합니다.
+  containers    실행 중인 컨테이너 목록. status, output(결과 폴더), reason(미수집 사유)
+
+context.json:
+  processLinks[].listeningSockets  프로세스가 수신 대기 중인 포트와 바인딩 범위
+  unattributedSockets              소유 프로세스를 확인하지 못한 포트
+  settings                         SELinux·AppArmor·lockdown·FIPS·sshd 설정,
+                                   reboot.recommended 등 재부팅 신호
+  taintedModules                   배포판 밖 커널 모듈(O, E, P 플래그)과 버전
+  unidentifiedExecutables          어떤 패키지에도 속하지 않는 실행 중 프로그램
+
+해석 시 주의:
+  bindScope=all-interfaces 는 모든 주소에 바인딩됐다는 뜻이며 방화벽까지
+  확인한 외부 노출 판정이 아닙니다.
+  reboot.recommended=not_observed 는 신호가 없다는 뜻이며 재부팅 불필요의 증명이
+  아닙니다.
+  unidentifiedExecutables 에 있다고 악성이라는 뜻은 아닙니다.
+
+jq가 있으면:
+  sudo jq '{host,integrity:(.integrity|{status,modifiedFiles,missingFiles,findings}),containers:[.containers[]?|{name,status,output}]}' "$result/collection.json"
+  sudo jq '{settings:[.settings[]|select(.product|test("SELinux|AppArmor|OpenSSH|Linux kernel"))],taintedModules,unidentifiedExecutables}' "$result/context.json"
+  sudo jq '[.components[]|select(.type=="cryptographic-asset")|{name,props:[.properties[]?|select(.name|test("validity|weakness|path"))]}]' "$result/sbom.cdx.json"
+
+Tracker에는 호스트의 sbom.cdx.json과 함께 containers/<이름>/sbom.cdx.json을
+컨테이너별로 제출할 수 있습니다.
 
 8. 결과와 증거 함께 보관
 

@@ -61,6 +61,26 @@ python3 tests/validate_outputs.py /path/to/scan-result
 | 플랫폼 | `internal/platforminventory`: macOS·Windows 자료 파싱과 수집 범위 표시 |
 | 오프라인 상관분석 | `internal/assessment`: 정확한 버전 규칙, 지원 OSV·CSAF 부분집합, 선택 KEV, SBOM과 컨텍스트 체크섬 연결 |
 | 형식 호환성 | `internal/collect/output_test.go`: 고정 라이선스 목록, 1.6 대체 표현과 1.7 표현, 표준 출력 보존 |
+| 호스트 식별·포트 | `internal/hardware/identity_test.go`, `internal/hostcontext/sockets*_test.go`, `internal/collect/host_annotations_test.go`: 해시·공용 기본값 제외, `/proc/net` 파싱, 실제 소켓의 프로세스 연결, SBOM 속성 |
+| 컨테이너 | `internal/containers`: 가짜 procfs로 Docker·containerd(Kubernetes)·sandbox 제외·mountinfo 대조·안전한 폴더 이름. `internal/localfs/rootfs_links_test.go`: 컨테이너 root의 절대 링크 해석 |
+| 펌웨어·BMC | `internal/hardware/adapters_test.go`, `ipmi*_test.go`: 커널 소스로 확인한 RAID/HBA·RDMA·GPU 속성, IPMI 응답 해석과 구조체 크기·ioctl 번호 |
+| 앱 번들 | `internal/collect/app_bundles_test.go`: snap `current`·flatpak `active`만 기록, conda PURL |
+| 보안 설정 | `internal/hostcontext/posture*_test.go`, `collect_test.go`: SELinux·AppArmor·lockdown·재부팅 신호, 커널 계열 비교, `sshd_config`, taint 모듈, 제외 경로 준수 |
+| 무결성·CBOM | `internal/collect/integrity_test.go`: md5·sha256·apk Q1, 설정 파일 제외, 누락·제외·usr-merge·예산. `internal/certs`: 만료·약한 키·개인키 미기록·신뢰 저장소 제외 |
+
+Linux 전용 테스트(`*_linux_test.go`)는 Linux에서 실행해야 합니다. macOS 빌드 PC에서는 테스트 바이너리를 교차 빌드한 뒤 Linux 컨테이너에서 실행합니다.
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go test -c -o hostcontext.test ./internal/hostcontext
+docker run --rm -v "$PWD":/repo:ro -w /repo/internal/hostcontext debian:bookworm-slim /repo/hostcontext.test
+```
+
+실행 중인 컨테이너 수집은 Docker VM의 프로세스와 저장소를 볼 수 있는 권한 컨테이너에서 재현할 수 있습니다. 실제 서버에서는 호스트에서 직접 실행합니다.
+
+```bash
+docker run --rm --privileged --pid=host -v /var/lib/docker:/var/lib/docker:ro,rslave \
+  -v "$PWD/bin":/b:ro -v "$PWD/out":/out debian:bookworm-slim /b/koda-sbom scan --output-dir /out --exclude '/b/**'
+```
 
 fixture 통과는 실제 BMC·펌웨어·OT 장비, Windows 실행 또는 모든 공급사 advisory 형식의
 지원 증거가 아닙니다. Linux 컨테이너의 장비 속성도 컨테이너에서 관측 가능한 범위로

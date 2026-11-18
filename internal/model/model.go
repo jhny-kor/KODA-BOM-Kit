@@ -1,5 +1,7 @@
 package model
 
+import "encoding/json"
+
 type Issue struct {
 	Target    string `json:"target,omitempty"`
 	Collector string `json:"collector"`
@@ -108,6 +110,8 @@ type Asset struct {
 	Source     string            `json:"source"`
 	ObservedAt string            `json:"observedAt,omitempty"`
 	Properties map[string]string `json:"properties,omitempty"`
+	// Crypto holds CycloneDX cryptoProperties for kind "cryptographic-asset".
+	Crypto json.RawMessage `json:"cryptoProperties,omitempty"`
 }
 
 // LivepatchStatus describes evidence from one local kernel or client source.
