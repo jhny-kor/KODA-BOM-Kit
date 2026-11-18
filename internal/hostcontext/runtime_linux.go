@@ -47,6 +47,15 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 	}
 	if data, err := readBounded(root, "proc/modules"); err == nil {
 		out.LoadedModules = parseModules(string(data))
+		for _, m := range parseTaintedModules(string(data)) {
+			module := model.KernelModule{Name: m[0], Taint: m[1]}
+			for file, field := range map[string]*string{"version": &module.Version, "srcversion": &module.SrcVersion} {
+				if v, err := readBounded(root, "sys/module/"+m[0]+"/"+file); err == nil && simpleToken.MatchString(strings.TrimSpace(string(v))) {
+					*field = strings.TrimSpace(string(v))
+				}
+			}
+			out.TaintedModules = append(out.TaintedModules, module)
+		}
 	} else {
 		issue(out, statusFor(err), "proc/modules", "loaded module list unavailable; built-in kernel features remain unknown")
 	}
@@ -62,6 +71,8 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		"proc/sys/fs/protected_hardlinks",
 		"proc/sys/fs/protected_symlinks",
 		"proc/sys/net/ipv4/ip_forward",
+		"proc/sys/crypto/fips_enabled",
+		"proc/sys/kernel/tainted",
 	} {
 		data, err := readBounded(root, name)
 		if os.IsNotExist(err) {
@@ -76,6 +87,7 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 			out.Settings = append(out.Settings, model.Setting{Product: "Linux kernel", Name: strings.ReplaceAll(strings.TrimPrefix(name, "proc/sys/"), "/", "."), Value: value, Path: name, State: "observed"})
 		}
 	}
+	collectSecurityPosture(root, out)
 	proc, err := root.Open("proc")
 	if err != nil {
 		issue(out, statusFor(err), "proc", "process links unavailable")

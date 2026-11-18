@@ -55,6 +55,18 @@ type Socket struct {
 	BindScope string `json:"bindScope"`
 }
 
+type KernelModule struct {
+	Name       string `json:"name"`
+	Taint      string `json:"taint"`
+	Version    string `json:"version,omitempty"`
+	SrcVersion string `json:"srcVersion,omitempty"`
+}
+
+type UnidentifiedExecutable struct {
+	Path string `json:"path"`
+	PIDs []int  `json:"pids"`
+}
+
 // HostIdentity correlates repeated collections of one machine. Identifiers are
 // SHA-256 digests of the normalized local value; low-entropy serials remain
 // guessable from their digest, so this is pseudonymization, not anonymization.
@@ -131,6 +143,11 @@ type Context struct {
 	LoadedModules []string          `json:"loadedModules,omitempty"`
 	ProcessLinks  []ProcessLink     `json:"processLinks,omitempty"`
 	Livepatch     []LivepatchStatus `json:"livepatch,omitempty"`
+	// Loaded modules that taint the kernel: out-of-tree (O), unsigned (E) or
+	// proprietary (P). Distribution kernel advisories do not cover them.
+	TaintedModules []KernelModule `json:"taintedModules,omitempty"`
+	// Running executables that no installed package or collector accounts for.
+	UnidentifiedExecutables []UnidentifiedExecutable `json:"unidentifiedExecutables,omitempty"`
 	// Sockets whose owning process could not be read or was excluded.
 	UnattributedSockets []Socket  `json:"unattributedSockets,omitempty"`
 	Settings            []Setting `json:"settings"`

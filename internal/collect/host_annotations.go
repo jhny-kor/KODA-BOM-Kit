@@ -61,7 +61,8 @@ func widestScope(list []model.Socket) string {
 	return best
 }
 
-func hostPairs(host model.HostIdentity) [][2]string {
+// HostProperties lists the non-empty host identity fields as SBOM properties.
+func HostProperties(host model.HostIdentity) [][2]string {
 	var pairs [][2]string
 	for _, p := range [][2]string{
 		{"asset-tag", host.AssetTag}, {"machine-id-sha256", host.MachineIDSHA256},
@@ -75,10 +76,10 @@ func hostPairs(host model.HostIdentity) [][2]string {
 	return pairs
 }
 
-// AnnotateSBOMs adds host identity and runtime exposure to the SBOM files
-// already written in dir. It must run before Checksums.
-func AnnotateSBOMs(dir string, host model.HostIdentity, exposure Exposure) error {
-	pairs := hostPairs(host)
+// AnnotateSBOMs adds document properties (host or container identity) and
+// runtime exposure to the SBOM files already written in dir. It must run
+// before Checksums.
+func AnnotateSBOMs(dir string, pairs [][2]string, exposure Exposure) error {
 	if len(pairs) == 0 && len(exposure) == 0 {
 		return nil
 	}

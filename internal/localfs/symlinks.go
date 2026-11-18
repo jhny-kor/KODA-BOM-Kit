@@ -58,7 +58,10 @@ func (p Plan) ResolveIndexedPath(name string) (canonical string, terminalLink bo
 		if linkCount > 40 {
 			return "", terminalLink, errLinkLimit
 		}
-		if path.IsAbs(target) {
+		if path.IsAbs(target) && p.RootFilesystem {
+			target = strings.TrimPrefix(path.Clean(target), "/")
+			resolved = resolved[:0]
+		} else if path.IsAbs(target) {
 			tail, within := relativeLinkTarget(target, p.Root)
 			if !within && p.rootAlias != "" && p.rootAlias != p.Root {
 				// Build verified this alternate spelling when it resolved the

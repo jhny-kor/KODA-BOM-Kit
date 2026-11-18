@@ -26,6 +26,9 @@ type Options struct {
 	FilesAlreadyCounted int64
 	// ExcludeDirs contains literal paths to directories below the scan root.
 	ExcludeDirs []string
+	// RootFilesystem marks the target as another system's "/" (a container
+	// root): absolute symbolic links resolve inside the target, as chroot does.
+	RootFilesystem bool
 }
 
 // FileLimitError reports the first eligible file that would exceed the limit.
@@ -44,8 +47,10 @@ type Plan struct {
 	Excluded     []string
 	ExcludedDirs []string
 	Issues       []model.Issue
-	links        map[string]string
-	rootAlias    string
+	// RootFilesystem resolves absolute links inside Root (see Options).
+	RootFilesystem bool
+	links          map[string]string
+	rootAlias      string
 }
 
 // ExcludesPath checks a path relative to the plan root against the scan filters.
@@ -93,7 +98,7 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 		return Plan{}, fmt.Errorf("target must be a readable local directory")
 	}
 	rootAlias, _ := filepath.Abs(root)
-	p := Plan{Root: abs, rootAlias: filepath.ToSlash(rootAlias), Excluded: append(append([]string{}, DefaultExcludes...), excludes...), Issues: []model.Issue{}}
+	p := Plan{Root: abs, rootAlias: filepath.ToSlash(rootAlias), Excluded: append(append([]string{}, DefaultExcludes...), excludes...), Issues: []model.Issue{}, RootFilesystem: options.RootFilesystem}
 	p.ExcludedDirs, e = resolveExcludedDirectories(abs, options.ExcludeDirs)
 	if e != nil {
 		return p, e

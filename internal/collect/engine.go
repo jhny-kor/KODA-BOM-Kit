@@ -26,10 +26,10 @@ var syftCatalogers = []string{
 	"rpm-db-cataloger", "dpkg-db-cataloger", "apk-db-cataloger", "python-installed-package-cataloger",
 	npmPackageCataloger, "php-composer-installed-cataloger", "php-pear-serialized-cataloger",
 	"php-interpreter-cataloger", javaArchiveCataloger, "java-jvm-cataloger", "binary-classifier-cataloger",
-	"elf-binary-package-cataloger", GoBinaryCollector,
+	"elf-binary-package-cataloger", GoBinaryCollector, "snap-cataloger", "conda-meta-cataloger",
 }
 
-var Catalogers = append(append([]string{}, syftCatalogers...), kernelCollector, RustBinaryCollector, DotnetCollector, RubyCollector, pythonZipappCollector)
+var Catalogers = append(append([]string{}, syftCatalogers...), kernelCollector, RustBinaryCollector, DotnetCollector, RubyCollector, pythonZipappCollector, appBundleCollector)
 
 type deniedTransport struct{}
 
@@ -78,7 +78,11 @@ func Scan(ctx context.Context, plan localfs.Plan, version string) (*sbom.SBOM, e
 	for _, p := range plan.Excluded {
 		patterns = append(patterns, "./"+strings.TrimPrefix(strings.TrimPrefix(p, "/"), "./"))
 	}
-	src, e := directorysource.New(directorysource.Config{Path: plan.Root, Exclude: source.ExcludeConfig{Paths: patterns}, Alias: source.Alias{Name: "local-filesystem"}})
+	config := directorysource.Config{Path: plan.Root, Exclude: source.ExcludeConfig{Paths: patterns}, Alias: source.Alias{Name: "local-filesystem"}}
+	if plan.RootFilesystem {
+		config.Base = plan.Root // absolute links resolve inside the target, matching the plan
+	}
+	src, e := directorysource.New(config)
 	if e != nil {
 		return nil, e
 	}
@@ -96,6 +100,10 @@ func Scan(ctx context.Context, plan localfs.Plan, version string) (*sbom.SBOM, e
 	if err := collectPythonZipapps(ctx, s, plan); err != nil {
 		return nil, err
 	}
+	if err := collectAppBundles(ctx, s, plan); err != nil {
+		return nil, err
+	}
+	addCondaPURLs(s)
 	resolver, e := src.FileResolver(source.SquashedScope)
 	if e != nil {
 		return nil, e

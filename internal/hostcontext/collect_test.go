@@ -163,3 +163,60 @@ func TestExplicitPreflightPathsHonorCallerExclusions(t *testing.T) {
 		t.Fatalf("invalid preflight path accepted %+v", out)
 	}
 }
+
+func TestSELinuxConfigIsDeclaredOnlyFromListedPaths(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "etc/selinux"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "etc/selinux/config"), []byte("SELINUX=enforcing\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	listed := CollectWithPaths(context.Background(), root, false, []string{"etc/selinux/config"})
+	if len(listed.Settings) != 1 || listed.Settings[0].Value != "enforcing" || listed.Settings[0].State != "declared" {
+		t.Fatalf("listed config: %+v", listed.Settings)
+	}
+	if excluded := CollectWithPaths(context.Background(), root, false, nil); len(excluded.Settings) != 0 {
+		t.Fatalf("an excluded config must not be read: %+v", excluded.Settings)
+	}
+}
+
+func TestSSHDGlobalSettingsFirstValueWins(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"etc/ssh/sshd_config":                 "# PermitRootLogin yes\nInclude /etc/ssh/sshd_config.d/*.conf\nPermitRootLogin prohibit-password\npermitrootlogin yes\nLoginGraceTime=0\nMaxStartups 10:30:100\nPasswordAuthentication no\nMatch User backup\n  PasswordAuthentication yes\n",
+		"etc/ssh/sshd_config.d/50-cloud.conf": "PasswordAuthentication yes\n",
+		"etc/ssh/ssh_config":                  "PasswordAuthentication yes\n", // client config: ignored
+	}
+	var paths []string
+	for p, v := range files {
+		full := filepath.Join(root, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(v), 0644); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, p)
+	}
+	out := CollectWithPaths(context.Background(), root, false, paths)
+	got := map[string]string{}
+	for _, s := range out.Settings {
+		got[s.Path+" "+s.Name] = s.Value
+	}
+	want := map[string]string{
+		"etc/ssh/sshd_config sshd.PermitRootLogin":                        "prohibit-password",
+		"etc/ssh/sshd_config sshd.LoginGraceTime":                         "0",
+		"etc/ssh/sshd_config sshd.MaxStartups":                            "10:30:100",
+		"etc/ssh/sshd_config sshd.PasswordAuthentication":                 "no",
+		"etc/ssh/sshd_config.d/50-cloud.conf sshd.PasswordAuthentication": "yes",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q", k, got[k], v)
+		}
+	}
+}

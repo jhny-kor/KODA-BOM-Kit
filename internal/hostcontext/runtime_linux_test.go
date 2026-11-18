@@ -33,7 +33,7 @@ func TestLiveContextCollectsKernelWithoutStaticFileWalk(t *testing.T) {
 		t.Fatalf("unexpected live context %+v", out)
 	}
 	for _, setting := range out.Settings {
-		if setting.State != "observed" {
+		if setting.State == "declared" { // "observed" and "derived" come from the live kernel
 			t.Fatal("static settings unexpectedly walked")
 		}
 	}

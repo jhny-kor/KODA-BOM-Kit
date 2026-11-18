@@ -250,7 +250,9 @@ func (c *configCollector) file(p string) {
 	isApache := (strings.HasSuffix(name, ".conf") || name == "httpd.conf") && (strings.Contains(low, "apache") || strings.Contains(low, "httpd"))
 	isNginx := (strings.HasSuffix(name, ".conf") || name == "nginx.conf") && strings.Contains(low, "nginx")
 	isTomcat := name == "server.xml"
-	if !isPHP && !isApache && !isNginx && !isTomcat {
+	isSELinux := p == "etc/selinux/config"
+	isSSHD := p == "etc/ssh/sshd_config" || (strings.HasPrefix(p, "etc/ssh/sshd_config.d/") && strings.HasSuffix(name, ".conf"))
+	if !isPHP && !isApache && !isNginx && !isTomcat && !isSELinux && !isSSHD {
 		return
 	}
 	if c.seen[p] {
@@ -279,6 +281,15 @@ func (c *configCollector) file(p string) {
 	}
 	if isTomcat {
 		c.tomcat(p, data)
+	}
+	if isSSHD {
+		c.sshd(p, string(data))
+	}
+	if isSELinux {
+		// Persisted mode for the next boot; the running mode is observed separately.
+		if mode := selinuxConfigMode(string(data)); mode != "" {
+			c.add("SELinux", "config.SELINUX", mode, p)
+		}
 	}
 }
 func (c *configCollector) add(product, name, value, p string) {
@@ -340,6 +351,42 @@ func (c *configCollector) apache(p, data string) {
 		c.add("Apache HTTP Server", "LoadModule."+module, "true", p)
 	}
 }
+
+// sshd settings that change exposure, for example LoginGraceTime 0, which
+// mitigates CVE-2024-6387. Like the nginx reader this is a per-file declaration:
+// sshd keeps the first value it reads, so Include order decides the effective one.
+var sshdKeywords = map[string]string{
+	"permitrootlogin": "PermitRootLogin", "passwordauthentication": "PasswordAuthentication",
+	"permitemptypasswords": "PermitEmptyPasswords", "kbdinteractiveauthentication": "KbdInteractiveAuthentication",
+	"logingracetime": "LoginGraceTime", "maxstartups": "MaxStartups", "x11forwarding": "X11Forwarding",
+	"allowtcpforwarding": "AllowTcpForwarding",
+}
+var sshdValue = regexp.MustCompile(`^[A-Za-z0-9_.:+-]{1,64}$`)
+
+func (c *configCollector) sshd(p, data string) {
+	seen := map[string]bool{}
+	for _, line := range strings.Split(data, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		keyword, value, _ := strings.Cut(strings.Replace(line, "=", " ", 1), " ")
+		if strings.EqualFold(keyword, "Match") {
+			break // later lines apply only to matching connections
+		}
+		name := sshdKeywords[strings.ToLower(keyword)]
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		value = strings.Trim(strings.TrimSpace(value), `"`)
+		if !sshdValue.MatchString(value) {
+			value = "unknown"
+		}
+		c.add("OpenSSH", "sshd."+name, value, p)
+	}
+}
+
 func (c *configCollector) nginx(p, data string) {
 	// This is a lexical declaration observation, not effective configuration or an
 	// interpretation of includes, variables, locations or request routing.
