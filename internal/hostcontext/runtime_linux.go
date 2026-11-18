@@ -103,7 +103,7 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		issue(out, "incomplete", "proc", "process directory entry limit reached")
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out), owned: map[uint64]bool{}, budget: maxSocketFDs}
+	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out, os.Getpid()), owned: map[uint64]bool{}, budget: maxSocketFDs}
 	defer func() { out.UnattributedSockets = owners.unattributed() }()
 	count := 0
 	for _, entry := range entries {

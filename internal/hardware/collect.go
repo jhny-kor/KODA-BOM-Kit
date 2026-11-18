@@ -41,8 +41,9 @@ func Collect(ctx context.Context, root string) ([]model.Asset, []model.Issue) {
 	c.uefi(board)
 	c.cpu()
 	if root == "/" {
-		// The ethtool ioctl reads the running kernel, never a supplied directory.
+		// These ioctls read the running kernel and BMC, never a supplied directory.
 		c.ethtool()
+		c.bmc()
 	}
 	c.devices("sys/bus/pci/devices", "PCI device", map[string]string{"vendor": "vendorId", "device": "deviceId", "subsystem_vendor": "subsystemVendorId", "subsystem_device": "subsystemDeviceId", "revision": "revision", "class": "class"})
 	c.devices("sys/class/nvme", "NVMe controller", map[string]string{"model": "model", "firmware_rev": "firmwareVersion"})

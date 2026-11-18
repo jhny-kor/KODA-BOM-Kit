@@ -5,7 +5,7 @@
 | 계층 | 주요 증거 | 확인 한계 |
 |---|---|---|
 | OS | os-release, vendor release, RPM/DEB/APK 패키지 DB | 읽기 권한·DB 손상·source package/module stream 누락 가능 |
-| 하드웨어·펌웨어 | Linux CPU·마이크로코드, DMI/BIOS, UEFI·ESRT, PCI/드라이버, NVMe/SCSI, USB, TPM에서 노출되는 식별 정보. RAID/HBA(mpt3sas, qla2xxx, lpfc, hpsa, smartpqi), RDMA(InfiniBand·Mellanox), GPU VBIOS(NVIDIA, amdgpu), NIC 펌웨어(`ethtool -i`와 같은 읽기 전용 ioctl) | 모델과 구성에 따라 필드가 다릅니다. megaraid_sas는 sysfs에 펌웨어 버전이 없어 내보낸 증적이 필요합니다. NIC 펌웨어는 드라이버가 보고하는 값입니다. VM과 컨테이너 관측에는 물리 호스트 확인이 필요할 수 있습니다. |
+| 하드웨어·펌웨어 | Linux CPU·마이크로코드, DMI/BIOS, UEFI·ESRT, PCI/드라이버, NVMe/SCSI, USB, TPM에서 노출되는 식별 정보. RAID/HBA(mpt3sas, qla2xxx, lpfc, hpsa, smartpqi), RDMA(InfiniBand·Mellanox), GPU VBIOS(NVIDIA, amdgpu), NIC 펌웨어(`ethtool -i`와 같은 읽기 전용 ioctl) | 모델과 구성에 따라 필드가 다릅니다. megaraid_sas는 sysfs에 펌웨어 버전이 없어 내보낸 증적이 필요합니다. BMC는 `/dev/ipmi0`의 IPMI `Get Device ID`로 읽으며 root와 IPMI 커널 모듈이 필요하고, 리비전 표기는 제조사 공개 버전과 다를 수 있습니다. NIC 펌웨어는 드라이버가 보고하는 값입니다. VM과 컨테이너 관측에는 물리 호스트 확인이 필요할 수 있습니다. |
 | 외부 장비 | 로컬 파일로 내보낸 Redfish·fwupd·devlink 또는 공통 JSON | 장비가 보고한 버전과 상태를 보존합니다. 매칭되지 않은 장비와 미확인 필드는 수집 범위를 함께 확인합니다. |
 | Windows·macOS | `platform-inventory`의 시스템·OS·펌웨어 및 설치 앱 메타데이터 | Windows는 교차 빌드 확인 범위입니다. 개별 앱 내부 의존성과 제공자별 업데이트는 추가 증적이 필요합니다. |
 | 실행 중 소프트웨어 | 실행 파일 및 메모리 매핑의 경로·파일 식별 정보, 경로를 식별한 설치 패키지 | 프로세스와 수집기의 파일시스템 범위가 같은 경우에만 설치 패키지를 연결합니다. 교체가 확인되면 재시작 검토 근거를 남깁니다. |
@@ -29,7 +29,7 @@
 | Tomcat | ServerInfo.properties, manifest, catalina.jar | 버전 은닉·상충 정보는 확인 불가로 남김 |
 | WebLogic/JBoss/WildFly | 제품 manifest·설치 inventory·patch 메타데이터 | `.patch_storage` 존재만으로 현재 적용 패치로 판정하지 않음 |
 | JEUS 등 상용 제품 | 확인 가능한 제품 descriptor, 일반 내부 JAR | 실제 제품 fixture로 검증되지 않은 버전·패치 식별은 미검증/미지원으로 표시 |
-| 실행 중인 컨테이너 | 호스트 `/` 수집에서 procfs로 찾은 컨테이너별 root filesystem. Docker·containerd(Kubernetes·nerdctl)·Podman·CRI-O 상태 파일의 이름·이미지 | 컨테이너마다 `containers/<이름>/`에 별도 SBOM을 만듭니다. 볼륨·bind mount는 포함하지 않습니다. 호스트 mount namespace에서 root filesystem이 보이지 않으면 사유만 남깁니다. Kubernetes pod sandbox는 제외합니다. 런타임 API·소켓에 연결하지 않습니다. |
+| 실행 중인 컨테이너 | 호스트 `/` 수집에서 procfs로 찾은 컨테이너별 root filesystem. Docker·containerd(Kubernetes·nerdctl)·Podman·CRI-O 상태 파일의 이름·이미지 | 컨테이너마다 `containers/<이름>/`에 별도 SBOM을 만듭니다. 볼륨·bind mount는 포함하지 않습니다. 호스트 mount namespace에서 root filesystem이 보이지 않으면 사유만 남깁니다. Kubernetes pod sandbox는 제외합니다. 런타임 API·소켓에 연결하지 않습니다. 컨테이너 네트워크 네임스페이스의 수신 소켓은 해당 컨테이너 프로세스가 연 것만 연결합니다. |
 | 이미지 archive | 명시적으로 지정한 Linux amd64 Docker/OCI tar와 해시, 지원되는 OCI manifest 다이제스트 | 이미지에 포함된 파일이 수집 범위입니다. 실행 컨테이너·호스트 커널은 별도 관측값입니다. |
 | IBM AIX와 Oracle | `aix-import`의 fileset, 임시 패치, Oracle Home별 OPatch 및 선택 SQL 패치 이력 | 한 AIX 서버에서 최대 8개 Home의 조회 증적을 수집해 가져옴. 실행 상태는 별도 증적 필요 |
 

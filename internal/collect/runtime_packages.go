@@ -4,6 +4,7 @@ import (
 	"maps"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -12,15 +13,13 @@ import (
 	"koda.local/security-sbom-linux/internal/model"
 )
 
-// usrMerged maps top-level directories that are symbolic links into /usr on
-// the collecting host ("bin" -> "usr/bin"). Package databases may record the
-// old spelling (dpkg: /bin/dash) while procfs reports /usr/bin/dash. Process
-// links are compared only when they share the collector's root, so the live
-// "/" is the right filesystem to consult.
-var usrMerged = func() map[string]string {
+// usrMerged maps top-level directories of root that are symbolic links into
+// /usr ("bin" -> "usr/bin"). Package databases may record the old spelling
+// (dpkg: /bin/dash) while procfs reports /usr/bin/dash.
+var usrMerged = func(root string) map[string]string {
 	merged := map[string]string{}
 	for _, dir := range []string{"bin", "sbin", "lib", "lib32", "lib64", "libx32"} {
-		if target, err := os.Readlink("/" + dir); err == nil && strings.TrimPrefix(path.Clean(target), "/") == "usr/"+dir {
+		if target, err := os.Readlink(filepath.Join(root, dir)); err == nil && strings.TrimPrefix(path.Clean(target), "/") == "usr/"+dir {
 			merged[dir] = "usr/" + dir
 		}
 	}
@@ -54,7 +53,8 @@ func LinkRuntimePackages(context *model.Context, inventory *sbom.SBOM) {
 		}
 	}
 	owners := map[string][]pkg.Package{}
-	merged := usrMerged()
+	// Process links are compared only when they share the collector's root.
+	merged := usrMerged("/")
 	for _, component := range inventory.Artifacts.Packages.Sorted() {
 		owner, ok := component.Metadata.(pkg.FileOwner)
 		if !ok {
@@ -97,7 +97,7 @@ func UnidentifiedExecutables(context *model.Context, inventory *sbom.SBOM, produ
 		return
 	}
 	located := map[string]bool{}
-	merged := usrMerged()
+	merged := usrMerged("/")
 	for _, component := range inventory.Artifacts.Packages.Sorted() {
 		for _, location := range component.Locations.ToSlice() {
 			located[canonicalPath(location.RealPath, merged)] = true
@@ -129,4 +129,55 @@ func UnidentifiedExecutables(context *model.Context, inventory *sbom.SBOM, produ
 		}
 		context.UnidentifiedExecutables = append(context.UnidentifiedExecutables, model.UnidentifiedExecutable{Path: exe, PIDs: byPath[exe]})
 	}
+}
+
+// ExposureByExecutable joins listening sockets, keyed by executable path
+// relative to root, to the component that provides that executable: the one
+// installed package owning the file, else the one component cataloged at that
+// path (for a Go binary, its main module). Ambiguous matches are skipped.
+func ExposureByExecutable(inventory *sbom.SBOM, root string, byExecutable map[string][]model.Socket) Exposure {
+	exposure := Exposure{}
+	if inventory == nil || inventory.Artifacts.Packages == nil || len(byExecutable) == 0 {
+		return exposure
+	}
+	merged := usrMerged(root)
+	owners, located := map[string][]pkg.Package{}, map[string][]pkg.Package{}
+	for _, component := range inventory.Artifacts.Packages.Sorted() {
+		if component.PURL == "" {
+			continue
+		}
+		if owner, ok := component.Metadata.(pkg.FileOwner); ok {
+			for _, name := range owner.OwnedFiles() {
+				if p := canonicalPath(name, merged); len(byExecutable[p]) > 0 {
+					owners[p] = append(owners[p], component)
+				}
+			}
+		}
+		for _, location := range component.Locations.ToSlice() {
+			if p := canonicalPath(location.RealPath, merged); len(byExecutable[p]) > 0 {
+				located[p] = append(located[p], component)
+			}
+		}
+	}
+	for exe, sockets := range byExecutable {
+		candidates := owners[exe]
+		if len(candidates) == 0 {
+			candidates = located[exe]
+			if len(candidates) > 1 {
+				candidates = slices.DeleteFunc(slices.Clone(candidates), func(p pkg.Package) bool {
+					meta, ok := p.Metadata.(pkg.GolangBinaryBuildinfoEntry)
+					return !ok || meta.MainModule != p.Name
+				})
+			}
+		}
+		if len(candidates) == 1 {
+			purl := candidates[0].PURL
+			for _, socket := range sockets {
+				if !slices.Contains(exposure[purl], socket) {
+					exposure[purl] = append(exposure[purl], socket)
+				}
+			}
+		}
+	}
+	return exposure
 }

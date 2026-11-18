@@ -51,7 +51,7 @@ func TestUnidentifiedExecutables(t *testing.T) {
 
 func TestRuntimeLinkMatchesUsrMergedPackagePaths(t *testing.T) {
 	previous := usrMerged
-	usrMerged = func() map[string]string { return map[string]string{"bin": "usr/bin"} }
+	usrMerged = func(string) map[string]string { return map[string]string{"bin": "usr/bin"} }
 	defer func() { usrMerged = previous }()
 	dash := pkg.Package{Name: "dash", Version: "0.5.12-2", Type: pkg.DebPkg, PURL: "pkg:deb/debian/dash@0.5.12-2",
 		Metadata: pkg.DpkgDBEntry{Files: []pkg.DpkgFileRecord{{Path: "/bin/dash"}}}}
@@ -66,5 +66,26 @@ func TestRuntimeLinkMatchesUsrMergedPackagePaths(t *testing.T) {
 	}
 	if got := canonicalPath("/binary/x", map[string]string{"bin": "usr/bin"}); got != "binary/x" {
 		t.Fatalf("prefix must match a whole directory name: %q", got)
+	}
+}
+
+func TestExposureByExecutableUsesOwnerOrGoMainModule(t *testing.T) {
+	https := model.Socket{Protocol: "tcp", Address: "0.0.0.0", Port: 8443, BindScope: "all-interfaces"}
+	metrics := model.Socket{Protocol: "tcp6", Address: "::", Port: 9090, BindScope: "all-interfaces"}
+	nginx := pkg.Package{Name: "nginx", Version: "1.29.1-r0", Type: pkg.ApkPkg, PURL: "pkg:apk/alpine/nginx@1.29.1-r0",
+		Metadata: pkg.ApkDBEntry{Files: []pkg.ApkFileRecord{{Path: "/usr/sbin/nginx"}}}}
+	app := pkg.Package{Name: "github.com/acme/api", Version: "v2.1.0", Type: pkg.GoModulePkg, PURL: "pkg:golang/github.com/acme/api@v2.1.0",
+		Locations: file.NewLocationSet(file.NewLocation("/app/api")), Metadata: pkg.GolangBinaryBuildinfoEntry{MainModule: "github.com/acme/api"}}
+	dep := pkg.Package{Name: "golang.org/x/net", Version: "v0.30.0", Type: pkg.GoModulePkg, PURL: "pkg:golang/golang.org/x/net@v0.30.0",
+		Locations: file.NewLocationSet(file.NewLocation("/app/api")), Metadata: pkg.GolangBinaryBuildinfoEntry{MainModule: "github.com/acme/api"}}
+	for _, p := range []*pkg.Package{&nginx, &app, &dep} {
+		p.SetID()
+	}
+	inventory := &sbom.SBOM{Artifacts: sbom.Artifacts{Packages: pkg.NewCollection(nginx, app, dep)}}
+	got := ExposureByExecutable(inventory, t.TempDir(), map[string][]model.Socket{
+		"usr/sbin/nginx": {https}, "app/api": {metrics}, "usr/local/bin/unknown": {https},
+	})
+	if len(got) != 2 || got[nginx.PURL][0] != https || got[app.PURL][0] != metrics {
+		t.Fatalf("got %+v", got)
 	}
 }

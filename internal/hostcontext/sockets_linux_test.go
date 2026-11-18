@@ -6,7 +6,9 @@ import (
 	"context"
 	"net"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"koda.local/security-sbom-linux/internal/model"
@@ -25,7 +27,7 @@ func TestListeningSocketIsAttributedToOwningProcess(t *testing.T) {
 	}
 	defer root.Close()
 	out := &model.Context{}
-	owners := socketOwner{ctx: context.Background(), root: root, out: out, sockets: listeningSockets(root, out), owned: map[uint64]bool{}, budget: maxSocketFDs}
+	owners := socketOwner{ctx: context.Background(), root: root, out: out, sockets: listeningSockets(root, out, os.Getpid()), owned: map[uint64]bool{}, budget: maxSocketFDs}
 	want := model.Socket{Protocol: "tcp", Address: "127.0.0.1", Port: port, BindScope: "loopback"}
 	found := false
 	for _, socket := range owners.process("proc/" + strconv.Itoa(os.Getpid())) {
@@ -38,5 +40,10 @@ func TestListeningSocketIsAttributedToOwningProcess(t *testing.T) {
 		if socket == want {
 			t.Fatal("attributed socket also listed as unattributed")
 		}
+	}
+	exe, _ := os.Executable()
+	byExecutable, _ := NamespaceSockets(context.Background(), []int{os.Getpid()})
+	if got := byExecutable[strings.TrimPrefix(exe, "/")]; !slices.Contains(got, want) {
+		t.Fatalf("NamespaceSockets %v lacks %+v for %s", byExecutable, want, exe)
 	}
 }

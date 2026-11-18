@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"koda.local/security-sbom-linux/internal/collect"
 	"koda.local/security-sbom-linux/internal/containers"
+	"koda.local/security-sbom-linux/internal/hostcontext"
 	"koda.local/security-sbom-linux/internal/localfs"
 	"koda.local/security-sbom-linux/internal/model"
 	"koda.local/security-sbom-linux/internal/products"
@@ -39,8 +42,16 @@ type containerCollection struct {
 	FinishedAt          string               `json:"finishedAt"`
 	PackageCount        int                  `json:"packageCount"`
 	FilesystemFileCount int64                `json:"filesystemFileCount"`
+	ListeningSockets    []executableSockets  `json:"listeningSockets,omitempty"`
 	Issues              []model.Issue        `json:"issues"`
 	Limitations         []string             `json:"limitations"`
+}
+
+// executableSockets lists the sockets one container executable holds; the
+// path is inside the container's root filesystem.
+type executableSockets struct {
+	Executable string         `json:"executable"`
+	Sockets    []model.Socket `json:"sockets"`
 }
 
 type containerOptions struct {
@@ -97,7 +108,7 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 		Issues: []model.Issue{},
 		Limitations: []string{
 			"Only the container root filesystem is collected; volumes and bind mounts are not included",
-			"Listening sockets in container network namespaces are not attributed to packages",
+			"Listening sockets are linked to a package only when the executable maps to exactly one component",
 		},
 	}
 	if options.host != (model.HostIdentity{}) {
@@ -141,6 +152,13 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	collect.AddStaticJavaScript(inventory, javascript)
 	collect.Scrub(inventory)
 	report.PackageCount = inventory.Artifacts.Packages.PackageCount()
+	// Read the container's own network namespace through its processes.
+	byExecutable, socketIssues := hostcontext.NamespaceSockets(ctx, s.PIDs)
+	report.Issues = append(report.Issues, socketIssues...)
+	for _, exe := range slices.Sorted(maps.Keys(byExecutable)) {
+		report.ListeningSockets = append(report.ListeningSockets, executableSockets{Executable: exe, Sockets: byExecutable[exe]})
+	}
+	exposure := collect.ExposureByExecutable(inventory, s.RootFS, byExecutable)
 	report.Status = collectionStatus(report.Issues)
 	if err := os.MkdirAll(out, 0700); err != nil {
 		finish(err)
@@ -149,7 +167,7 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	coverage := collect.NewCollectionCoverage(report.Status, "container-filesystem", report.PackageCount, 0, 0, report.Issues)
 	err = collect.WriteSBOMsWithAssets(ctx, out, options.format, inventory, report.Status == "partial", &coverage, nil, options.cyclonedx17)
 	if err == nil {
-		err = collect.AnnotateSBOMs(out, append(collect.HostProperties(options.host), containerProperties(s.Container)...), nil)
+		err = collect.AnnotateSBOMs(out, append(collect.HostProperties(options.host), containerProperties(s.Container)...), exposure)
 	}
 	if err != nil {
 		for _, name := range []string{"inventory.syft.json", "sbom.cdx.json", "sbom.spdx.json", collect.CycloneDX17Filename} {

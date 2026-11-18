@@ -6,19 +6,20 @@ import (
 	"context"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"koda.local/security-sbom-linux/internal/model"
 )
 
 const maxSocketFDs = 1 << 18
 
-// listeningSockets reads the collector's own network namespace. Sockets that
-// exist only in another namespace (for example a container) are not listed.
-func listeningSockets(root *os.Root, out *model.Context) map[uint64]model.Socket {
+// listeningSockets reads the network namespace that pid belongs to.
+func listeningSockets(root *os.Root, out *model.Context, pid int) map[uint64]model.Socket {
 	sockets := map[uint64]model.Socket{}
-	base := "proc/" + strconv.Itoa(os.Getpid()) + "/net/"
+	base := "proc/" + strconv.Itoa(pid) + "/net/"
 	for _, protocol := range []string{"tcp", "tcp6", "udp", "udp6"} {
 		f, err := openNoFollow(root, base+protocol)
 		if os.IsNotExist(err) {
@@ -101,6 +102,44 @@ func (s *socketOwner) unattributed() []model.Socket {
 	}
 	sortSockets(rest)
 	return rest
+}
+
+// NamespaceSockets reads the listening sockets in the network namespace of
+// pids[0] and groups them by the executable of the listed processes that hold
+// them. Executable paths are relative to the processes' own root, so a
+// container's paths match its root filesystem. Sockets held only by other
+// processes (for example sibling containers in a pod) are left out.
+func NamespaceSockets(ctx context.Context, pids []int) (map[string][]model.Socket, []model.Issue) {
+	out := &model.Context{}
+	if len(pids) == 0 {
+		return nil, nil
+	}
+	root, err := os.OpenRoot("/")
+	if err != nil {
+		return nil, nil
+	}
+	defer root.Close()
+	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out, pids[0]), owned: map[uint64]bool{}, budget: maxSocketFDs}
+	byExecutable := map[string][]model.Socket{}
+	for _, pid := range pids {
+		prefix := "proc/" + strconv.Itoa(pid)
+		exe, err := root.Readlink(prefix + "/exe")
+		if err != nil || strings.HasSuffix(exe, " (deleted)") {
+			continue
+		}
+		if exe = safeRuntimePath(exe); exe == "" {
+			continue
+		}
+		for _, socket := range owners.process(prefix) {
+			if !slices.Contains(byExecutable[exe], socket) {
+				byExecutable[exe] = append(byExecutable[exe], socket)
+			}
+		}
+	}
+	for exe := range byExecutable {
+		sortSockets(byExecutable[exe])
+	}
+	return byExecutable, out.Issues
 }
 
 func sortSockets(list []model.Socket) {

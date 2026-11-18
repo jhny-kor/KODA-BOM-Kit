@@ -73,6 +73,9 @@ func TestDiscoverNamesContainersAndMapsRootFS(t *testing.T) {
 	if len(found) != 3 {
 		t.Fatalf("want docker, k8s workload and hidden container, got %+v", found)
 	}
+	if c := byID[docker]; len(c.PIDs) != 2 || c.PIDs[0] != 200 {
+		t.Errorf("docker container processes %v", c.PIDs)
+	}
 	if c := byID[docker]; c.Name != "web" || c.Runtime != "docker" || c.Image != "nginx:1.27" || c.RootFS != "/var/lib/docker/overlay2/x1/merged" || c.FileName() != "web" {
 		t.Errorf("docker container %+v", c)
 	}

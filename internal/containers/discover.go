@@ -31,8 +31,10 @@ type Container struct {
 	Pod          string `json:"pod,omitempty"`
 	PodNamespace string `json:"podNamespace,omitempty"`
 	PID          int    `json:"pid"`
-	RootFS       string `json:"-"`
-	sandbox      bool
+	// PIDs are all processes of the container, PID first.
+	PIDs    []int  `json:"-"`
+	RootFS  string `json:"-"`
+	sandbox bool
 }
 
 var containerID = regexp.MustCompile(`[0-9a-f]{64}`)
@@ -119,7 +121,7 @@ func Discover(ctx context.Context, root string, self int) ([]Container, []model.
 		entries = entries[:maxProcesses]
 		issue("incomplete", "proc", "process limit reached during container discovery")
 	}
-	seen := map[string]bool{}
+	seen := map[string]int{} // container ID -> index in found, or -1 for a skipped sandbox
 	var found []Container
 	denied := false
 	for _, entry := range entries {
@@ -145,19 +147,23 @@ func Discover(ctx context.Context, root string, self int) ([]Container, []model.
 			continue
 		}
 		id := ids[len(ids)-1]
-		if seen[id] {
+		if i, ok := seen[id]; ok {
+			if i >= 0 {
+				found[i].PIDs = append(found[i].PIDs, pid)
+			}
 			continue
 		}
-		seen[id] = true
-		c := Container{ID: id, PID: pid}
+		c := Container{ID: id, PID: pid, PIDs: []int{pid}}
 		// The mapped path is in the collector's own mount namespace.
 		if p := hostPath(parseMountinfo(string(read(filepath.Join(dir, "mountinfo"), 16<<20))), hostMounts); p != "" && p != "/" {
 			c.RootFS = p
 		}
 		describe(root, &c)
 		if c.sandbox {
+			seen[id] = -1
 			continue // Kubernetes pod sandbox ("pause"), not a workload
 		}
+		seen[id] = len(found)
 		found = append(found, c)
 	}
 	if denied {
