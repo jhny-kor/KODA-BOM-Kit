@@ -9,6 +9,8 @@
 | 외부 장비 | 로컬 파일로 내보낸 Redfish·fwupd·devlink 또는 공통 JSON | 장비가 보고한 버전과 상태를 보존합니다. 매칭되지 않은 장비와 미확인 필드는 수집 범위를 함께 확인합니다. |
 | Windows·macOS | `platform-inventory`의 시스템·OS·펌웨어 및 설치 앱 메타데이터 | Windows는 교차 빌드 확인 범위입니다. 개별 앱 내부 의존성과 제공자별 업데이트는 추가 증적이 필요합니다. |
 | 실행 중 소프트웨어 | 실행 파일 및 메모리 매핑의 경로·파일 식별 정보, 경로를 식별한 설치 패키지 | 프로세스와 수집기의 파일시스템 범위가 같은 경우에만 설치 패키지를 연결합니다. 교체가 확인되면 재시작 검토 근거를 남깁니다. |
+| 호스트 식별 | machine-id, DMI product UUID·제품/보드 시리얼의 SHA-256, 운영자 `--asset-tag` | 호스트 `/` 수집만 해당. DMI 시리얼은 root 권한 필요. 공용 기본값은 기록하지 않음. 해시는 가명화이며 익명화가 아님 |
+| 수신 대기 소켓 | 수집기 네트워크 네임스페이스의 `/proc/<pid>/net` LISTEN TCP·바인딩 UDP와 `/proc/<pid>/fd` 소유 프로세스 | 바인딩 주소만 확인하며 방화벽 노출은 확인하지 않음. 다른 네임스페이스의 소켓 미관측. 소유자 미확인 소켓은 `unattributedSockets` |
 | 커널 | 현재 uname, 설치 커널 이미지·모듈, vermagic, RPM 버전 | 설치된 옛 커널과 실제 부팅 커널 구분. 모듈 미관측은 내장 기능 부재를 뜻하지 않음 |
 | 라이브패치 | Linux livepatch sysfs, Oracle raw Ksplice stage, 선택 실행 helper의 Ksplice·Uptrack·Canonical 상태 보고 | 관측과 클라이언트 보고 구분. 부팅·커널·시간이 다른 증거는 적용 상태로 사용하지 않음. CVE 취약성 자동판정 없음 |
 | Java | JDK/JRE release, JAR/WAR/EAR manifest·Maven 메타데이터 | 식별정보 제거·수정된 shaded archive는 부분 식별 가능 |

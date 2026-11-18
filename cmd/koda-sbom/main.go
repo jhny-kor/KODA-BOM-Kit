@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/anchore/syft/syft/artifact"
 	"github.com/anchore/syft/syft/sbom"
@@ -61,6 +63,7 @@ type summary struct {
 	FinishedAt                         string                 `json:"finishedAt"`
 	PackageCount                       int                    `json:"packageCount"`
 	AssetCount                         int                    `json:"assetCount,omitempty"`
+	Host                               *model.HostIdentity    `json:"host,omitempty"`
 	ImageIdentity                      *imagearchive.Identity `json:"imageIdentity,omitempty"`
 	PackageTypes                       map[string]int         `json:"packageTypes"`
 	Distribution                       any                    `json:"distribution,omitempty"`
@@ -82,8 +85,24 @@ type summary struct {
 }
 
 func main() { os.Exit(run(os.Args[1:])) }
+
+// validAssetTag accepts an empty tag (unset) or a short single-line label.
+func validAssetTag(tag string) bool {
+	if tag == "" {
+		return true
+	}
+	if !utf8.ValidString(tag) || utf8.RuneCountInString(tag) > 128 || strings.TrimSpace(tag) != tag {
+		return false
+	}
+	for _, r := range tag {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
 func usage() {
-	fmt.Fprintln(os.Stderr, "koda-sbom: offline standalone inventory collector\n  koda-sbom doctor\n  koda-sbom version\n  koda-sbom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only)\n  koda-sbom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed.")
+	fmt.Fprintln(os.Stderr, "koda-sbom: offline standalone inventory collector\n  koda-sbom doctor\n  koda-sbom version\n  koda-sbom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only) [--asset-tag LABEL]\n  koda-sbom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed.")
 	fmt.Fprintln(os.Stderr, "  koda-sbom aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
 	fmt.Fprintln(os.Stderr, "  koda-sbom reconcile --artifact FILE.war|FILE.ear --supplier-sbom FILE.json --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
 	fmt.Fprintln(os.Stderr, "  koda-sbom scan --target DIRECTORY --target DIRECTORY --output-dir DIR [--exclude-dir ABSOLUTE_DIRECTORY]...")
@@ -142,7 +161,7 @@ type scanCompletion func(dir string, report summary, coverage collect.Collection
 
 func runScan(parent context.Context, args []string, onComplete scanCompletion) int {
 	flags := flag.NewFlagSet("scan", flag.ContinueOnError)
-	var target, image, output, format string
+	var target, image, output, format, assetTag string
 	var timeout time.Duration
 	var maxFiles int64
 	var targets, excludes, excludedDirs stringsFlag
@@ -160,7 +179,12 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	flags.BoolVar(&noContext, "no-context", false, "skip runtime/configuration context")
 	flags.Var(&livepatchEvidence, "livepatch-evidence", "local sanitized client status evidence (repeatable, live host only)")
 	flags.Var(&assetEvidence, "asset-evidence", "local supplementary hardware/software evidence (repeatable)")
+	flags.StringVar(&assetTag, "asset-tag", "", "operator label stored in the SBOM to identify this host (max 128 characters)")
 	if e := flags.Parse(args); e != nil {
+		return 2
+	}
+	if !validAssetTag(assetTag) {
+		fmt.Fprintln(os.Stderr, "--asset-tag must be 1-128 printable characters without leading or trailing spaces")
 		return 2
 	}
 	if len(targets) == 1 {
@@ -226,6 +250,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	if !multiple && target == "" && image == "" {
 		target = "/"
 	}
+	host := model.HostIdentity{AssetTag: assetTag}
 	if target != "" {
 		validation, e := localfs.BuildWithOptions(ctx, target, []string{"/**"}, localfs.Options{ExcludeDirs: excludedDirs})
 		if e != nil {
@@ -237,6 +262,12 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			return 2
 		}
 		target = validation.Root
+	}
+	var hostIssues []model.Issue
+	if target == "/" && image == "" {
+		// Only the live root is this machine; a directory may be a foreign mount.
+		host, hostIssues = hardware.HostIdentity(ctx, "/")
+		host.AssetTag = assetTag
 	}
 	out, e := localfs.ResolveLocal(output)
 	if e != nil {
@@ -279,6 +310,10 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	start := time.Now()
 	catalogers := append(append([]string{}, collect.Catalogers...), "koda-product-metadata", staticjs.Collector)
 	report := summary{Schema: "koda-sbom-collection-v1", Status: "failed", Tool: toolInfo{version, revision, builtAt, collect.SyftVersion}, StartedAt: start.UTC().Format(time.RFC3339), PackageTypes: map[string]int{}, Products: []model.Product{}, Catalogers: catalogers, Issues: assetIssues, Limitations: []string{"Scan produces observations for later advisory correlation", "Missing metadata and unreadable paths cannot establish absence", "Installed and observed context do not prove active exploitability", "Hardware coverage depends on local kernel attributes and supplied evidence; imported assets are reported observations", "JEUS product/patch identification is unverified; bundled JAR discovery is separate", "Patch observations are not proof that a patch is applied", "Static JavaScript identification covers selected libraries and bounded archive inspection"}}
+	if host != (model.HostIdentity{}) {
+		report.Host = &host
+	}
+	report.Issues = append(report.Issues, hostIssues...)
 	report.Limits = scanLimits{MaxFiles: maxFiles, Timeout: timeout.String(), TimeoutSeconds: timeout.Seconds()}
 	report.JavaScriptFingerprintCatalogSHA256 = staticjs.FingerprintCatalogSHA256()
 	report.PhaseSeconds = map[string]float64{}
@@ -536,7 +571,11 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	phaseStart = time.Now()
 	coverage := collect.NewCollectionCoverage(report.Status, report.Source.Type, report.PackageCount+report.AssetCount, len(report.ExcludedDirectories), configuredExcludePatternCount, report.Issues)
 	coverage.IncludeAllOccurrences = multiple
-	if e = collect.WriteSBOMsWithAssets(ctx, dir, format, inventory, report.Status == "partial", &coverage, assets, cyclonedx17); e != nil {
+	e = collect.WriteSBOMsWithAssets(ctx, dir, format, inventory, report.Status == "partial", &coverage, assets, cyclonedx17)
+	if e == nil {
+		e = collect.AnnotateSBOMs(dir, host, collect.ListeningByPURL(contextData))
+	}
+	if e != nil {
 		finishPhase("sbomOutput")
 		report.Status = "failed"
 		if multiple || cyclonedx17 {

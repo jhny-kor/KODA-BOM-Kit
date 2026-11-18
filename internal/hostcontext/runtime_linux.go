@@ -91,6 +91,8 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		issue(out, "incomplete", "proc", "process directory entry limit reached")
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out), owned: map[uint64]bool{}, budget: maxSocketFDs}
+	defer func() { out.UnattributedSockets = owners.unattributed() }()
 	count := 0
 	for _, entry := range entries {
 		if ctx.Err() != nil {
@@ -118,7 +120,7 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		if exe == "" || blocked(exe, denied) {
 			continue
 		}
-		link := model.ProcessLink{PID: pid, Executable: exe, ExecutableDeleted: executableDeleted}
+		link := model.ProcessLink{PID: pid, Executable: exe, ExecutableDeleted: executableDeleted, ListeningSockets: owners.process(prefix)}
 		if data, err := readBounded(root, prefix+"/maps"); err == nil {
 			link.Libraries = parseMaps(string(data), denied)
 			link.FilesystemComparable = sameProcessFilesystem(root, prefix)

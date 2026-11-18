@@ -42,6 +42,29 @@ type ProcessLink struct {
 	ExecutableDeleted    bool          `json:"executableDeleted,omitempty"`
 	FilesystemComparable bool          `json:"filesystemComparable,omitempty"`
 	RuntimeFiles         []RuntimeFile `json:"runtimeFiles,omitempty"`
+	ListeningSockets     []Socket      `json:"listeningSockets,omitempty"`
+}
+
+// Socket is a listening TCP or unconnected bound UDP socket in the collector's
+// network namespace. BindScope describes the local address only; firewall and
+// routing reachability are not observed.
+type Socket struct {
+	Protocol  string `json:"protocol"`
+	Address   string `json:"address"`
+	Port      int    `json:"port"`
+	BindScope string `json:"bindScope"`
+}
+
+// HostIdentity correlates repeated collections of one machine. Identifiers are
+// SHA-256 digests of the normalized local value; low-entropy serials remain
+// guessable from their digest, so this is pseudonymization, not anonymization.
+type HostIdentity struct {
+	AssetTag            string `json:"assetTag,omitempty"`
+	MachineIDSHA256     string `json:"machineIdSha256,omitempty"`
+	ProductUUIDSHA256   string `json:"productUuidSha256,omitempty"`
+	ProductSerialSHA256 string `json:"productSerialSha256,omitempty"`
+	BoardSerialSHA256   string `json:"boardSerialSha256,omitempty"`
+	ObservationScope    string `json:"observationScope,omitempty"`
 }
 
 type RuntimeFile struct {
@@ -108,6 +131,8 @@ type Context struct {
 	LoadedModules []string          `json:"loadedModules,omitempty"`
 	ProcessLinks  []ProcessLink     `json:"processLinks,omitempty"`
 	Livepatch     []LivepatchStatus `json:"livepatch,omitempty"`
-	Settings      []Setting         `json:"settings"`
-	Issues        []Issue           `json:"issues"`
+	// Sockets whose owning process could not be read or was excluded.
+	UnattributedSockets []Socket  `json:"unattributedSockets,omitempty"`
+	Settings            []Setting `json:"settings"`
+	Issues              []Issue   `json:"issues"`
 }
