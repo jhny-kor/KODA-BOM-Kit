@@ -18,10 +18,14 @@ func importAIXEvidence(args []string) int {
 	evidence := flags.String("evidence", "", "directory from collect-aix-evidence.sh")
 	output := flags.String("output-dir", "", "parent directory for new results")
 	format := flags.String("format", "both", "both, cyclonedx, spdx")
+	cyclonedx17 := flags.Bool("cyclonedx-17", false, cyclonedx17Help)
 	timeout := flags.Duration("timeout", 30*time.Minute, "maximum import time; 0 disables the time limit")
 	if flags.Parse(args) != nil || flags.NArg() != 0 || *evidence == "" || *output == "" ||
 		(*format != "both" && *format != "cyclonedx" && *format != "spdx") || *timeout < 0 {
-		fmt.Fprintln(os.Stderr, "use aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--timeout 30m|0]")
+		fmt.Fprintln(os.Stderr, "use aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
+		return 2
+	}
+	if !validCycloneDXSelection(*format, *cyclonedx17) {
 		return 2
 	}
 	start := time.Now()
@@ -108,7 +112,7 @@ func importAIXEvidence(args []string) int {
 		report.Collectors = append(report.Collectors, collectorResult{Name: name, Status: state, PackageCount: counts[name]})
 	}
 	coverage := collect.NewCollectionCoverage(report.Status, report.Source.Type, report.PackageCount, 0, 0, report.Issues)
-	if err = collect.WriteSBOMsContext(ctx, dir, *format, bom, true, &coverage); err != nil {
+	if err = collect.WriteSBOMsWithAssets(ctx, dir, *format, bom, true, &coverage, nil, *cyclonedx17); err != nil {
 		fmt.Fprintln(os.Stderr, "cannot encode AIX SBOM")
 		return 2
 	}

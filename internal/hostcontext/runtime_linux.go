@@ -51,7 +51,18 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		issue(out, statusFor(err), "proc/modules", "loaded module list unavailable; built-in kernel features remain unknown")
 	}
 	collectLivepatch(ctx, root, out)
-	for _, name := range []string{"proc/sys/kernel/unprivileged_userns_clone", "proc/sys/user/max_user_namespaces"} {
+	for _, name := range []string{
+		"proc/sys/kernel/unprivileged_userns_clone",
+		"proc/sys/user/max_user_namespaces",
+		"proc/sys/kernel/kptr_restrict",
+		"proc/sys/kernel/dmesg_restrict",
+		"proc/sys/kernel/perf_event_paranoid",
+		"proc/sys/kernel/yama/ptrace_scope",
+		"proc/sys/kernel/randomize_va_space",
+		"proc/sys/fs/protected_hardlinks",
+		"proc/sys/fs/protected_symlinks",
+		"proc/sys/net/ipv4/ip_forward",
+	} {
 		data, err := readBounded(root, name)
 		if os.IsNotExist(err) {
 			continue
@@ -61,7 +72,7 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 			continue
 		}
 		value := strings.TrimSpace(string(data))
-		if _, err := strconv.ParseUint(value, 10, 64); err == nil {
+		if _, err := strconv.ParseInt(value, 10, 64); err == nil {
 			out.Settings = append(out.Settings, model.Setting{Product: "Linux kernel", Name: strings.ReplaceAll(strings.TrimPrefix(name, "proc/sys/"), "/", "."), Value: value, Path: name, State: "observed"})
 		}
 	}
@@ -102,14 +113,17 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 			}
 			continue
 		}
+		executableDeleted := strings.HasSuffix(exe, " (deleted)")
 		exe = safeRuntimePath(exe)
 		if exe == "" || blocked(exe, denied) {
 			continue
 		}
-		link := model.ProcessLink{PID: pid, Executable: exe}
+		link := model.ProcessLink{PID: pid, Executable: exe, ExecutableDeleted: executableDeleted}
 		if data, err := readBounded(root, prefix+"/maps"); err == nil {
 			link.Libraries = parseMaps(string(data), denied)
-			if len(link.Libraries) >= maxLibraries {
+			link.FilesystemComparable = sameProcessFilesystem(root, prefix)
+			link.RuntimeFiles = runtimeFiles(root, string(data), denied, link.FilesystemComparable)
+			if len(link.Libraries) >= maxLibraries || len(link.RuntimeFiles) >= maxLibraries {
 				issue(out, "incomplete", prefix+"/maps", "process shared-library count limit reached")
 			}
 		} else if !os.IsNotExist(err) {

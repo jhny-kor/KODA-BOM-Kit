@@ -14,6 +14,7 @@ import (
 	"github.com/anchore/syft/syft/format/syftjson"
 	"github.com/anchore/syft/syft/sbom"
 	"io"
+	"koda.local/security-sbom-linux/internal/model"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,13 +29,21 @@ import (
 //go:embed cyclonedx16-license-ids.txt
 var cyclonedx16LicenseList string
 
-var cyclonedx16LicenseIDs = func() map[string]bool {
+// IDs added by the SPDX enum in tests/schemas/cyclonedx-1.7/spdx.schema.json.
+//
+//go:embed cyclonedx17-license-additions.txt
+var cyclonedx17LicenseAdditions string
+
+var cyclonedx16LicenseIDs = licenseIDSet(cyclonedx16LicenseList)
+var cyclonedx17LicenseIDs = licenseIDSet(cyclonedx16LicenseList + "\n" + cyclonedx17LicenseAdditions)
+
+func licenseIDSet(list string) map[string]bool {
 	ids := map[string]bool{}
-	for _, id := range strings.Fields(cyclonedx16LicenseList) {
+	for _, id := range strings.Fields(list) {
 		ids[id] = true
 	}
 	return ids
-}()
+}
 
 func WriteJSON(dir, name string, v any) error {
 	b, e := json.MarshalIndent(v, "", "  ")
@@ -59,8 +68,17 @@ func WriteSBOMs(dir, selected string, s *sbom.SBOM) error {
 	return WriteSBOMsContext(context.Background(), dir, selected, s, false, nil)
 }
 func WriteSBOMsContext(ctx context.Context, dir, selected string, s *sbom.SBOM, incomplete bool, coverage *CollectionCoverage) error {
+	return WriteSBOMsWithAssets(ctx, dir, selected, s, incomplete, coverage, nil, false)
+}
+
+const CycloneDX17Filename = "sbom.cdx-1.7.json"
+
+func WriteSBOMsWithAssets(ctx context.Context, dir, selected string, s *sbom.SBOM, incomplete bool, coverage *CollectionCoverage, assets []model.Asset, cyclonedx17 bool) error {
 	if e := ctx.Err(); e != nil {
 		return e
+	}
+	if cyclonedx17 && selected == "spdx" {
+		return fmt.Errorf("CycloneDX 1.7 requires a CycloneDX output format")
 	}
 	var coverageJSON []byte
 	allOccurrences := coverage != nil && coverage.IncludeAllOccurrences
@@ -78,6 +96,13 @@ func WriteSBOMsContext(ctx context.Context, dir, selected string, s *sbom.SBOM, 
 			return e
 		}
 		encs["sbom.cdx.json"] = enc
+		if cyclonedx17 {
+			additional, err := cyclonedxjson.NewFormatEncoderWithConfig(cyclonedxjson.EncoderConfig{Version: "1.7", Pretty: true})
+			if err != nil {
+				return err
+			}
+			encs[CycloneDX17Filename] = additional
+		}
 	}
 	if selected == "both" || selected == "spdx" {
 		enc, e := spdxjson.NewFormatEncoderWithConfig(spdxjson.EncoderConfig{Version: "2.3", DefaultVersion: "2.3", Pretty: true})
@@ -110,8 +135,12 @@ func WriteSBOMsContext(ctx context.Context, dir, selected string, s *sbom.SBOM, 
 		if e != nil {
 			return fmt.Errorf("encode %s: %w", name, e)
 		}
-		if name == "sbom.cdx.json" {
-			b, _, e = normalizeCycloneDXLicenseIDs(b)
+		if name == "sbom.cdx.json" || name == CycloneDX17Filename {
+			licenseIDs := cyclonedx16LicenseIDs
+			if name == CycloneDX17Filename {
+				licenseIDs = cyclonedx17LicenseIDs
+			}
+			b, _, e = normalizeCycloneDXLicenseIDs(b, licenseIDs)
 			if e != nil {
 				return fmt.Errorf("encode CycloneDX license identifiers: %w", e)
 			}
@@ -123,6 +152,12 @@ func WriteSBOMsContext(ctx context.Context, dir, selected string, s *sbom.SBOM, 
 			b, e = addSPDXEvidence(b, s.Artifacts.Packages, coverageJSON, allOccurrences)
 			if e != nil {
 				return fmt.Errorf("encode SPDX collection evidence: %w", e)
+			}
+		}
+		if name != "inventory.syft.json" {
+			b, e = addAssetComponents(b, name, assets)
+			if e != nil {
+				return fmt.Errorf("encode %s asset evidence: %w", name, e)
 			}
 		}
 		if err := ctx.Err(); err != nil {
@@ -138,7 +173,7 @@ func WriteSBOMsContext(ctx context.Context, dir, selected string, s *sbom.SBOM, 
 // Only licenseChoice arrays named "licenses" are changed. In particular, SPDX
 // expressions, component IDs, PURLs, relationships and source inventories remain
 // untouched. RawMessage keeps numeric values and fields outside these objects.
-func normalizeCycloneDXLicenseIDs(raw json.RawMessage) (json.RawMessage, bool, error) {
+func normalizeCycloneDXLicenseIDs(raw json.RawMessage, licenseIDs map[string]bool) (json.RawMessage, bool, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
 		return nil, false, fmt.Errorf("empty JSON value")
@@ -155,9 +190,9 @@ func normalizeCycloneDXLicenseIDs(raw json.RawMessage) (json.RawMessage, bool, e
 			var updated bool
 			var err error
 			if key == "licenses" {
-				next, updated, err = normalizeCycloneDXLicenseChoices(value)
+				next, updated, err = normalizeCycloneDXLicenseChoices(value, licenseIDs)
 			} else {
-				next, updated, err = normalizeCycloneDXLicenseIDs(value)
+				next, updated, err = normalizeCycloneDXLicenseIDs(value, licenseIDs)
 			}
 			if err != nil {
 				return nil, false, err
@@ -176,7 +211,7 @@ func normalizeCycloneDXLicenseIDs(raw json.RawMessage) (json.RawMessage, bool, e
 			return nil, false, err
 		}
 		for i, item := range items {
-			next, updated, err := normalizeCycloneDXLicenseIDs(item)
+			next, updated, err := normalizeCycloneDXLicenseIDs(item, licenseIDs)
 			if err != nil {
 				return nil, false, err
 			}
@@ -192,7 +227,7 @@ func normalizeCycloneDXLicenseIDs(raw json.RawMessage) (json.RawMessage, bool, e
 	return raw, false, nil
 }
 
-func normalizeCycloneDXLicenseChoices(raw json.RawMessage) (json.RawMessage, bool, error) {
+func normalizeCycloneDXLicenseChoices(raw json.RawMessage, licenseIDs map[string]bool) (json.RawMessage, bool, error) {
 	var choices []map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &choices); err != nil {
 		return nil, false, err
@@ -215,7 +250,7 @@ func normalizeCycloneDXLicenseChoices(raw json.RawMessage) (json.RawMessage, boo
 		if err := json.Unmarshal(idValue, &id); err != nil {
 			return nil, false, err
 		}
-		if cyclonedx16LicenseIDs[id] {
+		if licenseIDs[id] {
 			continue
 		}
 		if _, exists := license["name"]; exists {

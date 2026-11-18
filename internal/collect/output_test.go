@@ -2,6 +2,7 @@ package collect
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,23 +18,29 @@ import (
 )
 
 func TestCycloneDXLicenseListMatchesPinnedSchema(t *testing.T) {
-	data, err := os.ReadFile("../../tests/schemas/spdx.schema.json")
+	verifyCycloneDXLicenseList(t, "../../tests/schemas/spdx.schema.json", "baa9d3bd1ed57b6751b0887edead6b5063ff53ff7429cf85d476c6c94af0166e", cyclonedx16LicenseIDs)
+	verifyCycloneDXLicenseList(t, "../../tests/schemas/cyclonedx-1.7/spdx.schema.json", "ea6e844ee6fba1e93473d94834d0ee0996970533497935f932f73d488ffdf4a3", cyclonedx17LicenseIDs)
+}
+
+func verifyCycloneDXLicenseList(t *testing.T, path, expectedHash string, ids map[string]bool) {
+	t.Helper()
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	hash := sha256.Sum256(data)
-	if got := hex.EncodeToString(hash[:]); got != "baa9d3bd1ed57b6751b0887edead6b5063ff53ff7429cf85d476c6c94af0166e" {
-		t.Fatalf("pinned CycloneDX 1.6 license schema changed: %s", got)
+	if got := hex.EncodeToString(hash[:]); got != expectedHash {
+		t.Fatalf("pinned CycloneDX license schema %s changed: %s", path, got)
 	}
 	var schema struct{ Enum []string }
 	if err := json.Unmarshal(data, &schema); err != nil {
 		t.Fatal(err)
 	}
-	if len(schema.Enum) != len(cyclonedx16LicenseIDs) {
-		t.Fatalf("runtime license list has %d IDs, schema has %d", len(cyclonedx16LicenseIDs), len(schema.Enum))
+	if len(schema.Enum) != len(ids) {
+		t.Fatalf("runtime license list has %d IDs, schema has %d", len(ids), len(schema.Enum))
 	}
 	for _, id := range schema.Enum {
-		if !cyclonedx16LicenseIDs[id] {
+		if !ids[id] {
 			t.Fatalf("runtime list missing schema license %q", id)
 		}
 	}
@@ -61,14 +68,14 @@ func TestCycloneDXLicenseFallbackPreservesOtherFieldsAndExpressions(t *testing.T
 		license["name"] = license["id"]
 		delete(license, "id")
 	}
-	normalized, changed, err := normalizeCycloneDXLicenseIDs(raw)
+	normalized, changed, err := normalizeCycloneDXLicenseIDs(raw, cyclonedx16LicenseIDs)
 	if err != nil || !changed {
 		t.Fatalf("license fallback failed: changed=%v error=%v", changed, err)
 	}
 	if got := decodeOutputJSON(t, normalized); !reflect.DeepEqual(got, want) {
 		t.Fatalf("fields other than unsupported license IDs changed\ngot: %s\nwant: %#v", normalized, want)
 	}
-	second, changed, err := normalizeCycloneDXLicenseIDs(normalized)
+	second, changed, err := normalizeCycloneDXLicenseIDs(normalized, cyclonedx16LicenseIDs)
 	if err != nil || changed || !bytes.Equal(second, normalized) {
 		t.Fatal("normalization was not idempotent")
 	}
@@ -79,7 +86,7 @@ func TestKnownCycloneDXLicensesAndExpressionsAreByteUnchanged(t *testing.T) {
 		[]byte(`{"components":[{"licenses":[{"license":{"id":"MIT"}},{"license":{"id":"GPL-2.0-only"}}]}]}`),
 		[]byte(`{"components":[{"licenses":[{"expression":"MIT OR SMAIL-GPL"}]}]}`),
 	} {
-		got, changed, err := normalizeCycloneDXLicenseIDs(raw)
+		got, changed, err := normalizeCycloneDXLicenseIDs(raw, cyclonedx16LicenseIDs)
 		if err != nil || changed || !bytes.Equal(got, raw) {
 			t.Fatalf("known licenses or expression changed: %s, %v", got, err)
 		}
@@ -106,7 +113,7 @@ func TestWriteSBOMsKeepsNewerSPDXLicenseInAllFormats(t *testing.T) {
 		Source:     source.Description{ID: "fixture", Name: "fixture", Metadata: source.DirectoryMetadata{Path: "."}},
 		Descriptor: sbom.Descriptor{Name: "koda-sbom", Version: "test"}}
 	dir := t.TempDir()
-	if err := WriteSBOMs(dir, "both", s); err != nil {
+	if err := WriteSBOMsWithAssets(context.Background(), dir, "both", s, false, nil, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	read := func(name string, value any) {
@@ -119,13 +126,22 @@ func TestWriteSBOMsKeepsNewerSPDXLicenseInAllFormats(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var cdx struct {
-		Components []struct {
+	type cdxOutput struct {
+		SpecVersion string `json:"specVersion"`
+		Components  []struct {
 			Name, Version, PURL string
 			Licenses            []struct{ License map[string]string }
 		}
 	}
+	var cdx, cdx17 cdxOutput
 	read("sbom.cdx.json", &cdx)
+	read(CycloneDX17Filename, &cdx17)
+	if cdx.SpecVersion != "1.6" || cdx17.SpecVersion != "1.7" || len(cdx17.Components) != 1 || cdx17.Components[0].PURL != purl {
+		t.Fatalf("unexpected CycloneDX versions or identity: %+v, %+v", cdx, cdx17)
+	}
+	if licenses := cdx17.Components[0].Licenses; len(licenses) != 1 || licenses[0].License["id"] != "SMAIL-GPL" {
+		t.Fatalf("CycloneDX 1.7 license ID not preserved: %+v", licenses)
+	}
 	if len(cdx.Components) != 1 || cdx.Components[0].Name != p.Name || cdx.Components[0].Version != p.Version || cdx.Components[0].PURL != purl {
 		t.Fatalf("CycloneDX package identity changed: %+v", cdx.Components)
 	}

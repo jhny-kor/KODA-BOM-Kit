@@ -5,10 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"koda.local/security-sbom-linux/internal/evidencefile"
 	"os"
 	"runtime"
 	"strings"
-	"syscall"
 
 	"koda.local/security-sbom-linux/internal/hostcontext"
 	"koda.local/security-sbom-linux/internal/localfs"
@@ -24,7 +24,7 @@ func readLivepatchInput(filename string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(resolved, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := evidencefile.Open(resolved)
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,7 @@ var syftCatalogers = []string{
 	"elf-binary-package-cataloger", GoBinaryCollector,
 }
 
-var Catalogers = append(append([]string{}, syftCatalogers...), kernelCollector, RustBinaryCollector, DotnetCollector, RubyCollector)
+var Catalogers = append(append([]string{}, syftCatalogers...), kernelCollector, RustBinaryCollector, DotnetCollector, RubyCollector, pythonZipappCollector)
 
 type deniedTransport struct{}
 
@@ -93,6 +93,9 @@ func Scan(ctx context.Context, plan localfs.Plan, version string) (*sbom.SBOM, e
 	s.Artifacts.FileContents = nil
 	normalizeDeployedPackages(s)
 	collectJavaDeployments(ctx, s, plan)
+	if err := collectPythonZipapps(ctx, s, plan); err != nil {
+		return nil, err
+	}
 	resolver, e := src.FileResolver(source.SquashedScope)
 	if e != nil {
 		return nil, e

@@ -12,19 +12,19 @@ import (
 	"fmt"
 	"github.com/klauspost/compress/zstd"
 	"io"
+	"koda.local/security-sbom-linux/internal/evidencefile"
 	"koda.local/security-sbom-linux/internal/localfs"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 )
 
 const maxBytes int64 = 16 << 30
 const maxEntries = 500000
 
 func reader(file string) (io.ReadCloser, error) {
-	f, e := os.OpenFile(file, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
+	f, e := evidencefile.Open(file)
 	if e != nil {
 		return nil, e
 	}

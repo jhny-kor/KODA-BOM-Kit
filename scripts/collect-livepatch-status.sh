@@ -5,7 +5,7 @@ set -eu
 umask 077
 
 usage_error() {
-    echo "usage: $0 RESULT_PARENT_DIRECTORY [--timeout DURATION] [--max-files N] [--exclude GLOB]..." >&2
+    echo "usage: $0 RESULT_PARENT_DIRECTORY [--cyclonedx-17] [--timeout DURATION] [--max-files N] [--exclude GLOB]..." >&2
     exit 2
 }
 
@@ -16,6 +16,10 @@ validate_scan_options() {
     while [ "$#" -gt 0 ]; do
         [ "${#1}" -le 4096 ] || usage_error
         case "$1" in
+            --cyclonedx-17|--cyclonedx-17=*)
+                shift
+                continue
+                ;;
             --timeout|--max-files|--exclude)
                 [ "$#" -ge 2 ] || usage_error
                 option=$1

@@ -1,5 +1,72 @@
 # 빌드·검증과 증거 구분
 
+## 0.1.6-dev 현재 검증 범위
+
+현재 소스는 `0.1.6-dev`입니다. 개발 빌드의 실행 결과는
+[검증 결과 기록](검증결과.ko.md)에 구분해 기록하며, 공개된 0.1.6 배포본이나 최종 배포
+검증 보고서가 있다는 의미는 아닙니다. 아래 0.1.5 이하 배포·VM 절차와 결과는 해당
+버전의 이력입니다. 새 빌드는 실행 파일 SHA-256과 실행 환경을 다시 기록해야 합니다.
+
+Linux 전체 수집은 x86_64와 ARM64를 대상으로 합니다. Docker/OCI 이미지 수집은
+linux/amd64 이미지가 대상입니다. macOS·Windows의 `platform-inventory`는 OS가 제공하는
+고정된 읽기 전용 명령으로 기본 자산을 수집하므로, Linux `scan`의 추가 명령 비실행
+검증과 별도로 확인합니다. Windows는 현재 교차 빌드만 확인했습니다.
+
+### CycloneDX 1.6·1.7 동시 출력 검증
+
+`--cyclonedx-17`을 지정하면 한 번 수집한 같은 인벤토리에서 1.6과 1.7을 함께 만듭니다.
+기본 출력은 CycloneDX 1.6과 SPDX 2.3입니다.
+
+| 선택 | 확인할 표준 파일 |
+|---|---|
+| 기본 또는 `--format both` | `sbom.cdx.json`(1.6), `sbom.spdx.json`(2.3) |
+| `--format both --cyclonedx-17` | 위 두 파일과 `sbom.cdx-1.7.json`(1.7) |
+| `--format cyclonedx --cyclonedx-17` | `sbom.cdx.json`, `sbom.cdx-1.7.json` |
+| `--format spdx --cyclonedx-17` | 출력 생성 전 거부 |
+
+이 옵션은 `scan`, `aix-import`, `asset-import`, `platform-inventory`, `reconcile`에서
+지원하며 `scan-directory.sh`와 `collect-livepatch-status.sh`도 전달합니다. Linux 대상
+디렉터리 수집의 재현 명령은 다음과 같습니다. 출력 부모 경로는 수집 대상 밖으로 지정합니다.
+
+```bash
+./koda-sbom scan --target /path/to/input --no-context \
+  --output-dir /path/to/results --format both --cyclonedx-17
+# 수집기가 출력한 실제 결과 디렉터리를 지정합니다.
+python3 tests/validate_outputs.py /path/to/scan-result
+```
+
+종료 코드 `3`은 부분 수집입니다. 스키마 통과와 별도로 `collection.json`의 상태와
+미수집 사유를 확인합니다. `tests/validate_outputs.py`는 존재하는 표준 파일의 로컬
+스키마, 1.6·1.7 구성요소 식별정보·근거·속성·라이선스 의미·의존성 관계·수집 범위,
+`SHA256SUMS`의 누락·중복·해시를 검사합니다. 기대한 파일이 모두 생성됐는지도 위 표와
+대조합니다. 검증 중 외부 스키마를 다운로드하지 않습니다.
+
+1.7 스키마 묶음은 공식 `1.7.1` 수정 릴리스의 커밋
+`b29bae660048e0ad2fbc5f2972927b442ce951c4`로 고정했습니다. BOM의 `specVersion`은
+`1.7`입니다. 출처와 SHA-256은 `tests/schemas/provenance.json`에 기록합니다.
+1.6과 1.7의 SPDX 라이선스 정의를 각각 사용하며, 1.7에서 추가된 107개 ID를 확인합니다.
+1.6에서 지원하지 않는 ID를 `license.name`으로 보존하고 1.7에서는 `license.id`로
+출력하는 경우도 같은 라이선스로 비교합니다. 1.7 출력만으로 새로운 수집 범위가
+생기거나 하드웨어 취약점 판정이 추가되는 것은 아닙니다.
+
+### 확장 수집 fixture와 실제 환경 구분
+
+기존 `go test ./...`와 `go vet ./...`에 다음 회귀 범위를 포함합니다.
+
+| 대상 | 확인 내용 |
+|---|---|
+| 하드웨어·외부 증적 | `internal/hardware`, `internal/assetimport`: 로컬 속성 파싱, Redfish·fwupd·devlink·일반 JSON, 잘못된 입력과 관측 한계 |
+| 실행 중 파일 | `internal/hostcontext`, `internal/collect`: 삭제·교체 파일, 비교 가능한 파일시스템과 패키지 소유 관계, 재시작 검토 근거 |
+| Python·이미지 | `.pyz`·`.pex`의 실제 METADATA, 손상된 항목의 부분 수집, archive SHA-256과 이미지 digest |
+| 플랫폼 | `internal/platforminventory`: macOS·Windows 자료 파싱과 수집 범위 표시 |
+| 오프라인 상관분석 | `internal/assessment`: 정확한 버전 규칙, 지원 OSV·CSAF 부분집합, 선택 KEV, SBOM과 컨텍스트 체크섬 연결 |
+| 형식 호환성 | `internal/collect/output_test.go`: 고정 라이선스 목록, 1.6 대체 표현과 1.7 표현, 표준 출력 보존 |
+
+fixture 통과는 실제 BMC·펌웨어·OT 장비, Windows 실행 또는 모든 공급사 advisory 형식의
+지원 증거가 아닙니다. Linux 컨테이너의 장비 속성도 컨테이너에서 관측 가능한 범위로
+기록합니다. `assess`는 사용자가 제공한 로컬 규칙과 관측값의 상관분석이며 자동 패치나
+취약점 조치 완료 확인을 수행하지 않습니다.
+
 ## .NET·Ruby 배포본 비교
 
 ```bash

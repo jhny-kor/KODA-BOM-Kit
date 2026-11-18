@@ -72,7 +72,7 @@ os.execv(sys.argv[3], sys.argv[3:])
             return result, calls, clients, output
 
         options = ['--timeout', '0', '--max-files', '0', '--exclude', '/qa/**',
-                   '--exclude', '/path with spaces/**', '--timeout=10m', '--timeout=0']
+                   '--exclude', '/path with spaces/**', '--timeout=10m', '--timeout=0', '--cyclonedx-17']
         result, calls, clients, output = invoke('valid', options)
         assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
         history = [json.loads(line) for line in calls.read_text().splitlines()]

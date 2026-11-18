@@ -296,7 +296,7 @@ func DeployedCollectionIssues(inventory *sbom.SBOM, root string) []model.Issue {
 				seen[task] = true
 				continue
 			}
-			if (isDeployedCollector(task) || task == javaDeploymentSource) && !seen[task] {
+			if (isDeployedCollector(task) || task == javaDeploymentSource || task == pythonZipappCollector) && !seen[task] {
 				seen[task] = true
 				code, detail := "deployment_metadata_unreadable", "installed software metadata could not be read within collection limits"
 				if isBinaryCollector(task) {

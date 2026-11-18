@@ -1,14 +1,24 @@
 # KODA SBOM Linux
 
-KODA를 설치하지 않은 폐쇄망 리눅스 서버에서 실행하는 **SBOM 생성 전용 프로그램**입니다. 배포 파일 `koda-sbom` 하나를 실행하며 대상 서버에 Python, Go, Java, Node.js, Docker 또는 취약점 DB를 설치하지 않습니다. 애플리케이션을 실행하거나 취약점 공격을 시도하지 않습니다.
+KODA SBOM Maker는 폐쇄망에서 **실행 파일 하나로 소프트웨어와 하드웨어 인벤토리를 수집**하고 CycloneDX와 SPDX로 저장합니다. Linux 수집은 로컬 파일과 커널 인터페이스를 읽으며 대상 서버에 Python, Go, Java, Node.js, Docker 또는 취약점 DB를 설치할 필요가 없습니다. 선택 명령 `assess`는 운영자가 제공한 로컬 보안 권고와 수집 결과를 대조합니다.
 
-배포 대상은 Linux x86_64이며 커널 3.2 이상이 필요합니다. Ubuntu 24.04.1의 `6.8.0-47-generic`, Oracle Linux 8.2의 RHCK·UEK를 QEMU 시스템 VM 검증 대상으로 사용합니다. ARM64와 더 오래된 커널은 이번 배포 대상에서 제외합니다. 최종 실행 파일과 일치하는 실제 검증 결과 및 물리 서버 검증의 한계는 동봉 `VERIFICATION.json`과 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
+## 현재 소스에서 실행
 
-## 반입 후 실행
+현재 소스의 개발 버전은 `0.1.6-dev`입니다. Linux x86_64·ARM64에서 `scan`을, macOS·Windows에서는 대상 OS용 실행 파일의 `platform-inventory`를 사용합니다. Linux 호스트 전체 수집은 패키지, 실행 상태, 커널에서 확인할 수 있는 장치와 펌웨어 정보를 함께 저장합니다.
+
+```sh
+./koda-sbom version
+./koda-sbom scan --output-dir ./reports
+./koda-sbom scan --output-dir ./reports --cyclonedx-17
+```
+
+마지막 명령은 **한 번 수집한 결과**를 CycloneDX 1.6·1.7과 SPDX 2.3으로 저장합니다. BMC·NIC 등 외부 장비의 내보내기 파일 반입, macOS·Windows 실행법, 오프라인 권고 대조는 [단일 파일 CLI 안내](docs/asset-inventory.ko.md)에 있습니다. 검증한 플랫폼과 확인 한계는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
+
+## 0.1.5 검증 배포본 반입 후 실행
 
 반입부터 압축 해제, 실행, Ksplice·Livepatch 및 SBOM 결과 해석까지의 순서는 [폐쇄망 실행 및 결과 확인 안내](docs/폐쇄망_실행_결과확인_안내.ko.txt)를 확인하세요.
 
-0.1.5 배포본의 `koda-sbom-linux-amd64-0.1.5-<UTC일시>-<소스식별자>-verified.tar.gz`와 같은 이름의 `.sha256`을 반입합니다. 실제 일시와 소스 식별자는 받은 파일명을 사용합니다.
+이 절은 기존 Linux x86_64용 0.1.5 검증 배포본의 절차입니다. 0.1.5 배포본의 `koda-sbom-linux-amd64-0.1.5-<UTC일시>-<소스식별자>-verified.tar.gz`와 같은 이름의 `.sha256`을 반입합니다. 실제 일시와 소스 식별자는 받은 파일명을 사용합니다.
 
 ```bash
 set -- koda-sbom-linux-amd64-0.1.5-*-verified.tar.gz
@@ -353,17 +363,30 @@ Tracker 내부의 관계 저장까지 검증하려면 `--normalized-bom-command 
 
 ## 저장 결과
 
+CycloneDX 1.6과 1.7을 함께 만들려면 같은 실행에 `--cyclonedx-17`을 추가합니다.
+
+```sh
+./koda-sbom scan --output-dir ./reports --cyclonedx-17
+```
+
+두 버전은 한 번 수집한 인벤토리에서 생성되며, 두 파일의 SHA-256을 결과에 기록합니다.
+`--format cyclonedx --cyclonedx-17`은 두 CycloneDX 파일을 생성합니다.
+`--cyclonedx-17`은 기본 형식 또는 `--format cyclonedx`에서 사용할 수 있습니다.
+Tracker에 등록할 때는 수집 회차당 필요한 버전 하나를 선택합니다.
+
 | 파일 | 내용 |
 |---|---|
 | `sbom.cdx.json` | CycloneDX 1.6 JSON (`--format spdx`이면 생략) |
+| `sbom.cdx-1.7.json` | CycloneDX 1.7 JSON (`--cyclonedx-17`을 지정할 때 함께 저장) |
 | `sbom.spdx.json` | SPDX 2.3 JSON (`--format cyclonedx`이면 생략) |
 | `inventory.syft.json` | 패키지 릴리스·설치 메타데이터를 보존하는 개인정보 정제 Syft JSON |
-| `context.json` | 실행 커널·로드 모듈·라이브패치 관측/클라이언트 보고·허용된 설정값 및 확인 한계 |
+| `context.json` | 실행 파일·라이브러리, 실행 커널·로드 모듈, 라이브패치, 확인 가능한 설정값과 한계 |
+| `assets.json` | 호스트에서 관측하거나 파일로 반입한 장치·펌웨어·드라이버 증거 |
 | `collection.json` | 도구 버전, 범위, 수량, 누락, 오류, 제품 식별 근거 |
 | `reconcile.json` | 배포 파일·공급사 SBOM 해시와 PURL 대조 결과 (`reconcile` 실행 시) |
 | `SHA256SUMS` | 결과 파일의 SHA-256 |
 
-두 SBOM은 동일한 수집 결과에서 생성합니다. `inventory.syft.json`도 원문 복제본은 아닙니다. 개인 작성자·이메일, URL의 인증정보·쿼리·fragment, Java manifest의 임의 필드는 정제하며 버전·공급자·source RPM·라이선스·관계 등 식별 근거를 보존합니다. 실행 종료 코드는 `0` 정상, `3` 부분 수집, `2` 실패입니다. 권한 부족·손상·시간 초과·미지원 영역이 있으면 내용을 읽고 후속 조치하세요. 패키지 0개 또는 모듈 미관측은 “취약점 없음”, “미설치” 또는 “안전”을 뜻하지 않습니다.
+표준 SBOM은 동일한 수집 결과에서 생성합니다. `inventory.syft.json`도 원문 복제본은 아닙니다. 개인 작성자·이메일, URL의 인증정보·쿼리·fragment, Java manifest의 임의 필드는 정제하며 버전·공급자·source RPM·라이선스·관계 등 식별 근거를 보존합니다. 실행 종료 코드는 `0` 정상, `3` 부분 수집, `2` 실패입니다. 권한 부족·손상·시간 초과·미지원 영역이 있으면 내용을 읽고 후속 조치하세요. 패키지 0개 또는 모듈 미관측은 “취약점 없음”, “미설치” 또는 “안전”을 뜻하지 않습니다.
 
 CycloneDX와 SPDX에는 수집 대상 유형, 구성요소 수, 사용자가 설정한 제외 항목 수와
 확인이 필요한 사유별 건수를 함께 담습니다. Tracker의 회차 상세에서 이 수집 요약을
@@ -379,17 +402,21 @@ CycloneDX와 SPDX에는 수집 대상 유형, 구성요소 수, 사용자가 설
 - 호스트 컨텍스트는 실행 파일·공유 라이브러리 연결, 로드 모듈, 허용된 설정만 수집합니다. 전체 `/proc`, 원문 명령줄, 환경변수, 설정 원문, 비밀번호·인증서 본문은 저장하지 않습니다.
 - 설정 파일에 선언된 값은 실제 적용값이나 네트워크 노출의 증명이 아닙니다. PHP `ini_set()` 같은 실행 중 변경까지 확인하지 않습니다.
 - 생성 결과에는 소프트웨어 이름·버전·설치 경로가 포함됩니다. 경로 자체에 사용자 이름이나 내부 프로젝트명이 있을 수 있으므로 결과를 외부에 공유하기 전 검토하세요.
-- BIOS/BMC, 장비 펌웨어, 원격 서버·클라우드 서비스, 정보가 제거된 정적 바이너리, 소스코드 논리 취약점의 완전 식별은 보장하지 않습니다.
+- 장치와 펌웨어의 수집 범위는 커널이 노출하는 속성과 관리자가 제공한 증적에 따릅니다. BMC나 NIC가 별도 관리를 요구하면 Redfish·fwupd·devlink 등에서 내보낸 파일을 반입합니다. 식별정보가 제거된 바이너리와 소스코드 논리 결함의 검토에는 별도 근거가 필요합니다.
 
-자세한 [지원 범위와 한계](docs/support-matrix.ko.md), [빌드·검증 방법](docs/verification.ko.md)을 참고하세요. 이 도구는 **CVE 판정을 하지 않습니다**. 생성한 표준 SBOM을 KODA/Tracker에 반입해 최신 취약점 자료와 비교할 수 있으나 컨텍스트 자동 표시·판정과는 구분해야 합니다.
+자세한 [지원 범위와 한계](docs/support-matrix.ko.md), [빌드·검증 방법](docs/verification.ko.md)을 참고하세요. 기본 수집은 인벤토리와 증적을 생성합니다. 같은 파일의 선택 기능인 `assess`는 로컬 권고를 생성된 SBOM과 비교합니다. 표준 SBOM을 KODA/Tracker에 반입해 관리할 수도 있습니다.
 
 ## 외부 빌드 PC
 
 ```bash
-GO_BIN=/path/to/go1.26.11/bin/go ./scripts/build-release.sh
+# 현재 소스의 Linux x86_64 배포용 압축파일 생성
+VERSION=0.1.6-dev GO_BIN=/path/to/go1.26.11/bin/go ./scripts/build-release.sh
+
+# Linux ARM64용 단일 바이너리 빌드
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-sbom ./cmd/koda-sbom
 ```
 
-빌드 PC에는 Go 1.26.11 이상(검증 버전 1.26.11), Python 3과 모듈 다운로드 연결이 필요합니다. 이 요구사항은 대상 폐쇄망 서버에는 적용되지 않습니다. `CGO_ENABLED=0`, `GOOS=linux`, `GOARCH=amd64`, `GOAMD64=v1`로 빌드합니다. Syft 라이브러리는 `v1.57.1`에 고정합니다. `release.json`은 실행 파일에 기록된 Go와 Syft 버전을 표시합니다. 라이선스 파일이 없는 연결 모듈은 누락 목록을 남기고 배포 포장을 중단합니다.
+빌드 PC에는 Go 1.26.11 이상(검증 버전 1.26.11), Python 3과 모듈 다운로드 연결이 필요합니다. 이 요구사항은 대상 폐쇄망 서버에는 적용되지 않습니다. 배포용 압축 스크립트는 `CGO_ENABLED=0`, `GOOS=linux`, `GOARCH=amd64`, `GOAMD64=v1`로 빌드합니다. Syft 라이브러리는 `v1.57.1`에 고정합니다. `release.json`은 실행 파일에 기록된 Go와 Syft 버전을 표시합니다. 라이선스 파일이 없는 연결 모듈은 누락 목록을 남기고 배포 포장을 중단합니다.
 
 새 프로젝트에 Git 커밋이 아직 없으면 Git 해시를 꾸미지 않고 `src<소스SHA-256앞12자리>`를 사용합니다. 변경된 Git 작업 폴더는 `git해시-dirty-src해시`로 구분합니다. 같은 배포 경로를 덮어쓰지 않습니다. GitHub 게시와 운영 서버 설치는 자동 수행하지 않습니다.
 

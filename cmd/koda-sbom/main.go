@@ -1,4 +1,4 @@
-// koda-sbom is a local-only standalone inventory collector. It never performs CVE matching.
+// koda-sbom collects local inventory and correlates it with supplied offline evidence.
 package main
 
 import (
@@ -18,6 +18,7 @@ import (
 	"github.com/anchore/syft/syft/sbom"
 	"koda.local/security-sbom-linux/internal/aixevidence"
 	"koda.local/security-sbom-linux/internal/collect"
+	"koda.local/security-sbom-linux/internal/hardware"
 	"koda.local/security-sbom-linux/internal/hostcontext"
 	"koda.local/security-sbom-linux/internal/imagearchive"
 	"koda.local/security-sbom-linux/internal/localfs"
@@ -27,7 +28,7 @@ import (
 	"koda.local/security-sbom-linux/internal/staticjs"
 )
 
-var version = "0.1.5-dev"
+var version = "0.1.6-dev"
 var revision = "uncommitted"
 var builtAt = "unknown"
 
@@ -59,6 +60,8 @@ type summary struct {
 	StartedAt                          string                 `json:"startedAt"`
 	FinishedAt                         string                 `json:"finishedAt"`
 	PackageCount                       int                    `json:"packageCount"`
+	AssetCount                         int                    `json:"assetCount,omitempty"`
+	ImageIdentity                      *imagearchive.Identity `json:"imageIdentity,omitempty"`
 	PackageTypes                       map[string]int         `json:"packageTypes"`
 	Distribution                       any                    `json:"distribution,omitempty"`
 	Products                           []model.Product        `json:"products"`
@@ -80,10 +83,12 @@ type summary struct {
 
 func main() { os.Exit(run(os.Args[1:])) }
 func usage() {
-	fmt.Fprintln(os.Stderr, "koda-sbom: offline Linux x86_64 SBOM-only collector\n  koda-sbom doctor\n  koda-sbom version\n  koda-sbom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only)\n  koda-sbom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed. No CVE matching or safety verdict.")
-	fmt.Fprintln(os.Stderr, "  koda-sbom aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--timeout 30m|0]")
-	fmt.Fprintln(os.Stderr, "  koda-sbom reconcile --artifact FILE.war|FILE.ear --supplier-sbom FILE.json --output-dir DIR [--format both|cyclonedx|spdx] [--timeout 30m|0]")
+	fmt.Fprintln(os.Stderr, "koda-sbom: offline standalone inventory collector\n  koda-sbom doctor\n  koda-sbom version\n  koda-sbom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only)\n  koda-sbom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed.")
+	fmt.Fprintln(os.Stderr, "  koda-sbom aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
+	fmt.Fprintln(os.Stderr, "  koda-sbom reconcile --artifact FILE.war|FILE.ear --supplier-sbom FILE.json --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
 	fmt.Fprintln(os.Stderr, "  koda-sbom scan --target DIRECTORY --target DIRECTORY --output-dir DIR [--exclude-dir ABSOLUTE_DIRECTORY]...")
+	fmt.Fprintln(os.Stderr, "  koda-sbom scan --output-dir DIR [--asset-evidence FILE]...\n  koda-sbom asset-import --asset-evidence FILE [--asset-evidence FILE]... --output-dir DIR\n  koda-sbom assess --sbom FILE --advisories FILE [--context FILE] [--kev FILE] --output FILE")
+	fmt.Fprintln(os.Stderr, "  koda-sbom platform-inventory --output-dir DIR (macOS or Windows)")
 }
 func run(args []string) int {
 	if len(args) == 0 {
@@ -100,6 +105,12 @@ func run(args []string) int {
 		return captureLivepatchEvidence(args[1:])
 	case "aix-import":
 		return importAIXEvidence(args[1:])
+	case "asset-import":
+		return importAssetEvidence(args[1:])
+	case "platform-inventory":
+		return exportInventory(args[1:], true)
+	case "assess":
+		return assessEvidence(args[1:])
 	case "validate-scan-options":
 		return validateScanOptions(args[1:])
 	case "reconcile":
@@ -117,6 +128,16 @@ func run(args []string) int {
 	}
 }
 
+const cyclonedx17Help = "also write CycloneDX 1.7 JSON alongside 1.6"
+
+func validCycloneDXSelection(format string, cyclonedx17 bool) bool {
+	if cyclonedx17 && format == "spdx" {
+		fmt.Fprintln(os.Stderr, "--cyclonedx-17 requires --format both or cyclonedx")
+		return false
+	}
+	return true
+}
+
 type scanCompletion func(dir string, report summary, coverage collect.CollectionCoverage, observed []reconcile.Component) error
 
 func runScan(parent context.Context, args []string, onComplete scanCompletion) int {
@@ -125,18 +146,20 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	var timeout time.Duration
 	var maxFiles int64
 	var targets, excludes, excludedDirs stringsFlag
-	var livepatchEvidence stringsFlag
-	var noContext bool
+	var livepatchEvidence, assetEvidence stringsFlag
+	var noContext, cyclonedx17 bool
 	flags.Var(&targets, "target", "local directory (repeatable); default /")
 	flags.StringVar(&image, "image-archive", "", "local single-image Docker/OCI tar")
 	flags.StringVar(&output, "output-dir", "", "parent directory for new results")
 	flags.StringVar(&format, "format", "both", "both, cyclonedx, spdx")
+	flags.BoolVar(&cyclonedx17, "cyclonedx-17", false, cyclonedx17Help)
 	flags.DurationVar(&timeout, "timeout", 30*time.Minute, "maximum total collection time; 0 disables the time limit")
 	flags.Int64Var(&maxFiles, "max-files", localfs.DefaultMaxFiles, "maximum eligible filesystem files; 0 disables the file-count limit")
 	flags.Var(&excludes, "exclude", "root-relative path/glob to exclude (repeatable)")
 	flags.Var(&excludedDirs, "exclude-dir", "literal directory below --target, absolute or target-relative (repeatable)")
 	flags.BoolVar(&noContext, "no-context", false, "skip runtime/configuration context")
 	flags.Var(&livepatchEvidence, "livepatch-evidence", "local sanitized client status evidence (repeatable, live host only)")
+	flags.Var(&assetEvidence, "asset-evidence", "local supplementary hardware/software evidence (repeatable)")
 	if e := flags.Parse(args); e != nil {
 		return 2
 	}
@@ -149,6 +172,9 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		usage()
 		return 2
 	}
+	if !validCycloneDXSelection(format, cyclonedx17) {
+		return 2
+	}
 	configuredExcludePatternCount := len(excludes)
 	if len(livepatchEvidence) > 3 || (len(livepatchEvidence) > 0 && (multiple || noContext || image != "" || (target != "" && filepath.Clean(target) != "/"))) {
 		fmt.Fprintln(os.Stderr, "livepatch evidence requires the live host / with context enabled; at most three reports")
@@ -158,14 +184,20 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		fmt.Fprintln(os.Stderr, "--exclude-dir requires an explicit directory target below /")
 		return 2
 	}
-	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		fmt.Fprintln(os.Stderr, "scan requires Linux x86_64; build-host unit tests do not prove target compatibility")
+	if runtime.GOOS != "linux" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
+		fmt.Fprintln(os.Stderr, "scan requires Linux x86_64 or ARM64; use platform-inventory on macOS or Windows")
 		return 2
 	}
 	collect.DisableHTTP()
 	runtime.GOMAXPROCS(2)
 	ctx, cancel := scanContext(parent, timeout)
 	defer cancel()
+	assets, assetIssues, err := loadAssetEvidence(ctx, assetEvidence)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	assetScope := len(assetEvidence) > 0
 	var scopes []scanTarget
 	if multiple {
 		var err error
@@ -246,7 +278,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	}
 	start := time.Now()
 	catalogers := append(append([]string{}, collect.Catalogers...), "koda-product-metadata", staticjs.Collector)
-	report := summary{Schema: "koda-sbom-collection-v1", Status: "failed", Tool: toolInfo{version, revision, builtAt, collect.SyftVersion}, StartedAt: start.UTC().Format(time.RFC3339), PackageTypes: map[string]int{}, Products: []model.Product{}, Catalogers: catalogers, Issues: []model.Issue{}, Limitations: []string{"No vulnerability matching or safety verdict", "Missing metadata and unreadable paths cannot establish absence", "Installed and observed context do not prove active exploitability", "Firmware, remote devices and cloud services are outside scope", "JEUS product/patch identification is unverified; bundled JAR discovery is separate", "Patch observations are not proof that a patch is applied", "Static JavaScript identification covers selected libraries and bounded archive inspection"}}
+	report := summary{Schema: "koda-sbom-collection-v1", Status: "failed", Tool: toolInfo{version, revision, builtAt, collect.SyftVersion}, StartedAt: start.UTC().Format(time.RFC3339), PackageTypes: map[string]int{}, Products: []model.Product{}, Catalogers: catalogers, Issues: assetIssues, Limitations: []string{"Scan produces observations for later advisory correlation", "Missing metadata and unreadable paths cannot establish absence", "Installed and observed context do not prove active exploitability", "Hardware coverage depends on local kernel attributes and supplied evidence; imported assets are reported observations", "JEUS product/patch identification is unverified; bundled JAR discovery is separate", "Patch observations are not proof that a patch is applied", "Static JavaScript identification covers selected libraries and bounded archive inspection"}}
 	report.Limits = scanLimits{MaxFiles: maxFiles, Timeout: timeout.String(), TimeoutSeconds: timeout.Seconds()}
 	report.JavaScriptFingerprintCatalogSHA256 = staticjs.FingerprintCatalogSHA256()
 	report.PhaseSeconds = map[string]float64{}
@@ -270,6 +302,12 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		if e := collect.WriteJSON(dir, "context.json", contextData); e != nil {
 			fmt.Fprintln(os.Stderr, "context output failed")
 			return 2
+		}
+		if assetScope {
+			if e := writeAssets(dir, assets); e != nil {
+				fmt.Fprintln(os.Stderr, "asset evidence output failed")
+				return 2
+			}
 		}
 		if e := collect.WriteJSON(dir, "collection.json", report); e != nil {
 			fmt.Fprintln(os.Stderr, "collection output failed")
@@ -317,11 +355,13 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			return fail("image", e)
 		}
 		defer os.RemoveAll(work)
-		root, e = imagearchive.Extract(ctx, image, work)
+		var identity imagearchive.Identity
+		root, identity, e = imagearchive.ExtractWithIdentity(ctx, image, work)
 		finishPhase("imageExtraction")
 		if e != nil {
 			return fail("image", e)
 		}
+		report.ImageIdentity = &identity
 	} else {
 		report.Source = sourceInfo{Type: "filesystem", Path: "."}
 	}
@@ -409,9 +449,18 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			return fail("static-javascript", err)
 		}
 		if !noContext {
-			contextData = collectScanContext(ctx, plan, image == "" && plan.Root == "/", importedLivepatch)
+			live := image == "" && plan.Root == "/"
+			contextData = collectScanContext(ctx, plan, live, importedLivepatch)
 			issues = append(issues, contextData.Issues...)
 			finishPhase("hostContext")
+			if live {
+				assetScope = true
+				localAssets, hardwareIssues := hardware.Collect(ctx, plan.Root)
+				assets = append(assets, localAssets...)
+				appendHardwareSettings(&contextData, localAssets)
+				issues = append(issues, hardwareIssues...)
+				finishPhase("hardwareEvidence")
+			}
 		}
 		collected, auditIssue, err := catalogScanTarget(ctx, plan)
 		finishPhase("packageCatalog")
@@ -463,6 +512,8 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		return fail("cataloging", ctx.Err())
 	}
 	report.PackageCount = inventory.Artifacts.Packages.PackageCount()
+	report.AssetCount = len(assets)
+	collect.LinkRuntimePackages(&contextData, inventory)
 	report.Distribution = inventory.Artifacts.LinuxDistribution
 	for _, p := range inventory.Artifacts.Packages.Sorted() {
 		report.PackageTypes[string(p.Type)]++
@@ -483,13 +534,13 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	}
 	report.Status = collectionStatus(report.Issues)
 	phaseStart = time.Now()
-	coverage := collect.NewCollectionCoverage(report.Status, report.Source.Type, report.PackageCount, len(report.ExcludedDirectories), configuredExcludePatternCount, report.Issues)
+	coverage := collect.NewCollectionCoverage(report.Status, report.Source.Type, report.PackageCount+report.AssetCount, len(report.ExcludedDirectories), configuredExcludePatternCount, report.Issues)
 	coverage.IncludeAllOccurrences = multiple
-	if e = collect.WriteSBOMsContext(ctx, dir, format, inventory, report.Status == "partial", &coverage); e != nil {
+	if e = collect.WriteSBOMsWithAssets(ctx, dir, format, inventory, report.Status == "partial", &coverage, assets, cyclonedx17); e != nil {
 		finishPhase("sbomOutput")
 		report.Status = "failed"
-		if multiple {
-			for _, name := range []string{"inventory.syft.json", "sbom.cdx.json", "sbom.spdx.json"} {
+		if multiple || cyclonedx17 {
+			for _, name := range []string{"inventory.syft.json", "sbom.cdx.json", "sbom.spdx.json", collect.CycloneDX17Filename} {
 				if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
 					fmt.Fprintln(os.Stderr, "cannot remove incomplete SBOM from staging directory")
 					return 2

@@ -35,10 +35,44 @@ type Setting struct {
 	State   string `json:"state"`
 }
 type ProcessLink struct {
-	PID          int      `json:"pid"`
-	Executable   string   `json:"executable"`
-	Libraries    []string `json:"libraries,omitempty"`
-	InstallHints []string `json:"installHints,omitempty"`
+	PID                  int           `json:"pid"`
+	Executable           string        `json:"executable"`
+	Libraries            []string      `json:"libraries,omitempty"`
+	InstallHints         []string      `json:"installHints,omitempty"`
+	ExecutableDeleted    bool          `json:"executableDeleted,omitempty"`
+	FilesystemComparable bool          `json:"filesystemComparable,omitempty"`
+	RuntimeFiles         []RuntimeFile `json:"runtimeFiles,omitempty"`
+}
+
+type RuntimeFile struct {
+	Path             string `json:"path"`
+	Deleted          bool   `json:"deleted,omitempty"`
+	Device           string `json:"device,omitempty"`
+	Inode            uint64 `json:"inode,omitempty"`
+	DiskInode        uint64 `json:"diskInode,omitempty"`
+	State            string `json:"state"`
+	Package          string `json:"package,omitempty"`
+	PURL             string `json:"purl,omitempty"`
+	InstalledVersion string `json:"installedVersion,omitempty"`
+}
+
+// Asset is a bounded observation of a device, firmware image or device driver.
+// ParentID points to the device that contains or uses the component.
+type Asset struct {
+	ID         string            `json:"id"`
+	Kind       string            `json:"kind"`
+	Name       string            `json:"name"`
+	Vendor     string            `json:"vendor,omitempty"`
+	Version    string            `json:"version,omitempty"`
+	Model      string            `json:"model,omitempty"`
+	Revision   string            `json:"revision,omitempty"`
+	ParentID   string            `json:"parentId,omitempty"`
+	CPE        string            `json:"cpe,omitempty"`
+	PURL       string            `json:"purl,omitempty"`
+	SHA256     string            `json:"sha256,omitempty"`
+	Source     string            `json:"source"`
+	ObservedAt string            `json:"observedAt,omitempty"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // LivepatchStatus describes evidence from one local kernel or client source.

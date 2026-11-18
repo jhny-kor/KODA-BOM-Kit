@@ -10,11 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"koda.local/security-sbom-linux/internal/evidencefile"
 	"os"
 	"path"
 	"regexp"
 	"strings"
-	"syscall"
 
 	"koda.local/security-sbom-linux/internal/model"
 )
@@ -273,7 +273,7 @@ func readEvidence(root *os.Root, name string, limit int64) ([]byte, error) {
 	if err != nil || !info.Mode().IsRegular() || info.Size() > limit {
 		return nil, errors.New("invalid evidence file")
 	}
-	file, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	file, err := evidencefile.OpenRoot(root, name)
 	if err != nil {
 		return nil, err
 	}

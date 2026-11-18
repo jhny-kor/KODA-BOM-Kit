@@ -94,6 +94,8 @@ func coverageIssueCode(issue model.Issue) string {
 		return "host_context_incomplete"
 	case "livepatch-evidence":
 		return "livepatch_evidence_incomplete"
+	case "hardware", "asset-import":
+		return "asset_evidence_incomplete"
 	case "syft":
 		return "package_catalog_incomplete"
 	case "inventory":

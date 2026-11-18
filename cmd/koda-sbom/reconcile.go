@@ -8,12 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"koda.local/security-sbom-linux/internal/evidencefile"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"koda.local/security-sbom-linux/internal/collect"
@@ -40,6 +40,7 @@ func reconcileDeployment(args []string) int {
 	supplierFile := flags.String("supplier-sbom", "", "local supplier CycloneDX or SPDX JSON with subject SHA-256")
 	output := flags.String("output-dir", "", "parent directory for new results")
 	format := flags.String("format", "both", "both, cyclonedx, spdx")
+	cyclonedx17 := flags.Bool("cyclonedx-17", false, cyclonedx17Help)
 	timeout := flags.Duration("timeout", 30*time.Minute, "maximum total reconciliation time; 0 disables the time limit")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -51,6 +52,9 @@ func reconcileDeployment(args []string) int {
 	if flags.NArg() != 0 || (kind != ".war" && kind != ".ear") || *supplierFile == "" || *output == "" || *timeout < 0 ||
 		(*format != "both" && *format != "cyclonedx" && *format != "spdx") {
 		flags.Usage()
+		return 2
+	}
+	if !validCycloneDXSelection(*format, *cyclonedx17) {
 		return 2
 	}
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
@@ -122,7 +126,11 @@ func reconcileDeployment(args []string) int {
 	defer os.RemoveAll(pending)
 	var result string
 	var unresolved bool
-	code := runScan(ctx, []string{"--target", input, "--output-dir", pending, "--format", *format, "--timeout", timeout.String(), "--no-context"},
+	scanArgs := []string{"--target", input, "--output-dir", pending, "--format", *format, "--timeout", timeout.String(), "--no-context"}
+	if *cyclonedx17 {
+		scanArgs = append(scanArgs, "--cyclonedx-17")
+	}
+	code := runScan(ctx, scanArgs,
 		func(dir string, scanReport summary, coverage collect.CollectionCoverage, observed []reconcile.Component) error {
 			comparison := reconcile.Compare(observed, supplier.Components)
 			if err := ctx.Err(); err != nil {
@@ -163,7 +171,7 @@ func openReconcileInput(filename string) (*os.File, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	f, err := os.OpenFile(resolved, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := evidencefile.Open(resolved)
 	if err != nil {
 		return nil, 0, err
 	}

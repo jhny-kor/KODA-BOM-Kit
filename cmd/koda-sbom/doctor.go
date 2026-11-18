@@ -10,7 +10,7 @@ import (
 )
 
 func doctor() int {
-	supported := runtime.GOOS == "linux" && runtime.GOARCH == "amd64"
+	supported := runtime.GOOS == "linux" && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64")
 	kernel := kernelRelease()
 	var major, minor int
 	fmt.Sscanf(kernel, "%d.%d", &major, &minor)
@@ -26,7 +26,7 @@ func doctor() int {
 	if mountErr != nil {
 		supported = false
 	}
-	json.NewEncoder(os.Stdout).Encode(map[string]any{"tool": "koda-sbom", "version": version, "os": runtime.GOOS, "architecture": runtime.GOARCH, "kernel": kernel, "supported": supported, "packageDatabases": dbs, "note": "read permissions and metadata availability determine coverage; no CVE assessment", "kernelFlavor": func() string {
+	json.NewEncoder(os.Stdout).Encode(map[string]any{"tool": "koda-sbom", "version": version, "os": runtime.GOOS, "architecture": runtime.GOARCH, "kernel": kernel, "supported": supported, "platformInventorySupported": runtime.GOOS == "darwin" || runtime.GOOS == "windows", "packageDatabases": dbs, "note": "read permissions and metadata availability determine coverage; no CVE assessment", "kernelFlavor": func() string {
 		if strings.Contains(kernel, "uek") {
 			return "UEK"
 		}
