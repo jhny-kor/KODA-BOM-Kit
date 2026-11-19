@@ -162,6 +162,7 @@ sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results \
 | 호스트 식별 | `collection.json`의 `host`, SBOM `koda:host:*` | machine-id·DMI UUID·시리얼의 SHA-256, 운영자 라벨 `--asset-tag`. 원문 식별자는 남기지 않음 |
 | 수신 대기 포트 | `context.json`의 `processLinks[].listeningSockets`, SBOM `koda:runtime:*` | 포트 → 프로세스 → 패키지. 바인딩 범위(`all-interfaces`·`loopback`·`address`)이며 방화벽 노출 판정은 아님 |
 | 실행 중인 컨테이너 | `containers/<이름>/` | 컨테이너마다 별도 SBOM·`collection.json`·체크섬. 컨테이너 네트워크 네임스페이스의 포트 연결 포함. `--no-containers`로 끔 |
+| 중지된 컨테이너·로컬 이미지 | `containers/<이름>/`(`state: stopped`), `images/<이름>/` | 디스크에 저장된 이미지 계층과 쓰기 계층을 합쳐 SBOM 생성. Docker(overlay2·containerd 이미지 저장소), containerd(Kubernetes·nerdctl·k3s), Podman·CRI-O. 어느 컨테이너도 쓰지 않는 이미지만 `images/`에 만듦. `--no-images`로 끔 |
 | 펌웨어 | `assets.json`, SBOM 장치·펌웨어 구성요소 | RAID/HBA, RDMA, GPU VBIOS, NIC(`ethtool -i`와 같은 ioctl), BMC(IPMI `Get Device ID`) |
 | snap·flatpak·conda | SBOM 구성요소 | 활성 snap 리비전·flatpak 배포, conda 패키지 PURL |
 | CPU 식별 | `assets.json`의 CPU `properties` | x86 `cpuidSignature`(예: `00050657`)·`familyModelStepping`(예: `06-55-07`)으로 마이크로코드 권고 대조, 소켓·코어 번호, ARM 제조사·코어 이름(`lscpu`와 같은 표) |
@@ -188,7 +189,8 @@ sudo ./koda-sbom scan --output-dir /var/tmp/sbom-output --max-files 0 --timeout 
 sudo ./collect-livepatch-status.sh /var/tmp/sbom-output \
   --max-files 0 --timeout 0 --exclude /data/docker
 
-# 자산 라벨을 붙여 수집. 실행 중인 컨테이너별 SBOM을 만들지 않으려면 --no-containers
+# 자산 라벨을 붙여 수집. 컨테이너·이미지별 SBOM을 모두 빼려면 --no-containers,
+# 중지된 컨테이너와 로컬 이미지만 빼려면 --no-images
 sudo ./koda-sbom scan --output-dir /var/tmp/sbom-output --asset-tag 'web-01' --no-containers
 
 # 특정 애플리케이션 / 가상환경의 설치 파일
@@ -432,7 +434,8 @@ Tracker에 등록할 때는 수집 회차당 필요한 버전 하나를 선택�
 | `context.json` | 실행 파일·라이브러리와 수신 대기 포트, 실행 커널·로드 모듈·taint 모듈, 라이브패치, 보안 설정·재부팅 신호, 식별되지 않은 실행 프로그램과 한계 |
 | `assets.json` | 호스트에서 관측하거나 파일로 반입한 장치·펌웨어·드라이버·인증서 증거 |
 | `collection.json` | 도구 버전, 범위, 수량, 누락, 오류, 제품 식별 근거, 호스트 식별(`host`), 패키지 파일 무결성(`integrity`), 컨테이너 목록(`containers`) |
-| `containers/<이름>/` | 실행 중인 컨테이너별 `sbom.cdx.json`·`sbom.spdx.json`·`collection.json`·`SHA256SUMS` (호스트 `/` 수집 시) |
+| `containers/<이름>/` | 실행 중이거나 중지된 컨테이너별 `sbom.cdx.json`·`sbom.spdx.json`·`collection.json`·`SHA256SUMS` (호스트 `/` 수집 시) |
+| `images/<이름>/` | 어느 컨테이너도 쓰지 않는 로컬 이미지별 SBOM과 `collection.json`·`SHA256SUMS` (호스트 `/` 수집 시) |
 | `reconcile.json` | 배포 파일·공급사 SBOM 해시와 PURL 대조 결과 (`reconcile` 실행 시) |
 | `SHA256SUMS` | 결과 파일의 SHA-256 |
 

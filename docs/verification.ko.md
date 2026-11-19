@@ -66,6 +66,7 @@ python3 tests/validate_outputs.py /path/to/scan-result
 | 펌웨어·BMC | `internal/hardware/adapters_test.go`, `ipmi*_test.go`: 커널 소스로 확인한 RAID/HBA·RDMA·GPU 속성, IPMI 응답 해석과 구조체 크기·ioctl 번호 |
 | 앱 번들 | `internal/collect/app_bundles_test.go`: snap `current`·flatpak `active`만 기록, conda PURL |
 | 보안 설정 | `internal/hostcontext/posture*_test.go`, `collect_test.go`: SELinux·AppArmor·lockdown·재부팅 신호, 부팅 옵션 허용 목록, 커널 빌드 설정 출처·제외 경로, 커널 계열 비교, `sshd_config`, taint 모듈, 제외 경로 준수 |
+| 저장된 컨테이너·이미지 | `internal/containers/storage_test.go`: Docker overlay2 chain ID·`cache-id`·쓰기 계층, 사용 중 이미지 제외, containers-storage 계층 체인, whiteout·opaque·하위 계층 심볼릭 링크 탈출 차단·set-ID 제거·복사 예산. `storage_containerd_test.go`: 직접 만든 bolt 파일(branch·leaf·inline bucket)로 containerd 이미지·스냅샷·컨테이너와 플랫폼 선택, 손상 파일 거부. `whiteout_linux_test.go`: 0/0 문자 장치 whiteout(privileged, tmpfs) |
 | 출처·서비스·CPE | `internal/collect/origin_test.go`: apt 평문·gz·lz4 목록, dnf 이력(완료·실패 트랜잭션, `@commandline`), yumdb 로컬 경로 미기록, 서비스 → 패키지 연결. `internal/hostcontext/services_test.go`: drop-in `ExecStart` 재설정, 템플릿 인스턴스, 소켓 활성화, 마스크, cgroup 실행 여부, 스캔 범위 밖 단위 파일 미열람. `internal/hardware/cpuid_test.go`: NVD 명명과 대조한 CPU·Dell·Lenovo CPE |
 | 무결성·CBOM | `internal/collect/integrity_test.go`: md5·sha256·apk Q1, 설정 파일 제외, 누락·제외·usr-merge·예산. `internal/certs`: 만료·약한 키·개인키 미기록·신뢰 저장소 제외 |
 

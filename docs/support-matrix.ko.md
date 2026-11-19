@@ -34,6 +34,7 @@
 | Tomcat | ServerInfo.properties, manifest, catalina.jar | 버전 은닉·상충 정보는 확인 불가로 남김 |
 | WebLogic/JBoss/WildFly | 제품 manifest·설치 inventory·patch 메타데이터 | `.patch_storage` 존재만으로 현재 적용 패치로 판정하지 않음 |
 | JEUS 등 상용 제품 | 확인 가능한 제품 descriptor, 일반 내부 JAR | 실제 제품 fixture로 검증되지 않은 버전·패치 식별은 미검증/미지원으로 표시 |
+| 중지된 컨테이너·로컬 이미지 | Docker overlay2·containerd 이미지 저장소, containerd overlayfs 스냅샷(Kubernetes·nerdctl·k3s·RKE2), rootful Podman·CRI-O containers-storage overlay | 계층을 결과 폴더에 복사해 합친 뒤 수집하고 삭제. root filesystem당 16 GiB와 디스크 여유 공간 확인. 다른 저장 드라이버·rootless Podman 미지원. 수신 소켓 없음 |
 | 실행 중인 컨테이너 | 호스트 `/` 수집에서 procfs로 찾은 컨테이너별 root filesystem. Docker·containerd(Kubernetes·nerdctl)·Podman·CRI-O 상태 파일의 이름·이미지 | 컨테이너마다 `containers/<이름>/`에 별도 SBOM을 만듭니다. 볼륨·bind mount는 포함하지 않습니다. 호스트 mount namespace에서 root filesystem이 보이지 않으면 사유만 남깁니다. Kubernetes pod sandbox는 제외합니다. 런타임 API·소켓에 연결하지 않습니다. 컨테이너 네트워크 네임스페이스의 수신 소켓은 해당 컨테이너 프로세스가 연 것만 연결합니다. |
 | 이미지 archive | 명시적으로 지정한 Linux amd64 Docker/OCI tar와 해시, 지원되는 OCI manifest 다이제스트 | 이미지에 포함된 파일이 수집 범위입니다. 실행 컨테이너·호스트 커널은 별도 관측값입니다. |
 | IBM AIX와 Oracle | `aix-import`의 fileset, 임시 패치, Oracle Home별 OPatch 및 선택 SQL 패치 이력 | 한 AIX 서버에서 최대 8개 Home의 조회 증적을 수집해 가져옴. 실행 상태는 별도 증적 필요 |

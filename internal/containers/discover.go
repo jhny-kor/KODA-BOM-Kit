@@ -30,7 +30,9 @@ type Container struct {
 	ImageID      string `json:"imageId,omitempty"`
 	Pod          string `json:"pod,omitempty"`
 	PodNamespace string `json:"podNamespace,omitempty"`
-	PID          int    `json:"pid"`
+	PID          int    `json:"pid,omitempty"`
+	// State is running, stopped, or image for an image no container uses.
+	State string `json:"state,omitempty"`
 	// PIDs are all processes of the container, PID first.
 	PIDs    []int  `json:"-"`
 	RootFS  string `json:"-"`
@@ -96,6 +98,15 @@ func read(p string, limit int64) []byte {
 	return data
 }
 
+// SelfID returns the ID of the container the collector itself runs in, if any.
+func SelfID(root string, self int) string {
+	ids := containerID.FindAllString(string(read(filepath.Join(root, "proc", strconv.Itoa(self), "cgroup"), 1<<20)), -1)
+	if len(ids) == 0 {
+		return ""
+	}
+	return ids[len(ids)-1]
+}
+
 // Discover lists running containers below root ("/" on a live host). self is
 // the collector's PID; processes sharing its mount namespace are not containers.
 func Discover(ctx context.Context, root string, self int) ([]Container, []model.Issue) {
@@ -153,7 +164,7 @@ func Discover(ctx context.Context, root string, self int) ([]Container, []model.
 			}
 			continue
 		}
-		c := Container{ID: id, PID: pid, PIDs: []int{pid}}
+		c := Container{ID: id, PID: pid, PIDs: []int{pid}, State: "running"}
 		// The mapped path is in the collector's own mount namespace.
 		if p := hostPath(parseMountinfo(string(read(filepath.Join(dir, "mountinfo"), 16<<20))), hostMounts); p != "" && p != "/" {
 			c.RootFS = p

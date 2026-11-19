@@ -86,6 +86,7 @@ type summary struct {
 	JavaScriptFingerprintCatalogSHA256 string                   `json:"javascriptFingerprintCatalogSha256,omitempty"`
 	JavaScriptFingerprints             []staticjs.Fingerprint   `json:"javascriptFingerprints,omitempty"`
 	Containers                         []containerSummary       `json:"containers,omitempty"`
+	Images                             []containerSummary       `json:"images,omitempty"`
 }
 
 func main() { os.Exit(run(os.Args[1:])) }
@@ -106,7 +107,7 @@ func validAssetTag(tag string) bool {
 	return true
 }
 func usage() {
-	fmt.Fprintln(os.Stderr, "koda-sbom: offline standalone inventory collector\n  koda-sbom doctor\n  koda-sbom version\n  koda-sbom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only) [--asset-tag LABEL] [--no-containers]\n  koda-sbom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed.")
+	fmt.Fprintln(os.Stderr, "koda-sbom: offline standalone inventory collector\n  koda-sbom doctor\n  koda-sbom version\n  koda-sbom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only) [--asset-tag LABEL] [--no-containers] [--no-images]\n  koda-sbom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed.")
 	fmt.Fprintln(os.Stderr, "  koda-sbom aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
 	fmt.Fprintln(os.Stderr, "  koda-sbom reconcile --artifact FILE.war|FILE.ear --supplier-sbom FILE.json --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
 	fmt.Fprintln(os.Stderr, "  koda-sbom scan --target DIRECTORY --target DIRECTORY --output-dir DIR [--exclude-dir ABSOLUTE_DIRECTORY]...")
@@ -170,7 +171,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	var maxFiles int64
 	var targets, excludes, excludedDirs stringsFlag
 	var livepatchEvidence, assetEvidence stringsFlag
-	var noContext, cyclonedx17, noContainers bool
+	var noContext, cyclonedx17, noContainers, noImages bool
 	flags.Var(&targets, "target", "local directory (repeatable); default /")
 	flags.StringVar(&image, "image-archive", "", "local single-image Docker/OCI tar")
 	flags.StringVar(&output, "output-dir", "", "parent directory for new results")
@@ -181,7 +182,8 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	flags.Var(&excludes, "exclude", "root-relative path/glob to exclude (repeatable)")
 	flags.Var(&excludedDirs, "exclude-dir", "literal directory below --target, absolute or target-relative (repeatable)")
 	flags.BoolVar(&noContext, "no-context", false, "skip runtime/configuration context")
-	flags.BoolVar(&noContainers, "no-containers", false, "skip per-container SBOMs of running containers (live host only)")
+	flags.BoolVar(&noContainers, "no-containers", false, "skip per-container SBOMs of running and stopped containers and local images (live host only)")
+	flags.BoolVar(&noImages, "no-images", false, "skip stopped containers and local images not used by a container (live host only)")
 	flags.Var(&livepatchEvidence, "livepatch-evidence", "local sanitized client status evidence (repeatable, live host only)")
 	flags.Var(&assetEvidence, "asset-evidence", "local supplementary hardware/software evidence (repeatable)")
 	flags.StringVar(&assetTag, "asset-tag", "", "operator label stored in the SBOM to identify this host (max 128 characters)")
@@ -632,9 +634,9 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	// Runs before scratch removal: Syft's temporary files live there.
 	if !multiple && image == "" && target == "/" && !noContext && !noContainers {
 		var discoveryIssues []model.Issue
-		report.Containers, discoveryIssues = scanContainers(ctx, containerOptions{dir: dir, format: format, cyclonedx17: cyclonedx17, maxFiles: maxFiles, host: host})
+		report.Containers, report.Images, discoveryIssues = scanContainers(ctx, containerOptions{dir: dir, format: format, cyclonedx17: cyclonedx17, maxFiles: maxFiles, host: host, stored: !noImages})
 		report.Issues = append(report.Issues, discoveryIssues...)
-		for _, c := range report.Containers {
+		for _, c := range append(report.Containers, report.Images...) {
 			if c.Status != "completed" {
 				report.Status = "partial"
 			}
