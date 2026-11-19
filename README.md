@@ -2,6 +2,8 @@
 
 KODA SBOM Maker는 폐쇄망에서 **실행 파일 하나로 소프트웨어와 하드웨어 인벤토리를 수집**하고 CycloneDX와 SPDX로 저장합니다. Linux 수집은 로컬 파일과 커널 인터페이스를 읽으며 대상 서버에 Python, Go, Java, Node.js, Docker 또는 취약점 DB를 설치할 필요가 없습니다. 선택 명령 `assess`는 운영자가 제공한 로컬 보안 권고와 수집 결과를 대조합니다.
 
+출력 범위는 이름의 "SBOM"보다 넓습니다. 하나의 CycloneDX BOM에 **SBOM(패키지와 펌웨어) + HBOM(장치, CycloneDX `device`) + CBOM(인증서·암호 알고리즘, CycloneDX `cryptographic-asset`)**을 함께 담으며, SPDX 2.3에서는 장치와 펌웨어가 각각 `primaryPackagePurpose` `DEVICE`·`FIRMWARE` 패키지로 기록됩니다.
+
 ## 현재 소스에서 실행
 
 현재 소스의 개발 버전은 `0.1.6-dev`입니다. Linux x86_64·ARM64에서 `scan`을, macOS·Windows에서는 대상 OS용 실행 파일의 `platform-inventory`를 사용합니다. Linux 호스트 전체 수집은 패키지, 실행 상태, 커널에서 확인할 수 있는 장치와 펌웨어 정보를 함께 저장합니다.
