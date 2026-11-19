@@ -15,6 +15,9 @@
 | SSH 서버 설정 | `sshd_config`·`sshd_config.d/*.conf`의 전역 구역 선언값 | 파일별 선언 관측이며 `Include` 순서에 따른 실제 적용값을 계산하지 않음. `Match` 구역 제외 |
 | 커널 taint·모듈 | `kernel.tainted`, `/proc/modules`의 taint 플래그와 `/sys/module/<이름>/version`·`srcversion` | 모듈이 버전을 제공하지 않으면 이름과 플래그만 기록 |
 | 식별되지 않은 실행 파일 | 수집기와 같은 root의 프로세스 중 패키지 소유·구성요소 위치·제품 설치 경로 어디에도 해당하지 않는 실행 파일 | 다른 mount namespace(컨테이너)의 프로세스는 제외. 목록에 있다는 것이 악성이라는 뜻은 아님 |
+| 패키지 출처 | apt `Packages` 목록(평문·gz·lz4), dnf 이력 DB, yum `yumdb` | apt는 이름 기준이며 목록이 삭제됐으면 분류하지 않음. dnf5·apk는 미지원. 저장소 주소·파일 경로 미기록 |
+| 부팅 시작 서비스 | systemd `*.wants`·`*.requires` 링크, 단위 파일·drop-in, cgroup v2·v1 실행 여부 | 첫 `ExecStart`만 사용. 상대 경로 실행 파일은 패키지와 연결하지 않음. 다른 slice의 서비스는 `stopped`로 보일 수 있음. SysV init 스크립트 미지원 |
+| 하드웨어 CPE | Intel Xeon·Core, AMD EPYC·Ryzen, Dell PowerEdge(장치·BIOS), Lenovo ThinkSystem(장치) | NVD 사전 명명을 따른 형식. 사전에 없는 모델은 일치하지 않을 수 있음. HPE·BMC는 미생성 |
 | 패키지 파일 무결성 | RPM·dpkg·apk DB에 해시가 있는 실행 파일·공유 라이브러리와 실제 파일의 비교 | 설정·ghost 파일 제외. 해시 예산(호스트 8 GiB, 컨테이너 1 GiB) 초과 시 부분 확인. prelink 바이너리는 오탐 가능. 불일치 원인은 별도 판단 |
 | 인증서·CBOM | 수집 범위의 PEM·DER X.509 인증서, 서명·공개키 알고리즘 | 주체·발급자 이름 미기록. 개인키·PKCS#12·Java keystore는 읽지 않음. 배포판 신뢰 저장소와 20개 초과 번들 제외 |
 | 커널 | 현재 uname, 설치 커널 이미지·모듈, vermagic, RPM 버전 | 설치된 옛 커널과 실제 부팅 커널 구분. 모듈 미관측은 내장 기능 부재를 뜻하지 않음 |

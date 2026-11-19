@@ -64,6 +64,19 @@ type KernelModule struct {
 	SrcVersion string `json:"srcVersion,omitempty"`
 }
 
+// Service is a systemd unit enabled at boot. State is set on a live host:
+// "running" when the service's cgroup holds processes, else "stopped".
+type Service struct {
+	Unit       string   `json:"unit"`
+	UnitFile   string   `json:"unitFile,omitempty"`
+	WantedBy   []string `json:"wantedBy"`
+	Executable string   `json:"executable,omitempty"`
+	Activates  string   `json:"activates,omitempty"` // service started by a socket unit
+	Listen     []string `json:"listen,omitempty"`
+	State      string   `json:"state,omitempty"`
+	PURL       string   `json:"purl,omitempty"`
+}
+
 // KernelConfig lists the CONFIG_ options built in (y) or as modules (m).
 type KernelConfig struct {
 	Source  string            `json:"source"`
@@ -160,6 +173,8 @@ type Context struct {
 	UnidentifiedExecutables []UnidentifiedExecutable `json:"unidentifiedExecutables,omitempty"`
 	// Sockets whose owning process could not be read or was excluded.
 	UnattributedSockets []Socket `json:"unattributedSockets,omitempty"`
+	// systemd services and sockets enabled to start at boot.
+	EnabledServices []Service `json:"enabledServices,omitempty"`
 	// Built-in and module options of the running kernel's build configuration.
 	KernelConfig *KernelConfig `json:"kernelConfig,omitempty"`
 	Settings     []Setting     `json:"settings"`

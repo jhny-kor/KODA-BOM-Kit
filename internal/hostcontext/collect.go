@@ -93,6 +93,14 @@ func collect(ctx context.Context, root string, live bool, paths []string, listed
 	} else {
 		collector.walk(".", 0)
 	}
+	var allowed map[string]bool
+	if listed {
+		allowed = make(map[string]bool, len(paths))
+		for _, p := range paths {
+			allowed[path.Clean(filepath.ToSlash(p))] = true
+		}
+	}
+	collectServices(confined, &out, live, allowed)
 	if live {
 		collectRuntime(ctx, confined, &out, denied)
 	}

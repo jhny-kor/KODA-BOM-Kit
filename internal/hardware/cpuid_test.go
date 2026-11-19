@@ -59,3 +59,36 @@ func TestCPUTopologyAndARMNames(t *testing.T) {
 		t.Errorf("unknown part or non-numeric topology must stay empty: %v", cpus["1"])
 	}
 }
+
+func TestHardwareCPEs(t *testing.T) {
+	for name, want := range map[string]string{
+		"Intel(R) Xeon(R) Gold 6248 CPU @ 2.50GHz":  "cpe:2.3:h:intel:xeon_gold_6248:-:*:*:*:*:*:*:*",
+		"Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz": "cpe:2.3:h:intel:xeon_e5-2680_v4:-:*:*:*:*:*:*:*",
+		"Intel(R) Xeon(R) CPU E5-2650 0 @ 2.00GHz":  "cpe:2.3:h:intel:xeon_e5-2650:-:*:*:*:*:*:*:*",
+		"Intel(R) Xeon(R) E-2288G CPU @ 3.70GHz":    "cpe:2.3:h:intel:xeon_e-2288g:-:*:*:*:*:*:*:*",
+		"Intel(R) Xeon(R) 6980P":                    "cpe:2.3:h:intel:xeon_6980p:-:*:*:*:*:*:*:*",
+		"Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz":   "cpe:2.3:h:intel:core_i7-8700:-:*:*:*:*:*:*:*",
+		"AMD EPYC 7763 64-Core Processor":           "cpe:2.3:h:amd:epyc_7763:-:*:*:*:*:*:*:*",
+		"AMD Ryzen 9 5950X 16-Core Processor":       "cpe:2.3:h:amd:ryzen_9_5950x:-:*:*:*:*:*:*:*",
+		"Intel Xeon Processor (Cascadelake)":        "",
+		"Intel(R) Xeon(R) CPU @ 2.20GHz":            "",
+		"AMD EPYC-Rome Processor":                   "",
+		"Intel(R) Xeon(R) Platinum 8480+":           "",
+		"QEMU Virtual CPU version 2.5+":             "",
+	} {
+		if got := cpuCPE(name); got != want {
+			t.Errorf("cpuCPE(%q) = %q, want %q", name, got, want)
+		}
+	}
+	for _, c := range []struct{ vendor, product, bios, hw, fw string }{
+		{"Dell Inc.", "PowerEdge R740xd", "2.9.4", "cpe:2.3:h:dell:poweredge_r740xd:-:*:*:*:*:*:*:*", "cpe:2.3:o:dell:poweredge_r740xd_firmware:2.9.4:*:*:*:*:*:*:*"},
+		{"Lenovo", "ThinkSystem SR650 -[7X06CTO1WW]-", "IVE178I-3.30", "cpe:2.3:h:lenovo:thinksystem_sr650:-:*:*:*:*:*:*:*", ""},
+		{"HPE", "ProLiant DL380 Gen10", "U30", "", ""},
+		{"Dell Inc.", "PowerEdge R740", "2.9.4 (beta)", "cpe:2.3:h:dell:poweredge_r740:-:*:*:*:*:*:*:*", ""},
+	} {
+		hw, fw := systemCPEs(c.vendor, c.product, c.bios)
+		if hw != c.hw || fw != c.fw {
+			t.Errorf("%v: got %q %q", c, hw, fw)
+		}
+	}
+}

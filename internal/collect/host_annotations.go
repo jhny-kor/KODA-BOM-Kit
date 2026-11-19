@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/anchore/syft/syft/sbom"
 	"koda.local/security-sbom-linux/internal/model"
 )
 
@@ -41,6 +42,34 @@ func ListeningByPURL(context model.Context) Exposure {
 				break
 			}
 		}
+	}
+	return out
+}
+
+// EnabledServiceProperty names a systemd unit that starts the component at boot.
+const EnabledServiceProperty = "koda:runtime:enabled-service"
+
+// LinkServices sets the package of each enabled service's executable and
+// returns component properties naming the unit and, on a live host, its state.
+func LinkServices(context *model.Context, inventory *sbom.SBOM, root string) ComponentProperties {
+	var executables []string
+	for _, s := range context.EnabledServices {
+		if s.Executable != "" {
+			executables = append(executables, s.Executable)
+		}
+	}
+	purls := ExecutablePURLs(inventory, root, executables)
+	out := ComponentProperties{}
+	for i := range context.EnabledServices {
+		s := &context.EnabledServices[i]
+		if s.PURL = purls[s.Executable]; s.PURL == "" {
+			continue
+		}
+		value := s.Unit
+		if s.State != "" {
+			value += " (" + s.State + ")"
+		}
+		out[s.PURL] = append(out[s.PURL], [2]string{EnabledServiceProperty, value})
 	}
 	return out
 }

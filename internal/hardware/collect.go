@@ -250,11 +250,14 @@ func (c *collector) dmi() string {
 	a.Vendor = props["sys_vendor"]
 	a.Model = props["product_name"]
 	a.Revision = props["board_version"]
+	hardwareCPE, firmwareCPE := systemCPEs(props["sys_vendor"], props["product_name"], props["bios_version"])
+	a.CPE = hardwareCPE
 	c.assets = append(c.assets, a)
 	if v := props["bios_version"]; v != "" {
 		b := c.asset("firmware", "BIOS/UEFI", p+"/bios_version", a.ID, map[string]string{"releaseDate": props["bios_date"], "state": "observed"})
 		b.Version = v
 		b.Vendor = props["bios_vendor"]
+		b.CPE = firmwareCPE
 		c.assets = append(c.assets, b)
 	}
 	return a.ID
@@ -314,6 +317,7 @@ func (c *collector) cpu() {
 		a.Model = props["model name"]
 		a.Vendor = props["vendor_id"]
 		a.Revision = props["stepping"]
+		a.CPE = cpuCPE(props["model name"])
 		if implementer := props["CPU implementer"]; implementer != "" && a.Vendor == "" {
 			// arm64 prints only hexadecimal codes; decode them the way lscpu does.
 			a.Vendor, a.Model = armNames(implementer, props["CPU part"])

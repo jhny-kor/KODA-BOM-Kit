@@ -132,15 +132,37 @@ func UnidentifiedExecutables(context *model.Context, inventory *sbom.SBOM, produ
 }
 
 // ExposureByExecutable joins listening sockets, keyed by executable path
-// relative to root, to the component that provides that executable: the one
-// installed package owning the file, else the one component cataloged at that
-// path (for a Go binary, its main module). Ambiguous matches are skipped.
+// relative to root, to the component that provides that executable.
 func ExposureByExecutable(inventory *sbom.SBOM, root string, byExecutable map[string][]model.Socket) Exposure {
 	exposure := Exposure{}
-	if inventory == nil || inventory.Artifacts.Packages == nil || len(byExecutable) == 0 {
-		return exposure
+	executables := make([]string, 0, len(byExecutable))
+	for exe := range byExecutable {
+		executables = append(executables, exe)
+	}
+	for exe, purl := range ExecutablePURLs(inventory, root, executables) {
+		for _, socket := range byExecutable[exe] {
+			if !slices.Contains(exposure[purl], socket) {
+				exposure[purl] = append(exposure[purl], socket)
+			}
+		}
+	}
+	return exposure
+}
+
+// ExecutablePURLs maps executable paths relative to root to the component
+// that provides each: the one installed package owning the file, else the one
+// component cataloged at that path (for a Go binary, its main module).
+// Ambiguous matches are skipped.
+func ExecutablePURLs(inventory *sbom.SBOM, root string, executables []string) map[string]string {
+	result := map[string]string{}
+	if inventory == nil || inventory.Artifacts.Packages == nil || len(executables) == 0 {
+		return result
 	}
 	merged := usrMerged(root)
+	wanted := map[string]bool{}
+	for _, exe := range executables {
+		wanted[canonicalPath(exe, merged)] = true
+	}
 	owners, located := map[string][]pkg.Package{}, map[string][]pkg.Package{}
 	for _, component := range inventory.Artifacts.Packages.Sorted() {
 		if component.PURL == "" {
@@ -148,36 +170,32 @@ func ExposureByExecutable(inventory *sbom.SBOM, root string, byExecutable map[st
 		}
 		if owner, ok := component.Metadata.(pkg.FileOwner); ok {
 			for _, name := range owner.OwnedFiles() {
-				if p := canonicalPath(name, merged); len(byExecutable[p]) > 0 {
+				if p := canonicalPath(name, merged); wanted[p] {
 					owners[p] = append(owners[p], component)
 				}
 			}
 		}
 		for _, location := range component.Locations.ToSlice() {
-			if p := canonicalPath(location.RealPath, merged); len(byExecutable[p]) > 0 {
+			if p := canonicalPath(location.RealPath, merged); wanted[p] {
 				located[p] = append(located[p], component)
 			}
 		}
 	}
-	for exe, sockets := range byExecutable {
-		candidates := owners[exe]
+	for _, exe := range executables {
+		p := canonicalPath(exe, merged)
+		candidates := owners[p]
 		if len(candidates) == 0 {
-			candidates = located[exe]
+			candidates = located[p]
 			if len(candidates) > 1 {
-				candidates = slices.DeleteFunc(slices.Clone(candidates), func(p pkg.Package) bool {
-					meta, ok := p.Metadata.(pkg.GolangBinaryBuildinfoEntry)
-					return !ok || meta.MainModule != p.Name
+				candidates = slices.DeleteFunc(slices.Clone(candidates), func(c pkg.Package) bool {
+					meta, ok := c.Metadata.(pkg.GolangBinaryBuildinfoEntry)
+					return !ok || meta.MainModule != c.Name
 				})
 			}
 		}
 		if len(candidates) == 1 {
-			purl := candidates[0].PURL
-			for _, socket := range sockets {
-				if !slices.Contains(exposure[purl], socket) {
-					exposure[purl] = append(exposure[purl], socket)
-				}
-			}
+			result[exe] = candidates[0].PURL
 		}
 	}
-	return exposure
+	return result
 }

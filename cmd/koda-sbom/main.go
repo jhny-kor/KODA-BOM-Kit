@@ -66,6 +66,7 @@ type summary struct {
 	AssetCount                         int                      `json:"assetCount,omitempty"`
 	Host                               *model.HostIdentity      `json:"host,omitempty"`
 	Integrity                          *collect.IntegrityResult `json:"integrity,omitempty"`
+	PackageOrigin                      *collect.OriginResult    `json:"packageOrigin,omitempty"`
 	ImageIdentity                      *imagearchive.Identity   `json:"imageIdentity,omitempty"`
 	PackageTypes                       map[string]int           `json:"packageTypes"`
 	Distribution                       any                      `json:"distribution,omitempty"`
@@ -433,6 +434,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	var combined collect.DirectoryInventory
 	var catalogIssues, javascriptIssues, tempExcluded bool
 	var integrity collect.IntegrityResult
+	var origins collect.OriginResult
 	deployedIssues := map[string]bool{}
 	for i, scope := range scopes {
 		currentTarget = scope.id
@@ -527,6 +529,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			// Before Scrub: verification needs the package file lists.
 			integrity = collect.VerifyPackageFiles(ctx, collected, plan, collect.DefaultIntegrityBudget)
 			finishPhase("packageIntegrity")
+			origins = collect.PackageOrigins(ctx, collected, plan)
 			if integrity.Status == "partial" {
 				issues = append(issues, model.Issue{Collector: "package-integrity", Status: "incomplete", Message: "package file verification stopped at its time or size budget"})
 			}
@@ -555,6 +558,10 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			integrity.ResolvePURLs(collected)
 			report.Integrity = &integrity
 		}
+		if origins.Status == "completed" {
+			origins.ResolvePURLs(collected)
+			report.PackageOrigin = &origins
+		}
 		progress.PackageCount = collected.Artifacts.Packages.PackageCount()
 		progress.Distribution = collected.Artifacts.LinuxDistribution
 		if progress.PackageCount == 0 {
@@ -577,6 +584,10 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	report.PackageCount = inventory.Artifacts.Packages.PackageCount()
 	report.AssetCount = len(assets)
 	collect.LinkRuntimePackages(&contextData, inventory)
+	var services collect.ComponentProperties
+	if !multiple {
+		services = collect.LinkServices(&contextData, inventory, target)
+	}
 	collect.UnidentifiedExecutables(&contextData, inventory, report.Products)
 	report.Distribution = inventory.Artifacts.LinuxDistribution
 	for _, p := range inventory.Artifacts.Packages.Sorted() {
@@ -602,7 +613,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	coverage.IncludeAllOccurrences = multiple
 	e = collect.WriteSBOMsWithAssets(ctx, dir, format, inventory, report.Status == "partial", &coverage, assets, cyclonedx17)
 	if e == nil {
-		e = collect.AnnotateSBOMs(dir, collect.HostProperties(host), collect.MergeProperties(collect.ListeningByPURL(contextData).Properties(), integrity.Properties()))
+		e = collect.AnnotateSBOMs(dir, collect.HostProperties(host), collect.MergeProperties(collect.ListeningByPURL(contextData).Properties(), integrity.Properties(), origins.Properties(), services))
 	}
 	if e != nil {
 		finishPhase("sbomOutput")

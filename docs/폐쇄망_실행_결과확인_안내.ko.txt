@@ -357,6 +357,8 @@ collection.json:
   integrity     패키지 DB 해시와 실제 실행 파일·라이브러리 비교 결과.
                 findings[].state=modified 는 내용이 다름, missing 은 파일 없음.
                 수동 교체·변조의 단서이며 원인은 별도로 확인합니다.
+  packageOrigin 패키지 출처. counts 는 repository·local-file·not-recorded 개수,
+                findings 는 저장소 밖에서 설치된 패키지 목록입니다.
   containers    실행 중인 컨테이너 목록. status, output(결과 폴더), reason(미수집 사유)
 
 context.json:
@@ -367,6 +369,8 @@ context.json:
                                    reboot.recommended 등 재부팅 신호
   taintedModules                   배포판 밖 커널 모듈(O, E, P 플래그)과 버전
   kernelConfig                     실행 커널의 CONFIG_ 옵션(y 내장, m 모듈)
+  enabledServices                  부팅 시 시작되는 systemd 서비스·소켓과 실행 파일,
+                                   패키지 PURL, 현재 state(running·stopped)
   unidentifiedExecutables          어떤 패키지에도 속하지 않는 실행 중 프로그램
 
 해석 시 주의:
@@ -380,6 +384,8 @@ jq가 있으면:
   sudo jq '{host,integrity:(.integrity|{status,modifiedFiles,missingFiles,findings}),containers:[.containers[]?|{name,status,output}]}' "$result/collection.json"
   sudo jq '{settings:[.settings[]|select(.product|test("SELinux|AppArmor|OpenSSH|Linux kernel"))],taintedModules,unidentifiedExecutables}' "$result/context.json"
   sudo jq '.kernelConfig.options.CONFIG_NF_TABLES' "$result/context.json"
+  sudo jq '.packageOrigin|{counts,findings}' "$result/collection.json"
+  sudo jq '[.enabledServices[]|select(.state=="stopped")|{unit,executable,listen,purl}]' "$result/context.json"
 
 assets.json의 CPU 정보를 lscpu와 대조하려면:
   sudo jq '[.assets[]|select(.name=="CPU")]|{cpus:length,sockets:([.[].properties.socket]|unique|length),cores:([.[]|[.properties.socket,.properties.core]]|unique|length),models:([.[]|[.vendor,.model,.revision]]|unique),cpuid:([.[].properties.cpuidSignature]|unique)}' "$result/assets.json"

@@ -170,6 +170,9 @@ sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results \
 | 배포판 밖 커널 모듈 | `context.json`의 `taintedModules` | out-of-tree·서명 없음·독점 모듈과 버전 |
 | 식별되지 않은 실행 프로그램 | `context.json`의 `unidentifiedExecutables` | 패키지·수집기·제품 설치 경로 어디에도 속하지 않는 실행 파일 |
 | 패키지 파일 무결성 | `collection.json`의 `integrity`, SBOM `koda:integrity:*` | 패키지 DB 해시와 다른 실행 파일·라이브러리(`rpm -V`와 같은 방식) |
+| 패키지 출처 | `collection.json`의 `packageOrigin`, SBOM `koda:package:origin`·`koda:package:repository` | 저장소(`repository`)·로컬 파일 설치(`local-file`)·기록 없음(`not-recorded`). apt 목록과 dnf·yum 이력 기준. 저장소 주소와 로컬 파일 경로는 남기지 않음 |
+| 부팅 시 시작 서비스 | `context.json`의 `enabledServices`, SBOM `koda:runtime:enabled-service` | 활성화된 systemd 서비스·소켓, 실행 파일과 패키지, 소켓의 Listen 값, 현재 실행 여부. 지금은 멈춰 있어도 재부팅하면 열리는 서비스를 확인 |
+| 하드웨어 CPE | `assets.json`, SBOM 장치·펌웨어 `cpe` | Intel Xeon·Core, AMD EPYC·Ryzen CPU, Dell PowerEdge(장치·BIOS 버전), Lenovo ThinkSystem(장치). NVD 사전 명명과 대조한 형식만 생성 |
 | 인증서·암호 인벤토리 | SBOM `cryptographic-asset`(CBOM), `assets.json` | 인증서 만료·서명 알고리즘·키 길이와 약한 설정. 주체·발급자 이름과 개인키는 기록하지 않음 |
 
 ## 수집 범위 선택

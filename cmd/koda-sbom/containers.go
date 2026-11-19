@@ -45,6 +45,7 @@ type containerCollection struct {
 	FilesystemFileCount int64                    `json:"filesystemFileCount"`
 	ListeningSockets    []executableSockets      `json:"listeningSockets,omitempty"`
 	Integrity           *collect.IntegrityResult `json:"integrity,omitempty"`
+	PackageOrigin       *collect.OriginResult    `json:"packageOrigin,omitempty"`
 	Issues              []model.Issue            `json:"issues"`
 	Limitations         []string                 `json:"limitations"`
 }
@@ -152,6 +153,7 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	}
 	// ponytail: fixed per-container budget; share one budget across containers if fleets get large.
 	integrity := collect.VerifyPackageFiles(ctx, inventory, plan, collect.DefaultIntegrityBudget/8)
+	origins := collect.PackageOrigins(ctx, inventory, plan)
 	report.Issues = append(report.Issues, collect.DeployedCollectionIssues(inventory, plan.Root)...)
 	collect.AddProducts(inventory, productList)
 	collect.AddStaticJavaScript(inventory, javascript)
@@ -159,6 +161,10 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	if integrity.Status != "not_applicable" {
 		integrity.ResolvePURLs(inventory)
 		report.Integrity = &integrity
+	}
+	if origins.Status == "completed" {
+		origins.ResolvePURLs(inventory)
+		report.PackageOrigin = &origins
 	}
 	report.PackageCount = inventory.Artifacts.Packages.PackageCount()
 	// Read the container's own network namespace through its processes.
@@ -176,7 +182,7 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	coverage := collect.NewCollectionCoverage(report.Status, "container-filesystem", report.PackageCount, 0, 0, report.Issues)
 	err = collect.WriteSBOMsWithAssets(ctx, out, options.format, inventory, report.Status == "partial", &coverage, certificates, options.cyclonedx17)
 	if err == nil {
-		err = collect.AnnotateSBOMs(out, append(collect.HostProperties(options.host), containerProperties(s.Container)...), collect.MergeProperties(exposure.Properties(), integrity.Properties()))
+		err = collect.AnnotateSBOMs(out, append(collect.HostProperties(options.host), containerProperties(s.Container)...), collect.MergeProperties(exposure.Properties(), integrity.Properties(), origins.Properties()))
 	}
 	if err != nil {
 		for _, name := range []string{"inventory.syft.json", "sbom.cdx.json", "sbom.spdx.json", collect.CycloneDX17Filename} {
