@@ -6,7 +6,7 @@ KODA SBOM Maker는 폐쇄망에서 **실행 파일 하나로 소프트웨어와 
 
 ## 현재 소스에서 실행
 
-현재 소스의 개발 버전은 `0.1.6-dev`입니다. Linux x86_64·ARM64에서 `scan`을, macOS·Windows에서는 대상 OS용 실행 파일의 `platform-inventory`를 사용합니다. Linux 호스트 전체 수집은 패키지, 실행 상태, 커널에서 확인할 수 있는 장치와 펌웨어 정보를 함께 저장합니다.
+현재 소스의 개발 버전은 `0.1.7-dev`입니다. Linux x86_64·ARM64에서 `scan`을, macOS·Windows에서는 대상 OS용 실행 파일의 `platform-inventory`를 사용합니다. Linux 호스트 전체 수집은 패키지, 실행 상태, 커널에서 확인할 수 있는 장치와 펌웨어 정보를 함께 저장합니다.
 
 ```sh
 ./koda-sbom version
@@ -16,14 +16,14 @@ KODA SBOM Maker는 폐쇄망에서 **실행 파일 하나로 소프트웨어와 
 
 마지막 명령은 **한 번 수집한 결과**를 CycloneDX 1.6·1.7과 SPDX 2.3으로 저장합니다. BMC·NIC 등 외부 장비의 내보내기 파일 반입, macOS·Windows 실행법, 오프라인 권고 대조는 [단일 파일 CLI 안내](docs/asset-inventory.ko.md)에 있습니다. 검증한 플랫폼과 확인 한계는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
 
-## 0.1.6 배포본 반입 후 실행
+## 0.1.7 배포본 반입 후 실행
 
-빌드 PC의 `dist/`에서 만든 `koda-sbom-linux-amd64-0.1.6-<UTC일시>-<소스식별자>.tar.gz`와 같은 이름의 `.sha256`을 반입합니다. 0.1.6 배포본은 아래 [새 수집 항목](#서버-보안-관리-정보)을 포함하며, 0.1.5처럼 실제 커널 VM 검증 보고서(`VERIFICATION.json`)를 동봉한 `-verified` 묶음은 아닙니다. 검증한 범위와 미검증 범위는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
+빌드 PC의 `dist/`에서 만든 `koda-sbom-linux-amd64-0.1.7-<UTC일시>-<소스식별자>.tar.gz`와 같은 이름의 `.sha256`을 반입합니다. 0.1.7 배포본은 아래 [새 수집 항목](#서버-보안-관리-정보)을 포함하며, 0.1.5처럼 실제 커널 VM 검증 보고서(`VERIFICATION.json`)를 동봉한 `-verified` 묶음은 아닙니다. 검증한 범위와 미검증 범위는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
 
 ```bash
-set -- koda-sbom-linux-amd64-0.1.6-*.tar.gz
+set -- koda-sbom-linux-amd64-0.1.7-*.tar.gz
 if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
-  echo "0.1.6 압축파일 한 개가 있는 폴더에서 실행하세요."
+  echo "0.1.7 압축파일 한 개가 있는 폴더에서 실행하세요."
 else
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
@@ -464,7 +464,7 @@ CycloneDX와 SPDX에는 수집 대상 유형, 구성요소 수, 사용자가 설
 
 ```bash
 # 현재 소스의 Linux x86_64 배포용 압축파일 생성
-VERSION=0.1.6-dev GO_BIN=/path/to/go1.26.11/bin/go ./scripts/build-release.sh
+VERSION=0.1.7-dev GO_BIN=/path/to/go1.26.11/bin/go ./scripts/build-release.sh
 
 # Linux ARM64용 단일 바이너리 빌드
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-sbom ./cmd/koda-sbom

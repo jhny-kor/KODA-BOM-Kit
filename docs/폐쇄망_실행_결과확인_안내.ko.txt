@@ -2,7 +2,7 @@
 KODA SBOM Linux 안내
 안내 보완일 2026-11-19 (한국 표준시)
 
-현재 소스(0.1.6-dev)의 단일 실행 파일 사용법
+현재 소스(0.1.7-dev)의 단일 실행 파일 사용법
   ./koda-sbom version
   ./koda-sbom scan --output-dir ./reports
   ./koda-sbom scan --output-dir ./reports --cyclonedx-17
@@ -14,14 +14,14 @@ assets.json에는 확인한 장치와 펌웨어 증거가 있는 경우 그 내�
 외부 증적 반입과 오프라인 권고 대조는 같은 폴더의 asset-inventory.ko.md를
 참조합니다.
 
-0.1.6 배포본 반입
-  반입 파일: koda-sbom-linux-amd64-0.1.6-<UTC일시>-<소스식별자>.tar.gz 와 같은 이름의 .sha256
-  sha256sum -c koda-sbom-linux-amd64-0.1.6-*.tar.gz.sha256
-  tar -xzf koda-sbom-linux-amd64-0.1.6-*.tar.gz
-  cd koda-sbom-linux-amd64-0.1.6-*/ && sha256sum -c SHA256SUMS
+0.1.7 배포본 반입
+  반입 파일: koda-sbom-linux-amd64-0.1.7-<UTC일시>-<소스식별자>.tar.gz 와 같은 이름의 .sha256
+  sha256sum -c koda-sbom-linux-amd64-0.1.7-*.tar.gz.sha256
+  tar -xzf koda-sbom-linux-amd64-0.1.7-*.tar.gz
+  cd koda-sbom-linux-amd64-0.1.7-*/ && sha256sum -c SHA256SUMS
   ./koda-sbom doctor
   sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results --asset-tag "$(hostname)" --max-files 0 --timeout 0
-0.1.6 배포본에는 실제 커널 VM 검증 보고서(VERIFICATION.json)가 없습니다.
+0.1.7 배포본에는 실제 커널 VM 검증 보고서(VERIFICATION.json)가 없습니다.
 검증 범위는 docs/검증결과.ko.md의 2026-11-19 항목을 확인합니다.
 컨테이너·이미지별 SBOM을 모두 만들지 않으려면 --no-containers를, 중지된 컨테이너와
 로컬 이미지만 빼려면 --no-images를 추가합니다.
@@ -29,7 +29,7 @@ root로 실행해야 DMI 시리얼, BMC(IPMI), 다른 사용자 프로세스의 
 컨테이너를 모두 확인할 수 있습니다.
 
 아래 1~9절은 0.1.5 검증 배포본을 반입하는 경우의 절차입니다.
-결과 확인(6~8절)은 0.1.6에도 같으며 0.1.6에서 추가된 값은 7-1절에 있습니다.
+결과 확인(6~8절)은 0.1.7에도 같으며 0.1.6·0.1.7에서 추가된 값은 7-1절에 있습니다.
 
 이 안내는 폐쇄망 서버에 최종 배포 파일을 반입하고, Ksplice·Livepatch 상태와
 SBOM을 수집한 뒤 결과를 확인하는 순서를 설명합니다.
@@ -272,8 +272,8 @@ sbom.cdx.json 또는 sbom.spdx.json을 제출하고, reconcile.json은 차이 �
   sbom.spdx.json      SPDX 2.3 형식 SBOM
   inventory.syft.json 패키지 상세 버전, source package, 설치 근거
   assets.json         장치·펌웨어·BMC·인증서 증거 (관측된 경우)
-  containers/<이름>/  실행 중이거나 중지된 컨테이너별 SBOM과 collection.json, SHA256SUMS (0.1.6)
-  images/<이름>/      어느 컨테이너도 쓰지 않는 로컬 이미지별 SBOM (0.1.6)
+  containers/<이름>/  실행 중이거나 중지된 컨테이너별 SBOM과 collection.json, SHA256SUMS (0.1.6, 중지된 컨테이너는 0.1.7)
+  images/<이름>/      어느 컨테이너도 쓰지 않는 로컬 이미지별 SBOM (0.1.7)
   SHA256SUMS          결과 파일 체크섬
 
 컨테이너 폴더는 각각 따로 체크섬을 확인합니다.
@@ -351,7 +351,7 @@ jq가 없으면 설치하지 않고 위 cat 명령으로 확인하면 됩니다.
 
 마지막 명령은 SBOM 구성요소 중 앞의 20개를 보여줍니다.
 
-7-1. 0.1.6에서 추가된 값 읽기
+7-1. 0.1.6·0.1.7에서 추가된 값 읽기
 
 collection.json:
   host          자산 라벨(assetTag)과 machine-id·DMI 식별자의 SHA-256.
