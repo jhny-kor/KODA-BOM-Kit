@@ -5,13 +5,13 @@
 | 계층 | 주요 증거 | 확인 한계 |
 |---|---|---|
 | OS | os-release, vendor release, RPM/DEB/APK 패키지 DB | 읽기 권한·DB 손상·source package/module stream 누락 가능 |
-| 하드웨어·펌웨어 | Linux CPU·마이크로코드, DMI/BIOS, UEFI·ESRT, PCI/드라이버, NVMe/SCSI, USB, TPM에서 노출되는 식별 정보. RAID/HBA(mpt3sas, qla2xxx, lpfc, hpsa, smartpqi), RDMA(InfiniBand·Mellanox), GPU VBIOS(NVIDIA, amdgpu), NIC 펌웨어(`ethtool -i`와 같은 읽기 전용 ioctl) | 모델과 구성에 따라 필드가 다릅니다. megaraid_sas는 sysfs에 펌웨어 버전이 없어 내보낸 증적이 필요합니다. BMC는 `/dev/ipmi0`의 IPMI `Get Device ID`로 읽으며 root와 IPMI 커널 모듈이 필요하고, 리비전 표기는 제조사 공개 버전과 다를 수 있습니다. NIC 펌웨어는 드라이버가 보고하는 값입니다. VM과 컨테이너 관측에는 물리 호스트 확인이 필요할 수 있습니다. |
+| 하드웨어·펌웨어 | Linux CPU·마이크로코드(x86 CPUID 시그니처, 소켓·코어, ARM 코어 이름), DMI/BIOS, UEFI·ESRT, PCI/드라이버, NVMe/SCSI, USB, TPM에서 노출되는 식별 정보. RAID/HBA(mpt3sas, qla2xxx, lpfc, hpsa, smartpqi), RDMA(InfiniBand·Mellanox), GPU VBIOS(NVIDIA, amdgpu), NIC 펌웨어(`ethtool -i`와 같은 읽기 전용 ioctl) | 모델과 구성에 따라 필드가 다릅니다. megaraid_sas는 sysfs에 펌웨어 버전이 없어 내보낸 증적이 필요합니다. BMC는 `/dev/ipmi0`의 IPMI `Get Device ID`로 읽으며 root와 IPMI 커널 모듈이 필요하고, 리비전 표기는 제조사 공개 버전과 다를 수 있습니다. NIC 펌웨어는 드라이버가 보고하는 값입니다. VM과 컨테이너 관측에는 물리 호스트 확인이 필요할 수 있습니다. |
 | 외부 장비 | 로컬 파일로 내보낸 Redfish·fwupd·devlink 또는 공통 JSON | 장비가 보고한 버전과 상태를 보존합니다. 매칭되지 않은 장비와 미확인 필드는 수집 범위를 함께 확인합니다. |
 | Windows·macOS | `platform-inventory`의 시스템·OS·펌웨어 및 설치 앱 메타데이터 | Windows는 교차 빌드 확인 범위입니다. 개별 앱 내부 의존성과 제공자별 업데이트는 추가 증적이 필요합니다. |
 | 실행 중 소프트웨어 | 실행 파일 및 메모리 매핑의 경로·파일 식별 정보, 경로를 식별한 설치 패키지 | 프로세스와 수집기의 파일시스템 범위가 같은 경우에만 설치 패키지를 연결합니다. 교체가 확인되면 재시작 검토 근거를 남깁니다. |
 | 호스트 식별 | machine-id, DMI product UUID·제품/보드 시리얼의 SHA-256, 운영자 `--asset-tag` | 호스트 `/` 수집만 해당. DMI 시리얼은 root 권한 필요. 공용 기본값은 기록하지 않음. 해시는 가명화이며 익명화가 아님 |
 | 수신 대기 소켓 | 수집기 네트워크 네임스페이스의 `/proc/<pid>/net` LISTEN TCP·바인딩 UDP와 `/proc/<pid>/fd` 소유 프로세스 | 바인딩 주소만 확인하며 방화벽 노출은 확인하지 않음. 다른 네임스페이스의 소켓 미관측. 소유자 미확인 소켓은 `unattributedSockets` |
-| 보안 설정·재부팅 | SELinux 실행·설정 모드, AppArmor 활성화·프로필 모드 수, lockdown, FIPS, `/run/reboot-required`, 실행 커널 모듈 트리 존재, 같은 계열의 더 새 설치 커널 | 관측값이며 준수 판정이 아닙니다. 재부팅 신호가 없다는 것은 재부팅 불필요의 증명이 아닙니다. 커널 계열 구분은 릴리스 문자열 기반 추정입니다. |
+| 보안 설정·재부팅 | SELinux 실행·설정 모드, AppArmor 활성화·프로필 모드 수, lockdown, FIPS, 허용 목록의 부팅 옵션, 커널 빌드 설정(`y`·`m` 옵션), `/run/reboot-required`, 실행 커널 모듈 트리 존재, 같은 계열의 더 새 설치 커널 | 관측값이며 준수 판정이 아닙니다. 재부팅 신호가 없다는 것은 재부팅 불필요의 증명이 아닙니다. 커널 계열 구분은 릴리스 문자열 기반 추정입니다. |
 | SSH 서버 설정 | `sshd_config`·`sshd_config.d/*.conf`의 전역 구역 선언값 | 파일별 선언 관측이며 `Include` 순서에 따른 실제 적용값을 계산하지 않음. `Match` 구역 제외 |
 | 커널 taint·모듈 | `kernel.tainted`, `/proc/modules`의 taint 플래그와 `/sys/module/<이름>/version`·`srcversion` | 모듈이 버전을 제공하지 않으면 이름과 플래그만 기록 |
 | 식별되지 않은 실행 파일 | 수집기와 같은 root의 프로세스 중 패키지 소유·구성요소 위치·제품 설치 경로 어디에도 해당하지 않는 실행 파일 | 다른 mount namespace(컨테이너)의 프로세스는 제외. 목록에 있다는 것이 악성이라는 뜻은 아님 |

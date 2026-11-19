@@ -3,6 +3,8 @@
 package hostcontext
 
 import (
+	"bytes"
+	"compress/gzip"
 	"io"
 	"os"
 	"sort"
@@ -52,6 +54,11 @@ func collectSecurityPosture(root *os.Root, out *model.Context) {
 		}
 		for _, mode := range []string{"enforce", "complain", "kill", "unconfined"} {
 			add("AppArmor", "profiles."+mode, strconv.Itoa(counts[mode]), "sys/kernel/security/apparmor/profiles", "observed")
+		}
+	}
+	if value, ok := read("proc/cmdline"); ok {
+		for _, p := range cmdlineSettings(value) {
+			add("Linux kernel", "cmdline."+p[0], p[1], "proc/cmdline", "observed")
 		}
 	}
 	if value, ok := read("sys/kernel/security/lockdown"); ok {
@@ -117,4 +124,37 @@ func installedKernels(root *os.Root) []string {
 	}
 	sort.Strings(releases)
 	return releases
+}
+
+// collectKernelConfig reads the running kernel's build configuration:
+// proc/config.gz when the kernel embeds it, else the packaged
+// boot/config-<release>. A missing file is common and not reported.
+func collectKernelConfig(root *os.Root, out *model.Context, denied []string) {
+	if raw, err := readBounded(root, "proc/config.gz"); err == nil {
+		if zr, err := gzip.NewReader(bytes.NewReader(raw)); err == nil {
+			data, err := io.ReadAll(io.LimitReader(zr, 4*maxFileBytes+1))
+			if err == nil && len(data) <= 4*maxFileBytes {
+				out.KernelConfig = &model.KernelConfig{Source: "proc/config.gz", Options: parseKernelConfig(string(data))}
+				return
+			}
+		}
+		issue(out, "incomplete", "proc/config.gz", "embedded kernel configuration unreadable")
+	} else if !os.IsNotExist(err) {
+		issue(out, statusFor(err), "proc/config.gz", "embedded kernel configuration unreadable")
+	}
+	if out.RunningKernel == "" || !simpleToken.MatchString(out.RunningKernel) {
+		return
+	}
+	name := "boot/config-" + out.RunningKernel
+	if blocked(name, denied) {
+		return
+	}
+	data, err := readBounded(root, name)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			issue(out, statusFor(err), name, "kernel build configuration unreadable")
+		}
+		return
+	}
+	out.KernelConfig = &model.KernelConfig{Source: name, Options: parseKernelConfig(string(data))}
 }

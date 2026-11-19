@@ -74,3 +74,33 @@ func TestSecurityPostureSettings(t *testing.T) {
 		}
 	}
 }
+
+func TestKernelConfigSources(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "boot"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "boot/config-6.8.0-49-generic"), []byte("CONFIG_NF_TABLES=m\n# CONFIG_X is not set\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	out := model.Context{RunningKernel: "6.8.0-49-generic"}
+	collectKernelConfig(root, &out, nil)
+	if out.KernelConfig == nil || out.KernelConfig.Source != "boot/config-6.8.0-49-generic" || out.KernelConfig.Options["CONFIG_NF_TABLES"] != "m" || len(out.Issues) != 0 {
+		t.Fatalf("config = %+v issues = %+v", out.KernelConfig, out.Issues)
+	}
+	out = model.Context{RunningKernel: "6.8.0-49-generic"}
+	collectKernelConfig(root, &out, []string{"/boot"})
+	if out.KernelConfig != nil {
+		t.Fatal("excluded /boot must not be read")
+	}
+	out = model.Context{RunningKernel: "6.9.0"}
+	collectKernelConfig(root, &out, nil)
+	if out.KernelConfig != nil || len(out.Issues) != 0 {
+		t.Fatalf("missing config must be silent: %+v", out.Issues)
+	}
+}

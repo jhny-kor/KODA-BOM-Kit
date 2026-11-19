@@ -109,3 +109,64 @@ func newerKernel(running string, installed []string) string {
 	}
 	return newest
 }
+
+const maxKernelConfigOptions = 20000
+
+var kernelConfigName = regexp.MustCompile(`^CONFIG_[A-Za-z0-9_]{1,128}$`)
+
+// parseKernelConfig returns the built-in (y) and module (m) options of a
+// kernel .config. Whether a feature is built decides if many kernel CVEs apply;
+// unset and valued options are omitted.
+func parseKernelConfig(data string) map[string]string {
+	options := map[string]string{}
+	for _, line := range strings.Split(data, "\n") {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if ok && (value == "y" || value == "m") && kernelConfigName.MatchString(key) && len(options) < maxKernelConfigOptions {
+			options[key] = value
+		}
+	}
+	return options
+}
+
+// Boot parameters that switch kernel protections. Only these are recorded:
+// the full command line may carry storage paths or credentials (iSCSI, NFS).
+var cmdlineParameters = map[string]bool{
+	"mitigations": true, "nospectre_v1": true, "nospectre_v2": true, "spectre_v2": true, "spectre_v2_user": true,
+	"spectre_bhi": true, "spec_store_bypass_disable": true, "nospec_store_bypass_disable": true, "ssbd": true,
+	"l1tf": true, "mds": true, "tsx": true, "tsx_async_abort": true, "mmio_stale_data": true, "retbleed": true,
+	"srbds": true, "gather_data_sampling": true, "reg_file_data_sampling": true, "spec_rstack_overflow": true,
+	"pti": true, "nopti": true, "kpti": true, "nosmt": true, "nokaslr": true, "nosmap": true, "nosmep": true,
+	"vsyscall": true, "init_on_alloc": true, "init_on_free": true, "slab_nomerge": true, "randomize_kstack_offset": true,
+	"lockdown": true, "module.sig_enforce": true, "ima_appraise": true, "ima_policy": true, "selinux": true,
+	"enforcing": true, "apparmor": true, "security": true, "lsm": true, "audit": true, "fips": true,
+	"iommu": true, "intel_iommu": true, "amd_iommu": true, "debugfs": true, "sysrq_always_enabled": true,
+}
+
+var cmdlineValue = regexp.MustCompile(`^[A-Za-z0-9_.,:+-]{1,128}$`)
+
+// cmdlineSettings returns allowlisted security parameters of /proc/cmdline in
+// order. A flag without a value is reported as "set"; the last occurrence wins,
+// as it does for the kernel.
+func cmdlineSettings(cmdline string) [][2]string {
+	var out [][2]string
+	index := map[string]int{}
+	for _, field := range strings.Fields(cmdline) {
+		name, value, hasValue := strings.Cut(field, "=")
+		name = strings.ReplaceAll(name, "-", "_") // the kernel treats - and _ alike
+		if !cmdlineParameters[name] {
+			continue
+		}
+		if !hasValue {
+			value = "set"
+		} else if !cmdlineValue.MatchString(value) {
+			continue
+		}
+		if i, ok := index[name]; ok {
+			out[i][1] = value
+			continue
+		}
+		index[name] = len(out)
+		out = append(out, [2]string{name, value})
+	}
+	return out
+}

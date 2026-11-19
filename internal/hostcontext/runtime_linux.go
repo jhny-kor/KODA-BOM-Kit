@@ -59,6 +59,7 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 	} else {
 		issue(out, statusFor(err), "proc/modules", "loaded module list unavailable; built-in kernel features remain unknown")
 	}
+	collectKernelConfig(root, out, denied)
 	collectLivepatch(ctx, root, out)
 	for _, name := range []string{
 		"proc/sys/kernel/unprivileged_userns_clone",

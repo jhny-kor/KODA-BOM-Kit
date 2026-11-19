@@ -55,3 +55,20 @@ func TestParseTaintedModules(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestKernelConfigAndCmdline(t *testing.T) {
+	options := parseKernelConfig("#\n# CONFIG_BPF_JIT is not set\nCONFIG_NF_TABLES=m\nCONFIG_USER_NS=y\nCONFIG_HZ=250\nCONFIG_LOCALVERSION=\"\"\nCONFIG_BAD-NAME=y\n")
+	if len(options) != 2 || options["CONFIG_NF_TABLES"] != "m" || options["CONFIG_USER_NS"] != "y" {
+		t.Errorf("options = %v", options)
+	}
+	got := cmdlineSettings(`BOOT_IMAGE=/vmlinuz root=UUID=1 rd.iscsi.password=secret mitigations=auto,nosmt nosmt spectre-v2=retpoline mitigations=off lsm="x y"`)
+	want := [][2]string{{"mitigations", "off"}, {"nosmt", "set"}, {"spectre_v2", "retpoline"}}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	}
+}

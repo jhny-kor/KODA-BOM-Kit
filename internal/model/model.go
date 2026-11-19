@@ -64,6 +64,12 @@ type KernelModule struct {
 	SrcVersion string `json:"srcVersion,omitempty"`
 }
 
+// KernelConfig lists the CONFIG_ options built in (y) or as modules (m).
+type KernelConfig struct {
+	Source  string            `json:"source"`
+	Options map[string]string `json:"options"`
+}
+
 type UnidentifiedExecutable struct {
 	Path string `json:"path"`
 	PIDs []int  `json:"pids"`
@@ -153,7 +159,9 @@ type Context struct {
 	// Running executables that no installed package or collector accounts for.
 	UnidentifiedExecutables []UnidentifiedExecutable `json:"unidentifiedExecutables,omitempty"`
 	// Sockets whose owning process could not be read or was excluded.
-	UnattributedSockets []Socket  `json:"unattributedSockets,omitempty"`
-	Settings            []Setting `json:"settings"`
-	Issues              []Issue   `json:"issues"`
+	UnattributedSockets []Socket `json:"unattributedSockets,omitempty"`
+	// Built-in and module options of the running kernel's build configuration.
+	KernelConfig *KernelConfig `json:"kernelConfig,omitempty"`
+	Settings     []Setting     `json:"settings"`
+	Issues       []Issue       `json:"issues"`
 }

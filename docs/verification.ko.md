@@ -65,7 +65,7 @@ python3 tests/validate_outputs.py /path/to/scan-result
 | 컨테이너 | `internal/containers`: 가짜 procfs로 Docker·containerd(Kubernetes)·sandbox 제외·mountinfo 대조·안전한 폴더 이름. `internal/localfs/rootfs_links_test.go`: 컨테이너 root의 절대 링크 해석 |
 | 펌웨어·BMC | `internal/hardware/adapters_test.go`, `ipmi*_test.go`: 커널 소스로 확인한 RAID/HBA·RDMA·GPU 속성, IPMI 응답 해석과 구조체 크기·ioctl 번호 |
 | 앱 번들 | `internal/collect/app_bundles_test.go`: snap `current`·flatpak `active`만 기록, conda PURL |
-| 보안 설정 | `internal/hostcontext/posture*_test.go`, `collect_test.go`: SELinux·AppArmor·lockdown·재부팅 신호, 커널 계열 비교, `sshd_config`, taint 모듈, 제외 경로 준수 |
+| 보안 설정 | `internal/hostcontext/posture*_test.go`, `collect_test.go`: SELinux·AppArmor·lockdown·재부팅 신호, 부팅 옵션 허용 목록, 커널 빌드 설정 출처·제외 경로, 커널 계열 비교, `sshd_config`, taint 모듈, 제외 경로 준수 |
 | 무결성·CBOM | `internal/collect/integrity_test.go`: md5·sha256·apk Q1, 설정 파일 제외, 누락·제외·usr-merge·예산. `internal/certs`: 만료·약한 키·개인키 미기록·신뢰 저장소 제외 |
 
 Linux 전용 테스트(`*_linux_test.go`)는 Linux에서 실행해야 합니다. macOS 빌드 PC에서는 테스트 바이너리를 교차 빌드한 뒤 Linux 컨테이너에서 실행합니다.

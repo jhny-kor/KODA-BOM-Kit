@@ -164,7 +164,9 @@ sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results \
 | 실행 중인 컨테이너 | `containers/<이름>/` | 컨테이너마다 별도 SBOM·`collection.json`·체크섬. 컨테이너 네트워크 네임스페이스의 포트 연결 포함. `--no-containers`로 끔 |
 | 펌웨어 | `assets.json`, SBOM 장치·펌웨어 구성요소 | RAID/HBA, RDMA, GPU VBIOS, NIC(`ethtool -i`와 같은 ioctl), BMC(IPMI `Get Device ID`) |
 | snap·flatpak·conda | SBOM 구성요소 | 활성 snap 리비전·flatpak 배포, conda 패키지 PURL |
-| 보안 설정 | `context.json`의 `settings` | SELinux·AppArmor·lockdown·FIPS, `sshd_config` 노출 설정, 재부팅 필요 신호 |
+| CPU 식별 | `assets.json`의 CPU `properties` | x86 `cpuidSignature`(예: `00050657`)·`familyModelStepping`(예: `06-55-07`)으로 마이크로코드 권고 대조, 소켓·코어 번호, ARM 제조사·코어 이름(`lscpu`와 같은 표) |
+| 보안 설정 | `context.json`의 `settings` | SELinux·AppArmor·lockdown·FIPS, 보안 관련 부팅 옵션(`cmdline.*`), `sshd_config` 노출 설정, 재부팅 필요 신호 |
+| 커널 빌드 설정 | `context.json`의 `kernelConfig` | 실행 커널에 내장(`y`)·모듈(`m`)로 포함된 `CONFIG_` 옵션. 커널 CVE 해당 여부 판단용 |
 | 배포판 밖 커널 모듈 | `context.json`의 `taintedModules` | out-of-tree·서명 없음·독점 모듈과 버전 |
 | 식별되지 않은 실행 프로그램 | `context.json`의 `unidentifiedExecutables` | 패키지·수집기·제품 설치 경로 어디에도 속하지 않는 실행 파일 |
 | 패키지 파일 무결성 | `collection.json`의 `integrity`, SBOM `koda:integrity:*` | 패키지 DB 해시와 다른 실행 파일·라이브러리(`rpm -V`와 같은 방식) |

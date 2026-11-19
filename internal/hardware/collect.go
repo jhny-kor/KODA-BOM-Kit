@@ -10,6 +10,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -295,11 +296,33 @@ func (c *collector) cpu() {
 		if props["processor"] == "" {
 			continue
 		}
+		if signature, fms, ok := cpuidSignature(props["cpu family"], props["model"], props["stepping"]); ok {
+			props["cpuidSignature"], props["familyModelStepping"] = signature, fms
+		}
+		// Topology as lscpu counts it: sockets, then cores within a socket.
+		if n, err := strconv.Atoi(props["processor"]); err == nil && n >= 0 {
+			for file, key := range map[string]string{"physical_package_id": "socket", "core_id": "core"} {
+				if v := c.read(fmt.Sprintf("sys/devices/system/cpu/cpu%d/topology/%s", n, file)); v != "" {
+					if _, err := strconv.Atoi(v); err == nil {
+						props[key] = v
+					}
+				}
+			}
+		}
 		props["hostPatchState"] = "unknown"
 		a := c.asset("device", "CPU", fmt.Sprintf("proc/cpuinfo/%d", i), "", props)
 		a.Model = props["model name"]
 		a.Vendor = props["vendor_id"]
 		a.Revision = props["stepping"]
+		if implementer := props["CPU implementer"]; implementer != "" && a.Vendor == "" {
+			// arm64 prints only hexadecimal codes; decode them the way lscpu does.
+			a.Vendor, a.Model = armNames(implementer, props["CPU part"])
+			variant, errV := strconv.ParseInt(props["CPU variant"], 0, 32)
+			revision, errR := strconv.ParseInt(props["CPU revision"], 0, 32)
+			if errV == nil && errR == nil {
+				a.Revision = fmt.Sprintf("r%dp%d", variant, revision)
+			}
+		}
 		c.assets = append(c.assets, a)
 		if v := props["microcode"]; v != "" {
 			f := c.asset("firmware", "CPU microcode", a.Source+"/microcode", a.ID, map[string]string{"state": "reported-running"})

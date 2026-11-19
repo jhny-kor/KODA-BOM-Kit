@@ -363,8 +363,10 @@ context.json:
   processLinks[].listeningSockets  프로세스가 수신 대기 중인 포트와 바인딩 범위
   unattributedSockets              소유 프로세스를 확인하지 못한 포트
   settings                         SELinux·AppArmor·lockdown·FIPS·sshd 설정,
+                                   보안 관련 부팅 옵션(cmdline.*),
                                    reboot.recommended 등 재부팅 신호
   taintedModules                   배포판 밖 커널 모듈(O, E, P 플래그)과 버전
+  kernelConfig                     실행 커널의 CONFIG_ 옵션(y 내장, m 모듈)
   unidentifiedExecutables          어떤 패키지에도 속하지 않는 실행 중 프로그램
 
 해석 시 주의:
@@ -377,6 +379,14 @@ context.json:
 jq가 있으면:
   sudo jq '{host,integrity:(.integrity|{status,modifiedFiles,missingFiles,findings}),containers:[.containers[]?|{name,status,output}]}' "$result/collection.json"
   sudo jq '{settings:[.settings[]|select(.product|test("SELinux|AppArmor|OpenSSH|Linux kernel"))],taintedModules,unidentifiedExecutables}' "$result/context.json"
+  sudo jq '.kernelConfig.options.CONFIG_NF_TABLES' "$result/context.json"
+
+assets.json의 CPU 정보를 lscpu와 대조하려면:
+  sudo jq '[.assets[]|select(.name=="CPU")]|{cpus:length,sockets:([.[].properties.socket]|unique|length),cores:([.[]|[.properties.socket,.properties.core]]|unique|length),models:([.[]|[.vendor,.model,.revision]]|unique),cpuid:([.[].properties.cpuidSignature]|unique)}' "$result/assets.json"
+  lscpu
+cpus는 CPU(s), sockets는 Socket(s), cores를 sockets로 나눈 값은 Core(s) per socket과
+같아야 합니다. 캐시 크기·MHz·flags는 수집하지 않습니다.
+
   sudo jq '[.components[]|select(.type=="cryptographic-asset")|{name,props:[.properties[]?|select(.name|test("validity|weakness|path"))]}]' "$result/sbom.cdx.json"
 
 Tracker에는 호스트의 sbom.cdx.json과 함께 containers/<이름>/sbom.cdx.json을
