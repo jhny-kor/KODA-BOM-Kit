@@ -296,6 +296,14 @@ func DeployedCollectionIssues(inventory *sbom.SBOM, root string) []model.Issue {
 				seen[task] = true
 				continue
 			}
+			if task == "filesystem" && !seen[task] {
+				issues = append(issues, model.Issue{
+					Collector: task, Status: "incomplete", Code: "preflight_file_unreadable",
+					Path: privacyPath(coordinate.RealPath, root), Message: "file could not be read safely after filesystem preflight",
+				})
+				seen[task] = true
+				continue
+			}
 			if (isDeployedCollector(task) || task == javaDeploymentSource || task == pythonZipappCollector || task == appBundleCollector) && !seen[task] {
 				seen[task] = true
 				code, detail := "deployment_metadata_unreadable", "installed software metadata could not be read within collection limits"

@@ -2,6 +2,7 @@ package assessment
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,7 +31,7 @@ type osvDocument struct {
 // parseOSV accepts fully enumerated exact versions. Range-only or partially
 // enumerated advisories require ecosystem-specific range evaluation and fail
 // explicitly so a partial conversion cannot hide affected releases.
-func parseOSV(raw []byte) (Rules, error) {
+func parseOSV(ctx context.Context, raw []byte) (Rules, error) {
 	out := Rules{Schema: "koda-advisory-rules-v1"}
 	if len(raw) > maxInput {
 		return out, errors.New("OSV input exceeds size limit")
@@ -52,6 +53,7 @@ func parseOSV(raw []byte) (Rules, error) {
 		return out, errors.New("OSV requires 1 to 4096 advisories")
 	}
 	var latest time.Time
+	remainingVersions := maxExactVersions
 	for _, doc := range docs {
 		if doc.ID == "" || doc.Withdrawn != "" || len(doc.Affected) == 0 {
 			return out, errors.New("OSV advisory requires an ID and affected packages and must not be withdrawn")
@@ -77,11 +79,18 @@ func parseOSV(raw []byte) (Rules, error) {
 			return out, fmt.Errorf("OSV %s requires an HTTPS reference", doc.ID)
 		}
 		for _, affected := range doc.Affected {
+			if err := ctx.Err(); err != nil {
+				return out, err
+			}
 			if len(affected.Ranges) > 0 {
 				return out, fmt.Errorf("OSV %s contains ranges; this adapter requires exhaustive affected.versions without ranges", doc.ID)
 			}
 			if len(affected.Versions) == 0 {
 				return out, fmt.Errorf("OSV %s has no exact affected versions", doc.ID)
+			}
+			remainingVersions -= len(affected.Versions)
+			if remainingVersions < 0 {
+				return out, errors.New("OSV exceeds exact advisory version limit")
 			}
 			p, err := packageurl.FromString(affected.Package.PURL)
 			if err != nil || p.Type == "" || p.Name == "" || p.Version != "" || p.Subpath != "" {
@@ -89,6 +98,9 @@ func parseOSV(raw []byte) (Rules, error) {
 			}
 			versions := slices.Clone(affected.Versions)
 			for _, v := range versions {
+				if err := ctx.Err(); err != nil {
+					return out, err
+				}
 				if v == "" {
 					return out, fmt.Errorf("OSV %s has an empty version", doc.ID)
 				}

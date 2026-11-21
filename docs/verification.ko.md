@@ -234,20 +234,33 @@ Go·fixture·helper·syscall 시험 및 Ubuntu·Oracle RHCK·UEK VM 검증이 �
 
 ## 빌드 PC 검사
 
+Daybreak 조치 이후의 검증은 같은 배포 실행 파일로 진행합니다. 아래 검사로
+소프트웨어와 장치·펌웨어 증적의 동시 수집, CycloneDX 1.6·1.7의 결과 동등성,
+이미지 아카이브 수집과 파일 수·권한·취소 진단을 확인할 수 있습니다.
+
 ```bash
-go test ./...
+go test -count=1 ./...
 go vet ./...
 python3 -m pip install "jsonschema>=4,<5"  # 외부 빌드 PC의 검증 환경에서만
-GO_BIN=/path/to/go ./scripts/build-release.sh
-python3 tests/check_binary.py /path/to/linux-amd64-koda-sbom
-python3 tests/integration.py --binary /path/to/linux-amd64-koda-sbom  # Linux x86_64 빌드 호스트에서만
-python3 tests/docker_integration.py --binary /path/to/linux-amd64-koda-sbom --pull
-python3 tests/oracle82.py --binary /path/to/linux-amd64-koda-sbom
+GOPROXY=off ./scripts/build-release.sh --go /path/to/go --go-sha256 "$trusted_go_sha256"
+python3 tests/release_guards.py
+stage=/path/to/unpacked-linux-amd64-release
+(cd "$stage" && sha256sum -c SHA256SUMS)
+python3 tests/check_binary.py "$stage/koda-sbom"
+python3 tests/docker_integration.py --binary "$stage/koda-sbom"
+python3 tests/directory_integration.py --stage "$stage"
 ```
 
-macOS/ARM64 빌드 호스트에서는 직접 실행 검사 대신 `docker_integration.py`를 사용합니다. Oracle 이미지 준비는 `docker pull --platform linux/amd64 oraclelinux:8.2`로 빌드 호스트에서 수행합니다.
+`docker_integration.py`는 미리 받은 Linux amd64 `debian:bookworm-slim` 이미지를
+사용하고 실행 중 네트워크를 차단합니다. 이미지 준비에는 `--pull`을 사용할 수 있습니다.
+macOS에서는 체크섬을 `shasum -a 256 -c SHA256SUMS`로 확인할 수 있습니다.
+Linux amd64 빌드 호스트에서 직접 확인하려면 `python3 tests/integration.py --binary "$stage/koda-sbom"`을 실행합니다.
+Oracle 컨테이너 검증은 `docker pull --platform linux/amd64 oraclelinux:8.2`로
+이미지를 준비한 뒤 `python3 tests/oracle82.py --binary "$stage/koda-sbom"`으로 실행합니다.
 
 검증용 Python·Docker·jsonschema는 빌드 PC에서만 사용합니다. 배포 실행 파일은 이 프로그램들에 의존하지 않습니다. 표준 스키마는 `tests/schemas`에 버전 고정해 두며 검증 시 외부 참조를 다운로드하지 않습니다.
+
+`trusted_go_sha256`에는 검증된 Go 설치본의 실행 파일 SHA-256을 지정합니다. 캐시만으로 빌드하려면 모듈 아카이브를 미리 준비하고 `GOPROXY=off`를 설정합니다. 배포 QA와 최종 포장은 `python3 -O` 또는 `PYTHONOPTIMIZE`로 검사를 끄는 실행을 거부합니다.
 
 ## 확인 항목
 

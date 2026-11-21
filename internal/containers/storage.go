@@ -121,7 +121,7 @@ func docker(ctx context.Context, root string, issue func(string, string, string)
 		}
 		layers, ok := dockerLayers(base, meta, config.RootFS.DiffIDs)
 		if !ok {
-			issue("incomplete", "var/lib/docker/image/overlay2", "image "+e.Name()[:12]+" has a layer that is not stored locally")
+			issue("incomplete", "var/lib/docker/image/overlay2", "image "+ShortID(e.Name())+" has a layer that is not stored locally")
 			continue
 		}
 		layersOf[e.Name()] = layers
@@ -146,7 +146,7 @@ func docker(ctx context.Context, root string, issue func(string, string, string)
 		mountID := strings.TrimSpace(string(read(filepath.Join(meta, "layerdb/mounts", e.Name(), "mount-id"), 256)))
 		image, ok := layersOf[c.ImageID]
 		if !ok || !cacheID.MatchString(mountID) {
-			issue("incomplete", "var/lib/docker/containers", "container "+e.Name()[:12]+" image or writable layer not found")
+			issue("incomplete", "var/lib/docker/containers", "container "+ShortID(e.Name())+" image or writable layer not found")
 			continue
 		}
 		c.Layers = append(append([]string{}, image...), filepath.Join(base, "overlay2", mountID, "diff"))
@@ -222,7 +222,7 @@ func containersStorage(ctx context.Context, root string, issue func(string, stri
 		}
 		layers, ok := chain(image.Layer)
 		if !ok {
-			issue("incomplete", "var/lib/containers/storage", "image "+image.ID[:12]+" layer chain is incomplete")
+			issue("incomplete", "var/lib/containers/storage", "image "+ShortID(image.ID)+" layer chain is incomplete")
 			continue
 		}
 		sort.Strings(image.Names)
@@ -241,7 +241,7 @@ func containersStorage(ctx context.Context, root string, issue func(string, stri
 		}
 		layers, ok := chain(c.Layer)
 		if !ok {
-			issue("incomplete", "var/lib/containers/storage", "container "+c.ID[:12]+" layer chain is incomplete")
+			issue("incomplete", "var/lib/containers/storage", "container "+ShortID(c.ID)+" layer chain is incomplete")
 			continue
 		}
 		containers = append(containers, Stored{ID: c.ID, Names: c.Names, Runtime: "containers-storage", ImageID: c.Image, Layers: layers})

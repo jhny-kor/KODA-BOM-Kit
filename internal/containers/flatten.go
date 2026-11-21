@@ -16,6 +16,17 @@ import (
 // the wrapped message says whether files or bytes ran out.
 var ErrFlattenBudget = errors.New("root filesystem exceeds the copy limit")
 
+// ErrInvalidWhiteout marks a layer deletion whose target is not one sibling.
+var ErrInvalidWhiteout = errors.New("invalid stored-layer whiteout target")
+
+const (
+	layerDirectoryBatch = 256
+	opaqueLayerMarker   = ".wh..wh..opq"
+	// Keep AUFS markers outside the existing file limit, with a separate
+	// ceiling for metadata work even when the caller requests a tiny scan.
+	minLayerMarkerBudget = 10_000_000
+)
+
 // Budget bounds the bytes and files copied while flattening.
 type Budget struct {
 	Bytes int64
@@ -33,12 +44,16 @@ func Flatten(ctx context.Context, layers []string, dest string, budget *Budget) 
 		return err
 	}
 	defer out.Close()
+	markers := max(int64(minLayerMarkerBudget), budget.Files)
 	for _, layer := range layers {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		in, err := os.OpenRoot(layer)
 		if err != nil {
 			return err
 		}
-		err = flattenDir(ctx, in, layer, out, ".", budget)
+		err = flattenDir(ctx, in, layer, out, ".", budget, &markers)
 		in.Close()
 		if err != nil {
 			return err
@@ -47,44 +62,35 @@ func Flatten(ctx context.Context, layers []string, dest string, budget *Budget) 
 	return nil
 }
 
-func flattenDir(ctx context.Context, in *os.Root, layer string, out *os.Root, rel string, budget *Budget) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	dir, err := in.Open(rel)
-	if err != nil {
-		return err
-	}
-	entries, err := dir.ReadDir(-1)
-	dir.Close()
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		if e.Name() == ".wh..wh..opq" { // AUFS-style opaque marker
-			if err := clearDir(out, rel); err != nil {
-				return err
-			}
-		}
-	}
-	for _, e := range entries {
-		name := e.Name()
-		p := path.Join(rel, name)
-		if name == ".wh..wh..opq" {
-			continue
-		}
-		if hidden, ok := strings.CutPrefix(name, ".wh."); ok {
-			if err := out.RemoveAll(path.Join(rel, hidden)); err != nil {
-				return err
-			}
-			continue
-		}
-		info, err := e.Info()
-		if err != nil {
+func flattenDir(ctx context.Context, in *os.Root, layer string, out *os.Root, rel string, budget *Budget, markers *int64) error {
+	// Clear lower entries before visiting upper entries, regardless of where
+	// the opaque marker appears in filesystem enumeration order.
+	if _, err := in.Lstat(path.Join(rel, opaqueLayerMarker)); err == nil {
+		if err := ClearLayerDirectory(ctx, out, rel); err != nil {
 			return err
 		}
-		if budget.Files--; budget.Files < 0 {
-			return fmt.Errorf("%w: file count", ErrFlattenBudget)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return visitLayerDirectory(ctx, in, rel, func(e fs.DirEntry) error {
+		name := e.Name()
+		p := path.Join(rel, name)
+		if err := chargeLayerEntry(name, budget, markers); err != nil {
+			return err
+		}
+		if name == opaqueLayerMarker {
+			return nil
+		}
+		if hidden, ok := strings.CutPrefix(name, ".wh."); ok {
+			target := path.Join(rel, hidden)
+			if hidden == "." || !filepath.IsLocal(hidden) || filepath.Base(hidden) != hidden || path.Dir(target) != rel {
+				return ErrInvalidWhiteout
+			}
+			return out.RemoveAll(target)
+		}
+		info, err := in.Lstat(p)
+		if err != nil {
+			return err
 		}
 		switch {
 		case whiteout(info):
@@ -106,9 +112,7 @@ func flattenDir(ctx context.Context, in *os.Root, layer string, out *os.Root, re
 			} else if err != nil {
 				return err
 			}
-			if err := flattenDir(ctx, in, layer, out, p, budget); err != nil {
-				return err
-			}
+			return flattenDir(ctx, in, layer, out, p, budget, markers)
 		case info.Mode()&fs.ModeSymlink != 0:
 			target, err := in.Readlink(p)
 			if err != nil {
@@ -121,8 +125,8 @@ func flattenDir(ctx context.Context, in *os.Root, layer string, out *os.Root, re
 				return err
 			}
 		case info.Mode().IsRegular():
-			if budget.Bytes -= info.Size(); budget.Bytes < 0 {
-				return fmt.Errorf("%w: size", ErrFlattenBudget)
+			if err := chargeLayerBytes(budget, info.Size()); err != nil {
+				return err
 			}
 			if err := out.RemoveAll(p); err != nil {
 				return err
@@ -131,23 +135,106 @@ func flattenDir(ctx context.Context, in *os.Root, layer string, out *os.Root, re
 				return err
 			}
 		}
+		return nil
+	})
+}
+
+func chargeLayerEntry(name string, budget *Budget, markers *int64) error {
+	if strings.HasPrefix(name, ".wh.") {
+		if *markers <= 0 {
+			return fmt.Errorf("%w: whiteout count", ErrFlattenBudget)
+		}
+		*markers--
+		return nil
 	}
+	if budget.Files <= 0 {
+		return fmt.Errorf("%w: file count", ErrFlattenBudget)
+	}
+	budget.Files--
 	return nil
 }
 
-func clearDir(out *os.Root, rel string) error {
-	dir, err := out.Open(rel)
-	if err != nil {
-		return nil
+func chargeLayerBytes(budget *Budget, size int64) error {
+	if size < 0 || size > budget.Bytes {
+		return fmt.Errorf("%w: size", ErrFlattenBudget)
 	}
-	entries, _ := dir.ReadDir(-1)
-	dir.Close()
-	for _, e := range entries {
-		if err := out.RemoveAll(path.Join(rel, e.Name())); err != nil {
+	budget.Bytes -= size
+	return nil
+}
+
+func visitLayerDirectory(ctx context.Context, root *os.Root, rel string, visit func(fs.DirEntry) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	dir, err := root.Open(rel)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	for {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
+		entries, readErr := dir.ReadDir(layerDirectoryBatch)
+		for readErr == nil && len(entries) < layerDirectoryBatch {
+			more, err := dir.ReadDir(layerDirectoryBatch - len(entries))
+			entries = append(entries, more...)
+			readErr = err
+		}
+		if readErr != nil {
+			if !errors.Is(readErr, io.EOF) {
+				return readErr
+			}
+			// Release the final batch's handle before descending. Ordinary
+			// small directories then use one descriptor at a time.
+			dir.Close()
+		}
+		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := visit(entry); err != nil {
+				return err
+			}
+		}
+		if readErr != nil {
+			return nil
+		}
 	}
-	return nil
+}
+
+// ClearLayerDirectory removes lower entries for an opaque directory in
+// bounded batches. Reopening after each batch avoids skipping entries on
+// filesystems that reorder a directory while entries are being removed.
+func ClearLayerDirectory(ctx context.Context, root *os.Root, rel string) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		dir, err := root.Open(rel)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		names, readErr := dir.Readdirnames(layerDirectoryBatch)
+		dir.Close()
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return readErr
+		}
+		if len(names) == 0 {
+			return nil
+		}
+		for _, name := range names {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := root.RemoveAll(path.Join(rel, name)); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func copyFile(in, out *os.Root, p string, perm fs.FileMode) error {
@@ -169,20 +256,48 @@ func copyFile(in, out *os.Root, p string, perm fs.FileMode) error {
 
 // LayerSize sums regular file sizes over layers: an upper bound of the
 // flattened size, used to check free space before copying.
-func LayerSize(ctx context.Context, layers []string) int64 {
-	var total int64
+func LayerSize(ctx context.Context, layers []string, budget Budget) (int64, error) {
+	bytes := budget.Bytes
+	markers := max(int64(minLayerMarkerBudget), budget.Files)
 	for _, layer := range layers {
-		filepath.WalkDir(layer, func(_ string, d fs.DirEntry, err error) error {
-			if err != nil || ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if d.Type().IsRegular() {
-				if info, err := d.Info(); err == nil {
-					total += info.Size()
-				}
-			}
-			return nil
-		})
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		root, err := os.OpenRoot(layer)
+		if err != nil {
+			return 0, err
+		}
+		err = layerSizeDir(ctx, root, ".", &budget, &markers)
+		root.Close()
+		if err != nil {
+			return 0, err
+		}
 	}
-	return total
+	return bytes - budget.Bytes, nil
+}
+
+func layerSizeDir(ctx context.Context, root *os.Root, rel string, budget *Budget, markers *int64) error {
+	return visitLayerDirectory(ctx, root, rel, func(entry fs.DirEntry) error {
+		name := entry.Name()
+		if err := chargeLayerEntry(name, budget, markers); err != nil {
+			return err
+		}
+		if strings.HasPrefix(name, ".wh.") {
+			return nil
+		}
+		child := path.Join(rel, name)
+		if entry.IsDir() {
+			return layerSizeDir(ctx, root, child, budget, markers)
+		}
+		if entry.Type().IsRegular() {
+			info, err := root.Lstat(child)
+			if err != nil {
+				return err
+			}
+			if info.Mode().IsRegular() {
+				return chargeLayerBytes(budget, info.Size())
+			}
+		}
+		return nil
+	})
 }

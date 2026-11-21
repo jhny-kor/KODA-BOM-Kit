@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -186,6 +187,7 @@ func parseComponents(raw []byte) ([]component, error) {
 }
 
 const maxInput = 64 << 20
+const maxExactVersions = 1_000_000
 
 func readInput(path string) ([]byte, string, error) {
 	st, err := os.Stat(path)
@@ -279,6 +281,9 @@ func boundContext(sbom, digest, contextFile, contextDigest string) error {
 }
 
 func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Context) (Report, error) {
+	if err := ctx.Err(); err != nil {
+		return Report{}, err
+	}
 	components, err := parseComponents(raw)
 	if err != nil {
 		return Report{}, err
@@ -295,9 +300,9 @@ func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Conte
 	case envelope.Schema == "koda-advisory-rules-v1":
 		err = json.Unmarshal(rulesRaw, &rules)
 	case envelope.Document.Version != "":
-		rules, err = parseCSAF(rulesRaw)
+		rules, err = parseCSAF(ctx, rulesRaw)
 	default:
-		rules, err = parseOSV(rulesRaw)
+		rules, err = parseOSV(ctx, rulesRaw)
 	}
 	if err != nil {
 		return Report{}, fmt.Errorf("invalid advisory input: %w", err)
@@ -311,9 +316,11 @@ func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Conte
 	now := time.Now().UTC()
 	report := Report{Schema: "koda-assessment-v1", AdvisoriesAt: rules.PublishedAt, AnalyzedAt: now.Format(time.RFC3339),
 		ComponentCount: len(components), Findings: []Finding{}}
-	if len(components)*len(rules.Rules) > 10_000_000 {
+	if len(components) > 10_000_000/len(rules.Rules) {
 		return Report{}, errors.New("assessment exceeds 10 million rule comparisons")
 	}
+	remainingVersions := maxExactVersions
+	remainingVersionOutput := maxInput
 	byRef := map[string]model.Asset{}
 	for _, c := range components {
 		if c.ID != "" {
@@ -335,7 +342,15 @@ func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Conte
 		if err := ctx.Err(); err != nil {
 			return Report{}, err
 		}
+		remainingVersions -= len(rule.AffectedVersions) + len(rule.FixedVersions)
+		if remainingVersions < 0 {
+			return Report{}, errors.New("assessment exceeds 1 million exact advisory versions")
+		}
 		constraint, err := validateRule(rule)
+		if err != nil {
+			return Report{}, fmt.Errorf("rule %d: %w", i+1, err)
+		}
+		versions, err := indexVersions(ctx, rule)
 		if err != nil {
 			return Report{}, fmt.Errorf("rule %d: %w", i+1, err)
 		}
@@ -345,8 +360,19 @@ func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Conte
 			report.Findings = append(report.Findings, settingFinding(rule, contextData))
 		} else {
 			for _, c := range components {
+				if err := ctx.Err(); err != nil {
+					return Report{}, err
+				}
 				if matches(*rule.Component, c.Asset, byRef[c.parentRef]) {
-					report.Findings = append(report.Findings, versionFinding(rule, c.Asset, constraint, restart[c.PURL], now))
+					// Each finding repeats the rule's fixed versions in the output.
+					remainingVersionOutput -= versions.fixedBytes
+					if remainingVersionOutput < 0 {
+						return Report{}, errors.New("assessment exceeds fixed-version result size limit")
+					}
+					if len(report.Findings) == 100_000 {
+						return Report{}, errors.New("assessment exceeds 100000 findings")
+					}
+					report.Findings = append(report.Findings, versionFinding(rule, c.Asset, constraint, versions, restart[c.PURL], now))
 				}
 			}
 		}
@@ -404,11 +430,6 @@ func validateRule(rule Rule) (*semver.Constraints, error) {
 			return nil, errors.New("support rules require a YYYY-MM-DD end date and affected versions without fixed versions")
 		}
 	}
-	for _, version := range rule.AffectedVersions {
-		if version == "" || slices.Contains(rule.FixedVersions, version) {
-			return nil, errors.New("empty or overlapping version rules")
-		}
-	}
 	if rule.AffectedSemver != "" {
 		if s.PURL == "" || s.Kind == "firmware" || s.Kind == "device" || s.Kind == "operating-system" {
 			return nil, errors.New("SemVer constraints are limited to package ecosystem selectors")
@@ -416,6 +437,78 @@ func validateRule(rule Rule) (*semver.Constraints, error) {
 		return semver.NewConstraint(rule.AffectedSemver)
 	}
 	return nil, nil
+}
+
+type exactVersions struct {
+	affected   map[string]bool
+	fixed      map[string]bool
+	fixedBytes int
+}
+
+func indexVersions(ctx context.Context, rule Rule) (exactVersions, error) {
+	v := exactVersions{affected: make(map[string]bool), fixed: make(map[string]bool)}
+	for _, version := range rule.FixedVersions {
+		if err := ctx.Err(); err != nil {
+			return v, err
+		}
+		if version == "" {
+			return v, errors.New("empty fixed version")
+		}
+		v.fixed[version] = true
+		encoded, _ := json.Marshal(version)
+		v.fixedBytes += len(encoded) + 1
+	}
+	for _, version := range rule.AffectedVersions {
+		if err := ctx.Err(); err != nil {
+			return v, err
+		}
+		if version == "" || v.fixed[version] {
+			return v, errors.New("empty or overlapping version rules")
+		}
+		v.affected[version] = true
+	}
+	return v, nil
+}
+
+// RPM package versions may include an epoch prefix that their PURL stores in
+// a qualifier. An absent epoch is equivalent to zero, as for Debian.
+func splitEpoch(version string) (uint64, string, bool) {
+	epoch, rest, found := strings.Cut(version, ":")
+	if !found {
+		return 0, version, version != ""
+	}
+	number, err := strconv.ParseUint(epoch, 10, 64)
+	return number, rest, err == nil && rest != ""
+}
+
+func versionIdentityConsistent(a model.Asset) bool {
+	if a.PURL == "" {
+		return true
+	}
+	p, err := packageurl.FromString(a.PURL)
+	if err != nil {
+		return false
+	}
+	if p.Version == "" {
+		return true
+	}
+	switch p.Type {
+	case "rpm", "deb":
+		observedEpoch, observed, validObserved := splitEpoch(a.Version)
+		purlEpoch, purlVersion, validPURL := splitEpoch(p.Version)
+		if p.Type == "rpm" {
+			if qualifier := p.Qualifiers.Map()["epoch"]; qualifier != "" {
+				n, err := strconv.ParseUint(qualifier, 10, 64)
+				if err != nil || (strings.Contains(p.Version, ":") && n != purlEpoch) {
+					return false
+				}
+				purlEpoch = n
+			}
+		}
+		return validObserved && validPURL && observed == purlVersion && observedEpoch == purlEpoch
+	default:
+		return a.Version == p.Version
+	}
 }
 
 func matches(s Selector, a, parent model.Asset) bool {
@@ -457,7 +550,7 @@ func finding(rule Rule) Finding {
 	return Finding{ID: rule.ID, Aliases: rule.Aliases, Source: rule.Source, FixedVersions: rule.FixedVersions, Remediation: rule.Remediation}
 }
 
-func versionFinding(rule Rule, a model.Asset, constraint *semver.Constraints, restart bool, now time.Time) Finding {
+func versionFinding(rule Rule, a model.Asset, constraint *semver.Constraints, versions exactVersions, restart bool, now time.Time) Finding {
 	f := finding(rule)
 	f.ComponentRef, f.ComponentName, f.ObservedVersion = a.ID, a.Name, a.Version
 	f.Status, f.Evidence = "review_required", "observed version not covered by the supplied rule"
@@ -465,7 +558,11 @@ func versionFinding(rule Rule, a model.Asset, constraint *semver.Constraints, re
 		f.Evidence = "component version unavailable"
 		return f
 	}
-	affected := slices.Contains(rule.AffectedVersions, a.Version)
+	if !versionIdentityConsistent(a) {
+		f.Evidence = "component version conflicts with its package URL"
+		return f
+	}
+	affected := versions.affected[a.Version]
 	if constraint != nil {
 		if v, err := semver.StrictNewVersion(a.Version); err == nil {
 			affected = affected || constraint.Check(v)
@@ -480,12 +577,12 @@ func versionFinding(rule Rule, a model.Asset, constraint *semver.Constraints, re
 			if !now.Before(end.AddDate(0, 0, 1)) {
 				f.Status, f.Evidence = "support_expired", "observed version is past the supplied support end date"
 			}
-		} else if a.Kind == "firmware" && (slices.Contains(rule.FixedVersions, a.Properties["stored.fw"]) || slices.Contains(rule.FixedVersions, a.Properties["storedVersion"])) {
+		} else if a.Kind == "firmware" && (versions.fixed[a.Properties["stored.fw"]] || versions.fixed[a.Properties["storedVersion"]]) {
 			f.Evidence = "affected firmware version observed; a fixed firmware version is stored and activation requires review"
 		}
 		return f
 	}
-	if slices.Contains(rule.FixedVersions, a.Version) {
+	if versions.fixed[a.Version] {
 		f.Status, f.Evidence = "fixed_version_observed", "component version matches an explicit fixed version"
 		if restart {
 			f.Status, f.Evidence = "activation_review", "fixed package version observed; process still references a replaced file"

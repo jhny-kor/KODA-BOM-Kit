@@ -8,7 +8,13 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
+
+
+def require(condition, detail):
+    if not condition:
+        raise SystemExit(f'Release verification failed: {detail}')
 
 
 def digest(path):
@@ -32,6 +38,7 @@ def module(name, path):
 
 
 def main():
+    require(__debug__, 'run without Python optimization (-O or PYTHONOPTIMIZE)')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', required=True, type=Path)
     parser.add_argument('--evidence-dir', required=True, type=Path)
@@ -40,23 +47,22 @@ def main():
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     stage = args.stage.resolve(strict=True)
-    assert stage.parent == repo / 'dist' and stage.is_dir() and not stage.is_symlink()
+    require(stage.parent == repo / 'dist' and stage.is_dir() and not args.stage.is_symlink(), 'stage must be a real directory directly under dist')
     evidence = args.evidence_dir.resolve(strict=True)
     evidence.relative_to(repo / 'dist' / 'evidence')
     release = read(stage / 'release.json')
     binary = stage / 'koda-sbom'
     binary_sha = digest(binary)
-    identity = subprocess.check_output(['python3', str(repo / 'scripts/source-identity.py')], text=True).strip()
-    assert identity == release['revision'], 'Source changed after release build'
+    identity_command = [sys.executable, '-I', str(repo / 'scripts/source-identity.py')]
+    identity = subprocess.check_output(identity_command, text=True).strip()
+    require(identity == release['revision'], 'Source changed after release build')
     qa = read(evidence / 'candidate-verification.json')
-    assert qa['passed'] and qa['binarySHA256'] == binary_sha
+    require(qa['passed'] is True and qa['binarySHA256'] == binary_sha, 'candidate QA must pass for the staged binary')
     for filename in ['binary-inspection.json', 'fixture-integration.json', 'go-verification.json', 'guest-syscall-verification.json', 'livepatch-integration.json', 'directory-integration.json']:
         item = read(evidence / filename)
-        assert item['passed'], filename
-        if 'binarySha256' in item:
-            assert item['binarySha256'] == binary_sha, filename
-        if 'sha256' in item:
-            assert item['sha256'] == binary_sha, filename
+        require(item['passed'] is True, filename)
+        reported_hashes = {item[key] for key in ('binarySHA256', 'binarySha256', 'sha256') if key in item}
+        require(reported_hashes == {binary_sha}, f'{filename} must match the staged binary')
 
     oracle = module('oracle_verify_release', repo / 'tests/oracle-vm/validate.py')
     ubuntu = module('ubuntu_verify_release', repo / 'tests/ubuntu-vm/validate.py')
@@ -67,11 +73,11 @@ def main():
         ('ubuntu24041', args.ubuntu_work.resolve(), [read(args.ubuntu_work / 'latest-boot.json')], ubuntu.validate_vm),
     ]:
         inputs = read(work / 'input-provenance.json')
-        assert inputs['files']['koda-sbom']['sha256'] == binary_sha
+        require(inputs['files']['koda-sbom']['sha256'] == binary_sha, f'{family} input must match the staged binary')
         for filename, info in inputs['files'].items():
-            assert digest(work / filename) == info['sha256'], filename
+            require(digest(work / filename) == info['sha256'], filename)
         provenance[family] = inputs
-        assert len(boots) == (2 if family == 'oracle82' else 1)
+        require(len(boots) == (2 if family == 'oracle82' else 1), f'unexpected number of {family} VM boots')
         for boot in boots:
             directory = Path(boot['directory']).resolve(strict=True)
             directory.relative_to(work)
@@ -79,19 +85,20 @@ def main():
             if family == 'oracle82':
                 kwargs['expected_kernel'] = boot['expectedKernel']
             validation = validator(directory / 'results', **kwargs)
-            assert validation['passed'], validation['failedChecks']
-            assert validation['collectorSHA256'] == binary_sha
+            require(validation['passed'] is True, validation['failedChecks'])
+            require(validation['collectorSHA256'] == binary_sha, f'{family} scan must match the staged binary')
             write(directory / 'validation.json', validation)
             qemu = boot['qemuCommand']
-            assert qemu[qemu.index('-nic') + 1] == 'none'
-            assert qemu[qemu.index('-accel') + 1] == 'tcg,thread=single'
+            require(qemu[qemu.index('-nic') + 1] == 'none', 'QEMU network must be disabled')
+            require(qemu[qemu.index('-accel') + 1] == 'tcg,thread=single', 'unexpected QEMU accelerator')
             baseline = read(directory / 'results/baseline.json')
             result = directory / 'results' / baseline['resultDirectories'][0]
             context = read(result / 'context.json')
             collection = read(result / 'collection.json')
-            assert context.get('livepatch'), 'Final binary must collect passive livepatch sources'
-            assert collection['limits']['maxFiles'] == 0 and collection['limits']['timeoutSeconds'] == 0
-            assert collection['filesystemFileCount'] > 0
+            require(context.get('livepatch'), 'Final binary must collect passive livepatch sources')
+            require(collection['limits']['maxFiles'] == 0 and collection['limits']['timeoutSeconds'] == 0,
+                    'expected the VM scan to disable file and time limits')
+            require(collection['filesystemFileCount'] > 0, 'VM scan did not observe any files')
             copied = evidence / 'system-vms' / (family + '-' + boot['expectedKernel'])
             copied.mkdir(parents=True, exist_ok=False)
             for filename in ['command.json', 'boot-report.json', 'validation.json', 'serial.log', 'results.tar.gz']:
@@ -108,8 +115,8 @@ def main():
                 'explicitPartialCollectionIssues': collection['issues'],
                 'evidenceSHA256': {p.name: digest(p) for p in copied.iterdir() if p.is_file()},
             })
-    assert {v['verification']['runningKernel'] for v in vm_reports} == {
-        '4.18.0-193.el8.x86_64', '5.4.17-2011.1.2.el8uek.x86_64', '6.8.0-47-generic'}
+    require({v['verification']['runningKernel'] for v in vm_reports} == {
+        '4.18.0-193.el8.x86_64', '5.4.17-2011.1.2.el8uek.x86_64', '6.8.0-47-generic'}, 'required kernels were not observed')
     report = {
         'schema': 'koda-sbom-verified-delivery-v2', 'passed': True,
         'verifiedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -148,7 +155,7 @@ def main():
     (stage / 'SHA256SUMS').write_text(''.join(f'{sha}  {name}\n' for name, sha in checks.items()))
     final = stage.with_name(stage.name + '-verified')
     archive = Path(str(final) + '.tar.gz')
-    assert not final.exists() and not archive.exists()
+    require(not final.exists() and not archive.exists(), 'refusing to overwrite the verified release')
     stamp = int(datetime.datetime.fromisoformat(release['builtAt'].replace('Z', '+00:00')).timestamp())
     def normalize(info):
         info.uid = info.gid = 0
@@ -162,15 +169,15 @@ def main():
     with tarfile.open(archive, 'r:gz') as bundle:
         for name, sha in checks.items():
             member = bundle.getmember(final.name + '/' + name)
-            assert member.isfile() and member.uid == member.gid == 0
+            require(member.isfile() and member.uid == member.gid == 0, f'unexpected archive member metadata: {name}')
             with bundle.extractfile(member) as stream:
-                assert hashlib.file_digest(stream, 'sha256').hexdigest() == sha, name
+                require(hashlib.file_digest(stream, 'sha256').hexdigest() == sha, name)
     delivery = {'archive': archive.name, 'archiveSHA256': digest(archive), 'archiveBytes': archive.stat().st_size,
                 'verifiedFileCount': len(checks), 'binarySHA256': binary_sha, 'verificationReportSHA256': checks['VERIFICATION.json']}
     Path(str(archive) + '.sha256').write_text(delivery['archiveSHA256'] + '  ' + archive.name + '\n')
     write(Path(str(archive) + '.verification.json'), dict(report, delivery=delivery))
     write(evidence / 'final-verification.json', dict(report, delivery=delivery))
-    assert subprocess.check_output(['python3', str(repo / 'scripts/source-identity.py')], text=True).strip() == identity
+    require(subprocess.check_output(identity_command, text=True).strip() == identity, 'source changed during finalization')
     print(json.dumps(delivery, ensure_ascii=False, indent=2))
 
 

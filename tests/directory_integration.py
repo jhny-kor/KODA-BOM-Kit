@@ -10,10 +10,11 @@ import time
 import zipfile
 
 from fixtures import make_tree
-from validate_outputs import validate
+from validate_outputs import require_unoptimized, validate
 
 
 def exercise(stage):
+    require_unoptimized()
     stage = stage.resolve(strict=True)
     binary = stage / 'koda-sbom'
     helper = stage / 'scan-directory.sh'
@@ -168,6 +169,7 @@ def exercise(stage):
 
 
 if __name__ == '__main__':
+    require_unoptimized()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', required=True, type=Path)
     arguments = parser.parse_args()

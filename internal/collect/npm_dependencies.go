@@ -83,7 +83,7 @@ func addInstalledNPMDependencies(ctx context.Context, bom *sbom.SBOM, resolver f
 
 	// Revalidate both endpoints against the indexed manifest before adding an edge.
 	// Keep invalid paths in the index so a nearer unverified copy blocks fallback.
-	root, err := os.OpenRoot(plan.Root)
+	root, err := plan.OpenRoot()
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func addInstalledNPMDependencies(ctx context.Context, bom *sbom.SBOM, resolver f
 		if observation.item.ID() == "" {
 			continue
 		}
-		manifest, ok := readNPMManifest(root, name, observation.item)
+		manifest, ok := readNPMManifest(root, plan, name, observation.item)
 		if !ok {
 			diagnostics.add(observation.location.Coordinates, npmManifestUnreadable, "")
 			installed[name] = npmObservation{}
@@ -189,8 +189,8 @@ func (manifest npmManifest) installedDependencies() map[string]npmDependency {
 	return dependencies
 }
 
-func readNPMManifest(root *os.Root, name string, item pkg.Package) (manifest npmManifest, ok bool) {
-	reader, _, err := localfs.OpenRegularEvidence(root, name)
+func readNPMManifest(root *os.Root, plan localfs.Plan, name string, item pkg.Package) (manifest npmManifest, ok bool) {
+	reader, _, err := plan.OpenIndexedRegular(root, name)
 	if err != nil {
 		return manifest, false
 	}

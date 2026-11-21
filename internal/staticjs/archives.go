@@ -9,6 +9,8 @@ import (
 	"io"
 	"sort"
 	"strings"
+
+	"koda.local/security-sbom-linux/internal/zipguard"
 )
 
 const (
@@ -90,22 +92,9 @@ func ReadDeploymentZIP(ctx context.Context, r io.ReaderAt, size int64) (*zip.Rea
 	if size <= 0 || size > MaxArchiveBytes {
 		return nil, errArchiveReadLimit
 	}
-	budget := int64(maxDirectoryBytes + (256 << 10))
-	index := &boundedArchiveReader{ReaderAt: r, remaining: &budget, ctx: ctx}
-	if err := checkDirectory(index, size); err != nil {
-		return nil, err
-	}
-	// Bound only the directory read here. Consumers enforce separate limits
-	// on the selected entries they open.
-	z, err := zip.NewReader(index, size)
-	if err != nil {
-		return nil, err
-	}
-	if len(z.File) > maxArchiveEntries {
-		return nil, errArchiveReadLimit
-	}
-	index.remaining = nil
-	return z, ctx.Err()
+	return zipguard.NewReader(ctx, r, size, zipguard.Limits{
+		Members: maxArchiveEntries, DirectoryBytes: maxDirectoryBytes, RequireExactEnd: true,
+	})
 }
 
 func (c *collector) scanArchive(r io.ReaderAt, size int64, rel, kind string, depth int) {

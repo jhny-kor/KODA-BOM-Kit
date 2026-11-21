@@ -29,7 +29,7 @@ var (
 )
 
 func collectAppBundles(ctx context.Context, inventory *sbom.SBOM, plan localfs.Plan) error {
-	root, err := os.OpenRoot(plan.Root)
+	root, err := plan.OpenRoot()
 	if err != nil {
 		return nil
 	}
@@ -41,9 +41,9 @@ func collectAppBundles(ctx context.Context, inventory *sbom.SBOM, plan localfs.P
 		var entry pkg.Package
 		var ok bool
 		if m := snapMetaPath.FindStringSubmatch(name); m != nil {
-			entry, ok = snapPackage(inventory, root, name, m[1], m[2])
+			entry, ok = snapPackage(inventory, root, plan, name, m[1], m[2])
 		} else if m := flatpakMetaPath.FindStringSubmatch(name); m != nil {
-			entry, ok = flatpakPackage(root, name, m)
+			entry, ok = flatpakPackage(root, plan, name, m)
 		} else {
 			continue
 		}
@@ -55,8 +55,8 @@ func collectAppBundles(ctx context.Context, inventory *sbom.SBOM, plan localfs.P
 	return nil
 }
 
-func readEvidence(root *os.Root, name string) ([]byte, bool) {
-	f, _, err := localfs.OpenRegularEvidence(root, name)
+func readEvidence(root *os.Root, plan localfs.Plan, name string) ([]byte, bool) {
+	f, _, err := plan.OpenIndexedRegular(root, name)
 	if err != nil {
 		return nil, false
 	}
@@ -67,11 +67,11 @@ func readEvidence(root *os.Root, name string) ([]byte, bool) {
 
 // snapPackage reports the revision that snap/<name>/current selects. Older
 // revisions stay mounted for rollback but are not the active software.
-func snapPackage(inventory *sbom.SBOM, root *os.Root, name, snap, revision string) (pkg.Package, bool) {
+func snapPackage(inventory *sbom.SBOM, root *os.Root, plan localfs.Plan, name, snap, revision string) (pkg.Package, bool) {
 	if current, err := root.Readlink("snap/" + snap + "/current"); err == nil && path.Base(current) != revision {
 		return pkg.Package{}, false
 	}
-	data, ok := readEvidence(root, name)
+	data, ok := readEvidence(root, plan, name)
 	if !ok {
 		recordAppBundleIssue(inventory, name)
 		return pkg.Package{}, false
@@ -100,7 +100,7 @@ func snapPackage(inventory *sbom.SBOM, root *os.Root, name, snap, revision strin
 
 // flatpakPackage reports the deployment that the branch's "active" link selects.
 // The version comes from the AppStream release list when the bundle ships one.
-func flatpakPackage(root *os.Root, name string, m []string) (pkg.Package, bool) {
+func flatpakPackage(root *os.Root, plan localfs.Plan, name string, m []string) (pkg.Package, bool) {
 	kind, id, arch, branch, commit := m[2], m[3], m[4], m[5], m[6]
 	dir := path.Dir(name)
 	if active, err := root.Readlink(path.Join(path.Dir(dir), "active")); err != nil || path.Base(active) != commit {
@@ -108,7 +108,7 @@ func flatpakPackage(root *os.Root, name string, m []string) (pkg.Package, bool) 
 	}
 	version := ""
 	for _, meta := range []string{"files/share/metainfo/" + id + ".metainfo.xml", "files/share/metainfo/" + id + ".appdata.xml", "files/share/appdata/" + id + ".appdata.xml"} {
-		if data, ok := readEvidence(root, path.Join(dir, meta)); ok {
+		if data, ok := readEvidence(root, plan, path.Join(dir, meta)); ok {
 			version = appstreamVersion(data)
 			break
 		}

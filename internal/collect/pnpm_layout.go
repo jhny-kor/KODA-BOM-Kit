@@ -34,7 +34,7 @@ func readPNPMLayouts(ctx context.Context, root *os.Root, plan localfs.Plan) pnpm
 		if !strings.HasSuffix("/"+name, "/node_modules/.modules.yaml") {
 			continue
 		}
-		manifest, ok := readPNPMModulesManifest(root, name)
+		manifest, ok := readPNPMModulesManifest(root, plan, name)
 		if !ok {
 			continue
 		}
@@ -89,10 +89,10 @@ func (layouts pnpmLayouts) isInjectedSource(name string, installed map[string]np
 	return false
 }
 
-func readPNPMModulesManifest(root *os.Root, name string) (pnpmModulesManifest, bool) {
+func readPNPMModulesManifest(root *os.Root, plan localfs.Plan, name string) (pnpmModulesManifest, bool) {
 	var manifest pnpmModulesManifest
 	const maxSize = 4 << 20
-	f, info, err := localfs.OpenRegularEvidence(root, name)
+	f, info, err := plan.OpenIndexedRegular(root, name)
 	if err != nil {
 		return manifest, false
 	}

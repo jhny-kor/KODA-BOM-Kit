@@ -473,10 +473,10 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			record("failed")
 			return fail("filesystem", err)
 		}
-		productList, productIssues := products.Collect(ctx, plan.Root, plan.Paths)
+		productList, productIssues := products.Collect(ctx, plan)
 		finishPhase("productEvidence")
 		issues = append(issues, productIssues...)
-		javascript, jsIssues := staticjs.Collect(ctx, plan.Root, plan.Paths)
+		javascript, jsIssues := staticjs.Collect(ctx, plan)
 		finishPhase("staticJavaScript")
 		issues = append(issues, jsIssues...)
 		for _, component := range javascript {
@@ -488,7 +488,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			}
 		}
 		javascriptIssues = javascriptIssues || len(jsIssues) > 0
-		certificates, certificateIssues := certs.Collect(ctx, plan.Root, plan.Paths)
+		certificates, certificateIssues := certs.Collect(ctx, plan)
 		finishPhase("certificates")
 		issues = append(issues, certificateIssues...)
 		for _, a := range certificates {

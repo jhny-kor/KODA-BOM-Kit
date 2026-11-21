@@ -13,7 +13,6 @@ import (
 	"github.com/anchore/syft/syft/pkg"
 	"github.com/anchore/syft/syft/sbom"
 	"github.com/anchore/syft/syft/source"
-	"github.com/anchore/syft/syft/source/directorysource"
 	"koda.local/security-sbom-linux/internal/localfs"
 	"koda.local/security-sbom-linux/internal/model"
 	_ "modernc.org/sqlite"
@@ -74,15 +73,7 @@ func Config(version string) *syft.CreateSBOMConfig {
 }
 func Scan(ctx context.Context, plan localfs.Plan, version string) (*sbom.SBOM, error) {
 	DisableHTTP()
-	patterns := make([]string, 0, len(plan.Excluded))
-	for _, p := range plan.Excluded {
-		patterns = append(patterns, "./"+strings.TrimPrefix(strings.TrimPrefix(p, "/"), "./"))
-	}
-	config := directorysource.Config{Path: plan.Root, Exclude: source.ExcludeConfig{Paths: patterns}, Alias: source.Alias{Name: "local-filesystem"}}
-	if plan.RootFilesystem {
-		config.Base = plan.Root // absolute links resolve inside the target, matching the plan
-	}
-	src, e := directorysource.New(config)
+	src, e := newPlanSource(ctx, plan)
 	if e != nil {
 		return nil, e
 	}
@@ -90,6 +81,15 @@ func Scan(ctx context.Context, plan localfs.Plan, version string) (*sbom.SBOM, e
 	s, e := syft.CreateSBOM(ctx, src, Config(version))
 	if e != nil {
 		return nil, e
+	}
+	if len(src.unreadable) > 0 {
+		if s.Artifacts.Unknowns == nil {
+			s.Artifacts.Unknowns = make(map[file.Coordinates][]string)
+		}
+		for _, name := range src.unreadable {
+			coordinate := file.NewCoordinates(name, "")
+			s.Artifacts.Unknowns[coordinate] = append(s.Artifacts.Unknowns[coordinate], "filesystem: preflight file unreadable")
+		}
 	}
 	// Never retain the host absolute source path or arbitrary file contents.
 	s.Source.Name = "local-filesystem"

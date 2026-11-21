@@ -18,7 +18,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -58,17 +57,17 @@ func candidate(p string) bool {
 	return !strings.Contains(p, "/certifi/") && !strings.Contains(p, "/node_modules/") && !strings.Contains(p, "/site-packages/pip/")
 }
 
-// Collect parses certificate files among the plan paths below root.
-func Collect(ctx context.Context, root string, paths []string) ([]model.Asset, []model.Issue) {
-	r, err := os.OpenRoot(root)
+// Collect parses certificate files admitted by the filesystem plan.
+func Collect(ctx context.Context, plan localfs.Plan) ([]model.Asset, []model.Issue) {
+	r, err := plan.OpenRoot()
 	if err != nil {
-		return nil, nil
+		return nil, []model.Issue{{Collector: "certificates", Status: "incomplete", Message: "certificate scan root could not be opened"}}
 	}
 	defer r.Close()
 	now := time.Now().UTC()
 	c := collection{algorithms: map[string]bool{}, now: now}
 	files := 0
-	for _, p := range paths {
+	for _, p := range plan.Paths {
 		if ctx.Err() != nil || len(c.assets) >= maxCerts {
 			break
 		}
@@ -79,7 +78,7 @@ func Collect(ctx context.Context, root string, paths []string) ([]model.Asset, [
 			c.issues = append(c.issues, model.Issue{Collector: "certificates", Status: "incomplete", Message: "certificate file limit reached"})
 			break
 		}
-		f, st, err := localfs.OpenRegularEvidence(r, p)
+		f, st, err := plan.OpenIndexedRegular(r, p)
 		if err != nil {
 			continue
 		}

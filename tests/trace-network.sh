@@ -28,7 +28,9 @@ if 'syscall_0x' in text:
 for line in text.splitlines():
  if re.search(r'\b(socket|connect|sendto|sendmsg|sendmmsg|recvfrom|recvmsg|recvmmsg|bind|listen|accept|accept4|getsockname|getpeername|socketpair)\(',line):network.append(line)
  if re.search(r'\bexecve\(',line):execs.append(line)
-assert not network,'Network syscall attempts:\n'+'\n'.join(network)
-assert len(execs)==1 and '"/koda-sbom"' in execs[0],'Unexpected external command execution:\n'+'\n'.join(execs)
+if network:
+ raise SystemExit('Network syscall attempts:\n'+'\n'.join(network))
+if len(execs) != 1 or '"/koda-sbom"' not in execs[0]:
+ raise SystemExit('Unexpected external command execution:\n'+'\n'.join(execs))
 print('PASS: network syscalls 0, only initial /koda-sbom execve')
 PY

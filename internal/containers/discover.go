@@ -194,7 +194,7 @@ func readJSON(p string, v any) bool {
 func describe(root string, c *Container) {
 	defer func() {
 		if c.Name == "" {
-			c.Name = c.ID[:12]
+			c.Name = ShortID(c.ID)
 		}
 	}()
 	dockerRoot := "/var/lib/docker"
@@ -256,6 +256,23 @@ func describe(root string, c *Container) {
 
 var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
+// ShortID abbreviates long IDs for display and preserves valid short IDs.
+func ShortID(id string) string {
+	return id[:min(len(id), 12)]
+}
+
+// FileID returns a safe abbreviated ID for a result directory name.
+func (c Container) FileID() string {
+	if name := safeFileName(ShortID(c.ID)); name != "" {
+		return name
+	}
+	return "container"
+}
+
+func safeFileName(name string) string {
+	return strings.Trim(unsafeName.ReplaceAllString(name, "_"), "._")
+}
+
 // FileName returns a directory name for the container's results. Kubernetes
 // containers include namespace and pod because container names repeat.
 func (c Container) FileName() string {
@@ -263,12 +280,12 @@ func (c Container) FileName() string {
 	if c.Pod != "" {
 		name = c.PodNamespace + "_" + c.Pod + "_" + c.Name
 	}
-	name = strings.Trim(unsafeName.ReplaceAllString(name, "_"), "._")
+	name = safeFileName(name)
 	if len(name) > 100 {
 		name = name[:100]
 	}
 	if name == "" {
-		name = c.ID[:12]
+		return c.FileID()
 	}
 	return name
 }

@@ -32,9 +32,12 @@ from pathlib import Path
 trace=Path(sys.argv[1]);text=trace.read_text()
 network=[line for line in text.splitlines() if re.search(r'\b(socket|socketpair|connect|sendto|sendmsg|sendmmsg|recvfrom|recvmsg|recvmmsg|bind|listen|accept|accept4|getsockname|getpeername)\(',line)]
 execs=[line for line in text.splitlines() if re.search(r'\bexecve(at)?\(',line)]
-assert len(text.splitlines())>100,'Empty or unexpectedly short trace'
-assert not network,'Network attempts observed:\n'+'\n'.join(network)
-assert not execs,'External command attempts observed:\n'+'\n'.join(execs)
+if len(text.splitlines()) <= 100:
+ raise SystemExit('Empty or unexpectedly short trace')
+if network:
+ raise SystemExit('Network attempts observed:\n'+'\n'.join(network))
+if execs:
+ raise SystemExit('External command attempts observed:\n'+'\n'.join(execs))
 report={'passed':True,'method':'amd64 binary guest syscall trace via explicit ARM64 qemu-x86_64; not native x86_64 kernel proof','binarySha256':hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest(),'scanExitCode':int(sys.argv[3]),'guestSyscallLines':len(text.splitlines()),'networkSyscallAttempts':0,'execveAttempts':0}
 (trace.parent/'trace-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
 PY

@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"koda.local/security-sbom-linux/internal/localfs"
 )
 
 func certificate(t *testing.T, key any, public any, alg x509.SignatureAlgorithm, notAfter time.Time) []byte {
@@ -54,8 +56,11 @@ func TestCertificateInventory(t *testing.T) {
 	put("etc/ssl/certs/ca.pem", valid)                                             // system trust store
 	put("opt/app/bundle.crt", []byte(strings.Repeat(string(valid), bundleSize+1))) // trust bundle
 	put("opt/app/notes.txt", valid)                                                // not a certificate extension
-	paths := []string{"etc/nginx/tls/legacy.crt", "opt/app/tls/server.pem", "etc/ssl/certs/ca.pem", "opt/app/bundle.crt", "opt/app/notes.txt"}
-	assets, issues := Collect(context.Background(), root, paths)
+	plan, err := localfs.Build(context.Background(), root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, issues := Collect(context.Background(), plan)
 	if len(issues) != 0 {
 		t.Fatalf("issues %+v", issues)
 	}

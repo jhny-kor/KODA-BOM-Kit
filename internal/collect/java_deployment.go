@@ -135,14 +135,14 @@ func collectJavaDeployments(ctx context.Context, bom *sbom.SBOM, plan localfs.Pl
 		case ".war", ".ear", ".jar":
 			if root == nil {
 				var err error
-				root, err = os.OpenRoot(plan.Root)
+				root, err = plan.OpenRoot()
 				if err != nil {
 					collector.issue(rel, "Java evidence root could not be opened")
 					break
 				}
 				defer root.Close()
 			}
-			collector.scanRoot(root, rel, kind)
+			collector.scanRoot(root, plan, rel, kind)
 		}
 	}
 	collector.finish()
@@ -181,8 +181,8 @@ func (r javaContextReader) ReadAt(p []byte, offset int64) (int, error) {
 	return r.ReaderAt.ReadAt(p, offset)
 }
 
-func (c *javaDeployment) scanRoot(root *os.Root, name, kind string) {
-	f, info, err := localfs.OpenRegularEvidence(root, name)
+func (c *javaDeployment) scanRoot(root *os.Root, plan localfs.Plan, name, kind string) {
+	f, info, err := plan.OpenIndexedRegular(root, name)
 	if err != nil {
 		c.issue(name, "Java archive could not be opened")
 		return

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -131,5 +132,34 @@ func TestFlattenAppliesWhiteoutsAndStaysInside(t *testing.T) {
 	}
 	if err := Flatten(context.Background(), []string{lower}, t.TempDir(), &Budget{Bytes: 1, Files: 1000}); !errors.Is(err, ErrFlattenBudget) || !strings.Contains(err.Error(), "size") {
 		t.Fatalf("budget not enforced: %v", err)
+	}
+}
+
+func TestStoredLayerBatchesPreserveFileBudgetAndOpaqueContents(t *testing.T) {
+	lower, upper, dest := t.TempDir(), t.TempDir(), t.TempDir()
+	for i := range layerDirectoryBatch + 1 {
+		put(t, lower, strconv.Itoa(i), "x")
+	}
+	put(t, upper, opaqueLayerMarker, "")
+	put(t, upper, "present", "upper")
+	ctx := context.Background()
+	layers := []string{lower, upper}
+	budget := Budget{Bytes: 4096, Files: layerDirectoryBatch + 2}
+	if size, err := LayerSize(ctx, layers, budget); err != nil || size != layerDirectoryBatch+1+int64(len("upper")) {
+		t.Fatalf("size %d, err %v", size, err)
+	}
+	if err := Flatten(ctx, layers, dest, &budget); err != nil {
+		t.Fatal(err)
+	}
+	if entries, err := os.ReadDir(dest); err != nil || len(entries) != 1 || entries[0].Name() != "present" {
+		t.Fatalf("unexpected opaque directory contents %v, err %v", entries, err)
+	}
+	if _, err := LayerSize(ctx, layers, Budget{Bytes: 4096, Files: layerDirectoryBatch}); !errors.Is(err, ErrFlattenBudget) {
+		t.Fatalf("preflight file budget not enforced: %v", err)
+	}
+	stopped, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := LayerSize(stopped, layers, budget); !errors.Is(err, context.Canceled) {
+		t.Fatalf("preflight cancellation not returned: %v", err)
 	}
 }

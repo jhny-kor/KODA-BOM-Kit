@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"slices"
 	"strings"
 
@@ -36,7 +35,7 @@ type DirectoryInventory struct {
 // PURL details. A coordinate that needs filtering cannot identify a duplicate.
 func MergeableDirectoryPackages(ctx context.Context, inventory *sbom.SBOM, plan localfs.Plan) map[artifact.ID]string {
 	var layouts pnpmLayouts
-	if root, err := os.OpenRoot(plan.Root); err == nil {
+	if root, err := plan.OpenRoot(); err == nil {
 		layouts = readPNPMLayouts(ctx, root, plan)
 		root.Close()
 	}

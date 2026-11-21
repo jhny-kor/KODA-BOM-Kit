@@ -1,6 +1,7 @@
 package assessment
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,7 +57,7 @@ type csafDocument struct {
 
 // parseCSAF converts unconditional exact product assertions. Product groups,
 // relationships and contextual assertions need richer applicability evaluation.
-func parseCSAF(raw []byte) (Rules, error) {
+func parseCSAF(ctx context.Context, raw []byte) (Rules, error) {
 	out := Rules{Schema: "koda-advisory-rules-v1"}
 	if len(raw) > maxInput {
 		return out, errors.New("CSAF input exceeds size limit")
@@ -88,6 +89,12 @@ func parseCSAF(raw []byte) (Rules, error) {
 	}
 	products := map[string]csafProduct{}
 	add := func(p csafProduct) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if len(products) == 4096 {
+			return errors.New("CSAF product limit")
+		}
 		if p.ID == "" {
 			return errors.New("CSAF missing product ID")
 		}
@@ -104,6 +111,9 @@ func parseCSAF(raw []byte) (Rules, error) {
 	}
 	var walk func([]csafBranch, int) error
 	walk = func(branches []csafBranch, depth int) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if depth > 32 {
 			return errors.New("CSAF product depth limit")
 		}
@@ -122,9 +132,10 @@ func parseCSAF(raw []byte) (Rules, error) {
 	if err := walk(doc.Tree.Branches, 0); err != nil {
 		return out, err
 	}
-	if len(products) > 4096 || len(doc.Vulnerabilities) == 0 {
-		return out, errors.New("CSAF requires vulnerabilities and at most 4096 products")
+	if len(doc.Vulnerabilities) == 0 {
+		return out, errors.New("CSAF requires vulnerabilities")
 	}
+	remainingVersions := maxExactVersions
 	for _, v := range doc.Vulnerabilities {
 		if len(v.Flags)+len(v.Threats)+len(v.Remediations)+len(v.Notes) > 0 {
 			return out, errors.New("CSAF contextual assertions require review and cannot be converted into unconditional rules")
@@ -154,6 +165,13 @@ func parseCSAF(raw []byte) (Rules, error) {
 				return out, fmt.Errorf("unsupported CSAF product status %s", status)
 			}
 			for _, pid := range ids {
+				if err := ctx.Err(); err != nil {
+					return out, err
+				}
+				if remainingVersions == 0 {
+					return out, errors.New("CSAF exceeds exact advisory version limit")
+				}
+				remainingVersions--
 				if seen[pid] {
 					return out, errors.New("CSAF product has conflicting or duplicate status")
 				}

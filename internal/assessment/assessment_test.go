@@ -3,6 +3,7 @@ package assessment
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -64,5 +65,38 @@ func TestContextMustMatchScanChecksums(t *testing.T) {
 	}
 	if err := boundContext(bom, "abc", snapshot, "different"); err == nil {
 		t.Fatal("mismatched context accepted")
+	}
+}
+
+func TestVersionIdentityForBothSBOMFormats(t *testing.T) {
+	const rules = `{"schema":"koda-advisory-rules-v1","publishedAt":"2026-11-18T00:00:00Z","rules":[{"id":"ADV","source":"source","component":{"purl":"pkg:rpm/redhat/example?distro=rhel-9.4"},"fixedVersions":["2:1.4-2"]}]}`
+	inputs := map[string]string{
+		"CycloneDX": `{"bomFormat":"CycloneDX","components":[
+			{"bom-ref":"match","name":"example","version":"2:1.4-2","purl":"pkg:rpm/redhat/example@1.4-2?distro=rhel-9.4&epoch=2"},
+			{"bom-ref":"review","name":"example","version":"2:1.4-2","purl":"pkg:rpm/redhat/example@1.4-2?distro=rhel-9.4&epoch=1"}]}`,
+		"SPDX": `{"spdxVersion":"SPDX-2.3","packages":[
+			{"SPDXID":"match","name":"example","versionInfo":"2:1.4-2","externalRefs":[{"referenceType":"purl","referenceLocator":"pkg:rpm/redhat/example@1.4-2?distro=rhel-9.4&epoch=2"}]},
+			{"SPDXID":"review","name":"example","versionInfo":"2:1.4-2","externalRefs":[{"referenceType":"purl","referenceLocator":"pkg:rpm/redhat/example@1.4-2?distro=rhel-9.4&epoch=1"}]}]}`,
+	}
+	for format, input := range inputs {
+		t.Run(format, func(t *testing.T) {
+			report, err := evaluate(context.Background(), []byte(input), []byte(rules), model.Context{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			findings := report.Findings
+			if len(findings) != 2 || findings[0].Status != "fixed_version_observed" || findings[1].Status != "review_required" {
+				t.Fatalf("unexpected assessment: %+v", findings)
+			}
+		})
+	}
+}
+
+func TestExactVersionIndexHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := indexVersions(ctx, Rule{AffectedVersions: []string{"1.0"}, FixedVersions: []string{"2.0"}})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation, got %v", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -39,7 +40,9 @@ func TestFileLimitReportsNextEligibleFile(t *testing.T) {
 	if limitErr.Limit != 2 || limitErr.Observed != 3 {
 		t.Fatalf("unexpected file limit details: %+v", limitErr)
 	}
-	if len(plan.Paths) != 2 || plan.Paths[0] != "a" || plan.Paths[1] != "b" {
+	// An over-limit plan is never scanned. Only successful plans must include
+	// every eligible path; a rejected walk may encounter entries in disk order.
+	if len(plan.Paths) != 2 || !slices.IsSorted(plan.Paths) {
 		t.Fatalf("unexpected retained paths: %#v", plan.Paths)
 	}
 }
@@ -90,6 +93,33 @@ func TestZeroFileLimitAllowsAllEligibleFiles(t *testing.T) {
 	}
 	if len(plan.Paths) != count {
 		t.Fatalf("collected %d files, want %d", len(plan.Paths), count)
+	}
+}
+
+func TestPlanOpensKnownFilesThroughPermittedLinks(t *testing.T) {
+	root := t.TempDir()
+	scanFixture(t, root, "app/metadata")
+	scanFixture(t, root, "private/metadata")
+	if err := os.Symlink("app", filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := BuildWithOptions(context.Background(), root, nil, Options{ExcludeDirs: []string{"private"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := plan.OpenRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dir.Close()
+	file, _, err := plan.OpenIndexedRegular(dir, "link/metadata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+	if file, _, err := plan.OpenIndexedRegular(dir, "private/metadata"); err == nil {
+		file.Close()
+		t.Fatal("excluded file accepted")
 	}
 }
 

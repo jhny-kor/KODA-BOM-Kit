@@ -8,10 +8,11 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from validate_outputs import validate
+from validate_outputs import require_unoptimized, validate
 
 
 def main():
+    require_unoptimized()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stage', required=True, type=Path)
     args = parser.parse_args()

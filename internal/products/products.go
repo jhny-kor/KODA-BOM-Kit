@@ -2,7 +2,6 @@
 package products
 
 import (
-	"archive/zip"
 	"bufio"
 	"context"
 	"crypto/sha256"
@@ -18,7 +17,9 @@ import (
 	"sort"
 	"strings"
 
+	"koda.local/security-sbom-linux/internal/localfs"
 	"koda.local/security-sbom-linux/internal/model"
+	"koda.local/security-sbom-linux/internal/zipguard"
 )
 
 const (
@@ -36,23 +37,24 @@ var patchID = regexp.MustCompile(`^[0-9]{5,12}$`)
 var printable = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._+()/@,:;=-]{0,199}$`)
 
 type collector struct {
+	ctx      context.Context
+	plan     localfs.Plan
 	root     *os.Root
 	products []model.Product
 	issues   []model.Issue
 }
 
-// Collect considers only the supplied root-relative regular file paths. It does
-// not traverse the filesystem, invoke programs, or access remote services.
-func Collect(ctx context.Context, root string, paths []string) ([]model.Product, []model.Issue) {
-	c := &collector{products: []model.Product{}, issues: []model.Issue{}}
-	fs, err := os.OpenRoot(root)
+// Collect reads product evidence from the filesystem plan.
+func Collect(ctx context.Context, plan localfs.Plan) ([]model.Product, []model.Issue) {
+	c := &collector{ctx: ctx, plan: plan, products: []model.Product{}, issues: []model.Issue{}}
+	fs, err := plan.OpenRoot()
 	if err != nil {
 		c.issue("failed", "", "cannot open product metadata root")
 		return c.products, c.issues
 	}
 	defer fs.Close()
 	c.root = fs
-	paths = append([]string(nil), paths...)
+	paths := append([]string(nil), plan.Paths...)
 	sort.Strings(paths)
 	seen := map[string]bool{}
 	for _, raw := range paths {
@@ -120,16 +122,11 @@ func (c *collector) issue(status, p, msg string) {
 	c.issues = append(c.issues, model.Issue{Collector: "products", Status: status, Path: p, Message: msg})
 }
 func (c *collector) open(rel string, limit int64) (*os.File, os.FileInfo, error) {
-	f, err := c.root.Open(rel)
+	f, st, err := c.plan.OpenIndexedRegular(c.root, rel)
 	if err != nil {
 		return nil, nil, err
 	}
-	st, err := f.Stat()
-	if err != nil {
-		f.Close()
-		return nil, nil, err
-	}
-	if !st.Mode().IsRegular() || st.Size() > limit {
+	if st.Size() > limit {
 		f.Close()
 		return nil, nil, fmt.Errorf("not a bounded regular metadata file")
 	}
@@ -233,9 +230,13 @@ func (c *collector) zipEntries(rel string, names ...string) (map[string][]byte, 
 		return nil, false
 	}
 	defer f.Close()
-	z, err := zip.NewReader(f, st.Size())
+	z, err := zipguard.NewReader(c.ctx, f, st.Size(), zipguard.Limits{})
 	if err != nil {
-		c.issue("incomplete", rel, "invalid product archive")
+		message := "invalid product archive"
+		if errors.Is(err, zipguard.ErrLimit) {
+			message = "product archive directory exceeds collection limits"
+		}
+		c.issue("incomplete", rel, message)
 		return nil, false
 	}
 	wanted := map[string]bool{}

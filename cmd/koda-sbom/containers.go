@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,15 +80,7 @@ const maxStoredRootBytes = int64(16) << 30
 // never fatal to the host scan.
 func scanContainers(ctx context.Context, options containerOptions) ([]containerSummary, []containerSummary, []model.Issue) {
 	found, issues := containers.Discover(ctx, "/", os.Getpid())
-	used := map[string]bool{}
 	summaries := []containerSummary{}
-	unique := func(name, id string) string {
-		if used[name] {
-			name += "-" + id[:12]
-		}
-		used[name] = true
-		return name
-	}
 	for _, c := range found {
 		s := containerSummary{Container: c, Status: "not_collected"}
 		switch {
@@ -96,9 +89,7 @@ func scanContainers(ctx context.Context, options containerOptions) ([]containerS
 		case c.RootFS == "":
 			s.Reason = "container root filesystem is not visible from the collector's mount namespace"
 		default:
-			name := unique(c.FileName(), c.ID)
-			s.Output = path.Join("containers", name)
-			scanContainer(ctx, &s, filepath.Join(options.dir, "containers", name), options)
+			scanContainer(ctx, &s, "containers", options)
 		}
 		summaries = append(summaries, s)
 	}
@@ -119,46 +110,68 @@ func scanContainers(ctx context.Context, options containerOptions) ([]containerS
 	}
 	for _, st := range stopped {
 		st.ImageID = digest(st.ImageID)
-		c := containers.Container{ID: st.ID, Name: st.ID[:12], Runtime: st.Runtime, Image: st.Image, ImageID: st.ImageID, State: "stopped"}
+		c := containers.Container{ID: st.ID, Name: containers.ShortID(st.ID), Runtime: st.Runtime, Image: st.Image, ImageID: st.ImageID, State: "stopped"}
 		if len(st.Names) > 0 {
 			c.Name = st.Names[0]
 		}
 		s := containerSummary{Container: c}
-		name := unique(c.FileName(), c.ID)
-		scanLayers(ctx, &s, st.Layers, "containers", name, options)
+		scanLayers(ctx, &s, st.Layers, "containers", options)
 		summaries = append(summaries, s)
 	}
 	imageSummaries := []containerSummary{}
-	usedImages := map[string]bool{}
 	for _, st := range images {
 		st.ImageID = digest(st.ImageID)
-		c := containers.Container{ID: st.ID, Name: st.ID[:12], Runtime: st.Runtime, ImageID: st.ImageID, State: "image"}
+		c := containers.Container{ID: st.ID, Name: containers.ShortID(st.ID), Runtime: st.Runtime, ImageID: st.ImageID, State: "image"}
 		if len(st.Names) > 0 {
 			c.Name, c.Image = st.Names[0], st.Names[0]
 		}
 		s := containerSummary{Container: c}
-		name := c.FileName()
-		if usedImages[name] {
-			name += "-" + c.ID[:12]
-		}
-		usedImages[name] = true
-		scanLayers(ctx, &s, st.Layers, "images", name, options)
+		scanLayers(ctx, &s, st.Layers, "images", options)
 		imageSummaries = append(imageSummaries, s)
 	}
 	return summaries, imageSummaries, issues
 }
 
+// reserveContainerOutput gives the current scan exclusive ownership of its
+// result directory before it writes or cleans up any output files.
+func reserveContainerOutput(ctx context.Context, dir, group string, c containers.Container) (string, error) {
+	if err := os.MkdirAll(filepath.Join(dir, group), 0700); err != nil {
+		return "", err
+	}
+	base := c.FileName()
+	withID := base + "-" + c.FileID()
+	name := base
+	for n := 1; ; n++ {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		rel := path.Join(group, name)
+		if err := os.Mkdir(filepath.Join(dir, filepath.FromSlash(rel)), 0700); !errors.Is(err, fs.ErrExist) {
+			return rel, err
+		}
+		name = withID
+		if n > 1 {
+			name += "-" + strconv.Itoa(n)
+		}
+	}
+}
+
 // scanLayers merges stored layers into a scratch copy, scans it like a
 // running container's root filesystem and removes the copy.
-func scanLayers(ctx context.Context, s *containerSummary, layers []string, group, name string, options containerOptions) {
+func scanLayers(ctx context.Context, s *containerSummary, layers []string, group string, options containerOptions) {
 	s.Status = "not_collected"
 	if ctx.Err() != nil {
 		s.Reason = "collection time limit reached before this " + s.State
 		return
 	}
-	size := containers.LayerSize(ctx, layers)
-	if size > maxStoredRootBytes {
-		s.Reason = "root filesystem exceeds the 16 GiB copy limit"
+	files := options.maxFiles
+	if files <= 0 {
+		files = 10_000_000
+	}
+	budget := containers.Budget{Bytes: maxStoredRootBytes, Files: files}
+	size, err := containers.LayerSize(ctx, layers, budget)
+	if err != nil {
+		s.Reason = "stored layers could not be inspected: " + flattenReason(err)
 		return
 	}
 	rootfs, err := os.MkdirTemp("", "koda-rootfs-") // TMPDIR is the result scratch directory
@@ -171,17 +184,12 @@ func scanLayers(ctx context.Context, s *containerSummary, layers []string, group
 		s.Reason = "not enough free space in the output directory to assemble the root filesystem"
 		return
 	}
-	files := options.maxFiles
-	if files <= 0 {
-		files = 10_000_000
-	}
-	if err := containers.Flatten(ctx, layers, rootfs, &containers.Budget{Bytes: maxStoredRootBytes, Files: files}); err != nil {
+	if err := containers.Flatten(ctx, layers, rootfs, &budget); err != nil {
 		s.Reason = "stored layers could not be merged: " + flattenReason(err)
 		return
 	}
 	s.RootFS = rootfs
-	s.Output = path.Join(group, name)
-	scanContainer(ctx, s, filepath.Join(options.dir, group, name), options)
+	scanContainer(ctx, s, group, options)
 	s.RootFS = ""
 }
 
@@ -189,6 +197,8 @@ func flattenReason(err error) string {
 	switch {
 	case errors.Is(err, containers.ErrFlattenBudget):
 		return err.Error() + " limit reached (layers may also have changed while the container was being removed)"
+	case errors.Is(err, containers.ErrInvalidWhiteout):
+		return err.Error()
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		return "collection time limit reached"
 	case errors.Is(err, fs.ErrPermission):
@@ -210,7 +220,17 @@ func containerProperties(c containers.Container) [][2]string {
 	return pairs
 }
 
-func scanContainer(ctx context.Context, s *containerSummary, out string, options containerOptions) {
+func scanContainer(ctx context.Context, s *containerSummary, group string, options containerOptions) {
+	rel, err := reserveContainerOutput(ctx, options.dir, group, s.Container)
+	if err != nil {
+		s.Status, s.Reason = "failed", "container result directory could not be created"
+		if ctx.Err() != nil {
+			s.Status, s.Reason = "not_collected", "collection time limit reached before this "+s.State
+		}
+		return
+	}
+	s.Output = rel
+	out := filepath.Join(options.dir, filepath.FromSlash(rel))
 	report := containerCollection{
 		Schema: "koda-sbom-container-collection-v1", Status: "failed", Container: s.Container,
 		Tool: toolInfo{version, revision, builtAt, collect.SyftVersion}, StartedAt: time.Now().UTC().Format(time.RFC3339),
@@ -235,10 +255,6 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 		}
 		report.FinishedAt = time.Now().UTC().Format(time.RFC3339)
 		s.Status, s.PackageCount, s.FilesystemFileCount, s.IssueCount = report.Status, report.PackageCount, report.FilesystemFileCount, len(report.Issues)
-		if err := os.MkdirAll(out, 0700); err != nil {
-			s.Status, s.Reason = "failed", "container result directory could not be created"
-			return
-		}
 		if collect.WriteJSON(out, "collection.json", report) != nil || collect.Checksums(out) != nil {
 			s.Status, s.Reason = "failed", "container results could not be written"
 		}
@@ -250,9 +266,9 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 		finish(err)
 		return
 	}
-	productList, productIssues := products.Collect(ctx, plan.Root, plan.Paths)
-	javascript, javascriptIssues := staticjs.Collect(ctx, plan.Root, plan.Paths)
-	certificates, certificateIssues := certs.Collect(ctx, plan.Root, plan.Paths)
+	productList, productIssues := products.Collect(ctx, plan)
+	javascript, javascriptIssues := staticjs.Collect(ctx, plan)
+	certificates, certificateIssues := certs.Collect(ctx, plan)
 	report.Issues = append(append(append(report.Issues, productIssues...), javascriptIssues...), certificateIssues...)
 	inventory, auditIssue, err := catalogScanTarget(ctx, plan)
 	if err != nil {
@@ -286,10 +302,6 @@ func scanContainer(ctx context.Context, s *containerSummary, out string, options
 	}
 	exposure := collect.ExposureByExecutable(inventory, s.RootFS, byExecutable)
 	report.Status = collectionStatus(report.Issues)
-	if err := os.MkdirAll(out, 0700); err != nil {
-		finish(err)
-		return
-	}
 	coverage := collect.NewCollectionCoverage(report.Status, "container-filesystem", report.PackageCount, 0, 0, report.Issues)
 	err = collect.WriteSBOMsWithAssets(ctx, out, options.format, inventory, report.Status == "partial", &coverage, certificates, options.cyclonedx17)
 	if err == nil {

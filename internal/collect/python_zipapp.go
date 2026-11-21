@@ -1,11 +1,9 @@
 package collect
 
 import (
-	"archive/zip"
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -15,6 +13,7 @@ import (
 	"github.com/anchore/syft/syft/pkg"
 	"github.com/anchore/syft/syft/sbom"
 	"koda.local/security-sbom-linux/internal/localfs"
+	"koda.local/security-sbom-linux/internal/zipguard"
 )
 
 const pythonZipappCollector = "koda-python-zipapp"
@@ -24,7 +23,7 @@ var pythonDistributionVersion = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.!+_-]
 var pythonNameSeparators = regexp.MustCompile(`[-_.]+`)
 
 func collectPythonZipapps(ctx context.Context, inventory *sbom.SBOM, plan localfs.Plan) error {
-	root, err := os.OpenRoot(plan.Root)
+	root, err := plan.OpenRoot()
 	if err != nil {
 		recordPythonArchiveIssue(inventory, ".")
 		return nil
@@ -38,7 +37,7 @@ func collectPythonZipapps(ctx context.Context, inventory *sbom.SBOM, plan localf
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		f, st, err := localfs.OpenRegularEvidence(root, name)
+		f, st, err := plan.OpenIndexedRegular(root, name)
 		if err != nil {
 			recordPythonArchiveIssue(inventory, name)
 			continue
@@ -65,12 +64,9 @@ func collectPythonZipapps(ctx context.Context, inventory *sbom.SBOM, plan localf
 }
 
 func pythonZipappPackages(ctx context.Context, reader io.ReaderAt, size int64, archive string) ([]pkg.Package, error) {
-	z, err := zip.NewReader(reader, size)
+	z, err := zipguard.NewReader(ctx, reader, size, zipguard.Limits{Members: 50_000})
 	if err != nil {
 		return nil, err
-	}
-	if len(z.File) > 50000 {
-		return nil, fmt.Errorf("Python archive member limit exceeded")
 	}
 	members := map[string]bool{}
 	for _, f := range z.File {

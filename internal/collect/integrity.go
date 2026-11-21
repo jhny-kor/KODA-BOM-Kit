@@ -12,7 +12,6 @@ import (
 	"hash"
 	"io"
 	"io/fs"
-	"os"
 	"path"
 	"slices"
 	"strings"
@@ -132,7 +131,7 @@ func VerifyPackageFiles(ctx context.Context, inventory *sbom.SBOM, plan localfs.
 	if inventory == nil || inventory.Artifacts.Packages == nil {
 		return result
 	}
-	root, err := os.OpenRoot(plan.Root)
+	root, err := plan.OpenRoot()
 	if err != nil {
 		return result
 	}
@@ -173,7 +172,7 @@ func VerifyPackageFiles(ctx context.Context, inventory *sbom.SBOM, plan localfs.
 				partial = partial || budget <= 0
 				continue
 			}
-			file, st, err := localfs.OpenRegularEvidence(root, name)
+			file, st, err := plan.OpenIndexedRegular(root, name)
 			if err != nil || st.Size() > maxIntegrityFileBytes {
 				if file != nil {
 					file.Close()

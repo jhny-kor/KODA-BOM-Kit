@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"koda.local/security-sbom-linux/internal/localfs"
 	"koda.local/security-sbom-linux/internal/model"
 )
 
@@ -43,7 +44,17 @@ func jar(t *testing.T, root, rel string, files map[string]string) {
 }
 func collect(t *testing.T, root string, paths ...string) ([]model.Product, []model.Issue) {
 	t.Helper()
-	return Collect(context.Background(), root, paths)
+	return Collect(context.Background(), evidencePlan(t, root, paths))
+}
+
+func evidencePlan(t *testing.T, root string, paths []string) localfs.Plan {
+	t.Helper()
+	plan, err := localfs.Build(context.Background(), root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.Paths = paths
+	return plan
 }
 func haveIssue(issues []model.Issue, status string) bool {
 	for _, i := range issues {
@@ -317,7 +328,7 @@ func TestSymlinkCannotEscapeRoot(t *testing.T) {
 func TestCancellationIsReported(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	p, i := Collect(ctx, t.TempDir(), []string{"release"})
+	p, i := Collect(ctx, evidencePlan(t, t.TempDir(), []string{"release"}))
 	if len(p) != 0 || !haveIssue(i, "incomplete") {
 		t.Fatalf("%+v %+v", p, i)
 	}

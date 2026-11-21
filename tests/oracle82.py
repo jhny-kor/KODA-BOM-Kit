@@ -2,7 +2,9 @@
 """Oracle 8.2 user-space/RPM test. This does not validate a native Oracle kernel."""
 import argparse,json,subprocess,tempfile,time
 from pathlib import Path
-from validate_outputs import validate
+from validate_outputs import require_unoptimized, validate
+
+require_unoptimized()
 p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True);p.add_argument('--output',type=Path);a=p.parse_args()
 output=(a.output or Path(tempfile.mkdtemp(prefix='koda-sbom-oracle82-'))).resolve();output.mkdir(parents=True,exist_ok=True)
 image='oraclelinux:8.2';binary=a.binary.resolve()

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -51,11 +52,22 @@ type Plan struct {
 	RootFilesystem bool
 	links          map[string]string
 	rootAlias      string
+	rootInfo       os.FileInfo
+	deniedPaths    map[string]bool
+	patternCount   int
 }
 
 // ExcludesPath checks a path relative to the plan root against the scan filters.
 func (p Plan) ExcludesPath(relative string) bool {
-	return matches(relative, p.Excluded)
+	if p.deniedPaths == nil {
+		return matches(relative, p.Excluded)
+	}
+	for name := strings.TrimPrefix(filepath.ToSlash(relative), "/"); name != "." && name != ""; name = filepath.ToSlash(filepath.Dir(name)) {
+		if p.deniedPaths[name] {
+			return true
+		}
+	}
+	return matches(relative, p.Excluded[:p.patternCount])
 }
 
 func Within(root, path string) bool {
@@ -85,6 +97,66 @@ func Build(ctx context.Context, root string, excludes []string) (Plan, error) {
 	return BuildWithOptions(ctx, root, excludes, Options{MaxFiles: DefaultMaxFiles})
 }
 
+const directoryReadBatch = 256
+
+func walkDirectory(ctx context.Context, root, dir *os.Root, relative string, excluded func(string) bool, visit func(*os.Root, string, fs.FileInfo, error) error) error {
+	if dir != root {
+		defer dir.Close()
+	}
+	f, err := dir.Open(".")
+	if err != nil {
+		return visit(dir, relative, nil, err)
+	}
+	defer f.Close()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		// Reading names directly preserves evidence of an entry even when its
+		// filesystem reports it in readdir but denies the subsequent stat.
+		entries, readErr := f.Readdirnames(directoryReadBatch)
+		last := errors.Is(readErr, io.EOF) || len(entries) < directoryReadBatch && readErr == nil
+		if last {
+			f.Close()
+		}
+		children := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			name := filepath.ToSlash(filepath.Join(relative, entry))
+			if excluded(name) {
+				continue
+			}
+			info, statErr := dir.Lstat(entry)
+			err := visit(dir, name, info, statErr)
+			if err != nil {
+				return err
+			}
+			if statErr == nil && info.IsDir() {
+				children = append(children, name)
+			}
+		}
+		if last && dir != root {
+			dir.Close()
+		}
+		for _, name := range children {
+			child, err := openRelativeDirectory(root, name)
+			if err != nil {
+				err = visit(root, name, nil, err)
+			} else {
+				err = walkDirectory(ctx, root, child, name, excluded, visit)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if last {
+			return nil
+		}
+		if readErr != nil {
+			return visit(dir, relative, nil, readErr)
+		}
+	}
+}
+
 func BuildWithOptions(ctx context.Context, root string, excludes []string, options Options) (Plan, error) {
 	if options.MaxFiles < 0 {
 		return Plan{}, fmt.Errorf("maximum file count must be zero (unlimited) or positive")
@@ -93,12 +165,17 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 	if e != nil {
 		return Plan{}, e
 	}
-	st, e := os.Stat(abs)
+	scanRoot, e := openCanonicalRoot(abs)
+	if e != nil {
+		return Plan{}, fmt.Errorf("target must be a readable local directory")
+	}
+	defer scanRoot.Close()
+	st, e := scanRoot.Stat(".")
 	if e != nil || !st.IsDir() {
 		return Plan{}, fmt.Errorf("target must be a readable local directory")
 	}
 	rootAlias, _ := filepath.Abs(root)
-	p := Plan{Root: abs, rootAlias: filepath.ToSlash(rootAlias), Excluded: append(append([]string{}, DefaultExcludes...), excludes...), Issues: []model.Issue{}, RootFilesystem: options.RootFilesystem}
+	p := Plan{Root: abs, rootInfo: st, rootAlias: filepath.ToSlash(rootAlias), Excluded: append(append([]string{}, DefaultExcludes...), excludes...), Issues: []model.Issue{}, RootFilesystem: options.RootFilesystem}
 	p.ExcludedDirs, e = resolveExcludedDirectories(abs, options.ExcludeDirs)
 	if e != nil {
 		return p, e
@@ -127,33 +204,48 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 			return p, fmt.Errorf("invalid exclude pattern")
 		}
 	}
+	p.patternCount = len(p.Excluded)
+	p.deniedPaths = make(map[string]bool)
+	deny := func(relative string) {
+		p.deniedPaths[relative] = true
+		p.Excluded = append(p.Excluded, "/"+LiteralPathPattern(relative))
+	}
+	auxiliaryLimit := max(DefaultMaxFiles, options.MaxFiles)
+	auxiliaryUsed := int64(0)
+	reserveAuxiliary := func() error {
+		auxiliaryUsed++
+		if auxiliaryUsed > auxiliaryLimit {
+			return fmt.Errorf("filesystem link and special-entry limit exceeded (limit=%d)", auxiliaryLimit)
+		}
+		return nil
+	}
 	hasFilteredEntries := false
 	issue := func(path, status, msg string) {
 		if len(p.Issues) < 1000 {
 			p.Issues = append(p.Issues, model.Issue{Collector: "filesystem", Status: status, Path: filepath.ToSlash(path), Message: msg})
 		}
 	}
-	err := filepath.WalkDir(abs, func(path string, d fs.DirEntry, err error) error {
+	excluded := func(relative string) bool {
+		skip := p.ExcludesPath(relative)
+		hasFilteredEntries = hasFilteredEntries || skip
+		return skip
+	}
+	err := walkDirectory(ctx, scanRoot, scanRoot, ".", excluded, func(parent *os.Root, rel string, info fs.FileInfo, err error) error {
 		if e := ctx.Err(); e != nil {
 			return e
-		}
-		rel, _ := filepath.Rel(abs, path)
-		if rel != "." && matches(rel, p.Excluded) {
-			hasFilteredEntries = true
-			if d != nil && d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
 		}
 		if err != nil {
 			issue(rel, "permission_denied", "directory entry could not be read")
 			return nil
 		}
-		if d.Type()&os.ModeSymlink != 0 {
-			target, err := os.Readlink(path)
+		if info.Mode()&os.ModeSymlink != 0 {
+			if err := reserveAuxiliary(); err != nil {
+				return err
+			}
+			target, err := parent.Readlink(info.Name())
 			if err != nil {
 				issue(rel, "incomplete", "unresolved symbolic link")
-				p.Excluded = append(p.Excluded, "/"+LiteralPathPattern(rel))
+				deny(rel)
 				return nil
 			}
 			if p.links == nil {
@@ -162,26 +254,30 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 			p.links[filepath.ToSlash(rel)] = filepath.ToSlash(target)
 			return nil
 		}
-		if d.IsDir() {
+		if info.IsDir() {
 			return nil
 		}
-		if !d.Type().IsRegular() {
-			p.Excluded = append(p.Excluded, "/"+LiteralPathPattern(rel))
-			return nil
-		}
-		info, e := d.Info()
-		if e != nil {
-			issue(rel, "incomplete", "file metadata unavailable")
+		if !info.Mode().IsRegular() {
+			if err := reserveAuxiliary(); err != nil {
+				return err
+			}
+			deny(rel)
 			return nil
 		}
 		if info.Mode().Perm()&0444 == 0 {
+			if err := reserveAuxiliary(); err != nil {
+				return err
+			}
 			issue(rel, "permission_denied", "file has no read permission")
-			p.Excluded = append(p.Excluded, "/"+LiteralPathPattern(rel))
+			deny(rel)
 			return nil
 		}
 		if info.Size() > 2<<30 {
+			if err := reserveAuxiliary(); err != nil {
+				return err
+			}
 			issue(rel, "incomplete", "file exceeds 2 GiB per-file bound")
-			p.Excluded = append(p.Excluded, "/"+LiteralPathPattern(rel))
+			deny(rel)
 			return nil
 		}
 		files := options.FilesAlreadyCounted + int64(len(p.Paths))
@@ -214,9 +310,11 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 				message = linkErr.Error()
 			}
 			issue(name, "incomplete", message)
-			denied = append(denied, "/"+LiteralPathPattern(name))
+			denied = append(denied, name)
 		}
-		p.Excluded = append(p.Excluded, denied...)
+		for _, name := range denied {
+			deny(name)
+		}
 	}
 	if err == nil && strings.ContainsAny(abs, globPatternChars) &&
 		(hasFilteredEntries || len(p.Excluded) > len(DefaultExcludes)+len(excludes)) {

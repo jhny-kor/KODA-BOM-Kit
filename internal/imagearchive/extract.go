@@ -4,63 +4,48 @@ package imagearchive
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/klauspost/compress/zstd"
 	"io"
-	"koda.local/security-sbom-linux/internal/evidencefile"
-	"koda.local/security-sbom-linux/internal/localfs"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/klauspost/compress/zstd"
+	"koda.local/security-sbom-linux/internal/containers"
+	"koda.local/security-sbom-linux/internal/evidencefile"
 )
 
 const maxBytes int64 = 16 << 30
 const maxEntries = 500000
+const maxLayers = 256
 
-func reader(file string) (io.ReadCloser, error) {
-	f, e := evidencefile.Open(file)
-	if e != nil {
-		return nil, e
-	}
-	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		f.Close()
-		return nil, fmt.Errorf("archive must remain a regular file")
-	}
-	buf := make([]byte, 4)
-	n, _ := f.Read(buf)
-	f.Seek(0, 0)
-	if n >= 2 && buf[0] == 0x1f && buf[1] == 0x8b {
-		g, e := gzip.NewReader(f)
+func decoder(r io.Reader) (io.ReadCloser, error) {
+	buffered := bufio.NewReader(r)
+	magic, _ := buffered.Peek(4)
+	if len(magic) >= 2 && magic[0] == 0x1f && magic[1] == 0x8b {
+		g, e := gzip.NewReader(buffered)
 		if e != nil {
-			f.Close()
 			return nil, e
 		}
-		return &closer{Reader: g, close: func() error { g.Close(); return f.Close() }}, nil
+		return g, nil
 	}
-	if n == 4 && buf[0] == 0x28 && buf[1] == 0xb5 && buf[2] == 0x2f && buf[3] == 0xfd {
-		z, e := zstd.NewReader(f, zstd.WithDecoderMaxMemory(128<<20))
+	if string(magic) == "\x28\xb5\x2f\xfd" {
+		z, e := zstd.NewReader(buffered, zstd.WithDecoderMaxMemory(128<<20))
 		if e != nil {
-			f.Close()
 			return nil, e
 		}
-		return &closer{Reader: z, close: func() error { z.Close(); return f.Close() }}, nil
+		return z.IOReadCloser(), nil
 	}
-	return f, nil
+	return io.NopCloser(buffered), nil
 }
 
-type closer struct {
-	io.Reader
-	close func() error
-}
-
-func (c *closer) Close() error { return c.close() }
 func clean(name string) (string, error) {
 	if strings.ContainsRune(name, '\x00') || strings.Contains(name, "\\") || strings.HasPrefix(name, "/") {
 		return "", fmt.Errorf("unsafe archive path")
@@ -105,7 +90,20 @@ func (r contextReader) Read(p []byte) (int, error) {
 	return r.r.Read(p)
 }
 func unpack(ctx context.Context, archive, dest string, outer, whiteoutPass bool, limits *budget) error {
-	r, e := reader(archive)
+	f, e := evidencefile.Open(archive)
+	if e != nil {
+		return e
+	}
+	defer f.Close()
+	info, e := f.Stat()
+	if e != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("archive must remain a regular file")
+	}
+	return unpackStream(ctx, f, dest, outer, whiteoutPass, limits)
+}
+
+func unpackStream(ctx context.Context, raw io.Reader, dest string, outer, whiteoutPass bool, limits *budget) error {
+	r, e := decoder(contextReader{ctx: ctx, r: raw})
 	if e != nil {
 		return e
 	}
@@ -161,22 +159,8 @@ func unpack(ctx context.Context, archive, dest string, outer, whiteoutPass bool,
 				return fmt.Errorf("invalid whiteout target")
 			}
 			if base == ".wh..wh..opq" {
-				d, e := root.Open(parent)
-				if os.IsNotExist(e) {
-					continue
-				}
-				if e != nil {
+				if e := containers.ClearLayerDirectory(ctx, root, parent); e != nil {
 					return e
-				}
-				names, e := d.Readdirnames(-1)
-				d.Close()
-				if e != nil {
-					return e
-				}
-				for _, v := range names {
-					if e = root.RemoveAll(path.Join(parent, v)); e != nil {
-						return e
-					}
 				}
 			} else {
 				if e = root.RemoveAll(path.Join(parent, strings.TrimPrefix(base, ".wh."))); e != nil && !os.IsNotExist(e) {
@@ -270,7 +254,16 @@ type descriptor struct {
 	} `json:"platform,omitempty"`
 }
 
-func blob(ctx context.Context, root *os.Root, d descriptor) (string, error) {
+type blobVerifier struct {
+	root      *os.Root
+	remaining int64
+	sizes     map[string]int64
+}
+
+func (v *blobVerifier) verify(ctx context.Context, d descriptor) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	parts := strings.Split(d.Digest, ":")
 	if len(parts) != 2 || parts[0] != "sha256" || len(parts[1]) != 64 {
 		return "", fmt.Errorf("only sha256 OCI blobs supported")
@@ -279,31 +272,43 @@ func blob(ctx context.Context, root *os.Root, d descriptor) (string, error) {
 		return "", e
 	}
 	n := "blobs/sha256/" + parts[1]
-	f, e := root.Open(n)
+	if size, ok := v.sizes[d.Digest]; ok {
+		if size != d.Size {
+			return "", fmt.Errorf("OCI blob size mismatch")
+		}
+		return n, nil
+	}
+	if d.Size < 0 || d.Size > v.remaining {
+		return "", fmt.Errorf("OCI blob verification budget exceeded")
+	}
+	f, e := v.root.Open(n)
 	if e != nil {
 		return "", e
 	}
 	defer f.Close()
+	info, e := f.Stat()
+	if e != nil || !info.Mode().IsRegular() || info.Size() != d.Size {
+		return "", fmt.Errorf("OCI blob size mismatch")
+	}
 	hash := sha256.New()
-	size, e := io.Copy(hash, io.LimitReader(contextReader{ctx: ctx, r: f}, maxBytes+1))
+	size, e := io.Copy(hash, io.LimitReader(contextReader{ctx: ctx, r: f}, d.Size+1))
 	if e != nil {
 		return "", e
 	}
-	if size > maxBytes || d.Size != size || hex.EncodeToString(hash.Sum(nil)) != parts[1] {
+	if d.Size != size || hex.EncodeToString(hash.Sum(nil)) != parts[1] {
 		return "", fmt.Errorf("OCI blob size/digest mismatch")
 	}
+	v.remaining -= size
+	v.sizes[d.Digest] = size
 	return n, nil
 }
+
 func Extract(ctx context.Context, archive, work string) (string, error) {
-	safeArchive, e := localfs.ResolveLocal(archive)
-	if e != nil {
-		return "", e
-	}
-	info, e := os.Stat(safeArchive)
-	if e != nil || !info.Mode().IsRegular() {
-		return "", fmt.Errorf("image input must be a local regular file")
-	}
-	archive = safeArchive
+	fsroot, _, err := ExtractWithIdentity(ctx, archive, work)
+	return fsroot, err
+}
+
+func extract(ctx context.Context, archive, work string, identity *Identity) (string, error) {
 	limits := &budget{remaining: maxBytes * 3} // bounded outer + prepass + materialized layer bytes
 
 	outer := filepath.Join(work, "image")
@@ -314,9 +319,11 @@ func Extract(ctx context.Context, archive, work string) (string, error) {
 	if e := os.MkdirAll(fsroot, 0700); e != nil {
 		return "", e
 	}
-	if e := unpack(ctx, archive, outer, true, false, limits); e != nil {
+	digest, e := extractOuter(ctx, archive, outer, limits)
+	if e != nil {
 		return "", e
 	}
+	identity.ArchiveSHA256 = digest
 	r, e := os.OpenRoot(outer)
 	if e != nil {
 		return "", e
@@ -325,6 +332,7 @@ func Extract(ctx context.Context, archive, work string) (string, error) {
 	var layers []string
 	var config string
 	if _, e = r.Stat("manifest.json"); e == nil {
+		identity.Format = "docker-save"
 		var m []struct {
 			Config string
 			Layers []string
@@ -338,6 +346,7 @@ func Extract(ctx context.Context, archive, work string) (string, error) {
 		config = m[0].Config
 		layers = m[0].Layers
 	} else {
+		identity.Format = "oci"
 		var index struct {
 			Manifests []descriptor `json:"manifests"`
 		}
@@ -353,7 +362,10 @@ func Extract(ctx context.Context, archive, work string) (string, error) {
 		if len(matches) != 1 {
 			return "", fmt.Errorf("OCI archive must identify exactly one linux/amd64 manifest")
 		}
-		manifest, e := blob(ctx, r, matches[0])
+		// The outer extraction already limits the sum of all file bytes to
+		// maxBytes. Count each verified blob only once against the same budget.
+		verifier := blobVerifier{root: r, remaining: maxBytes, sizes: make(map[string]int64)}
+		manifest, e := verifier.verify(ctx, matches[0])
 		if e != nil {
 			return "", e
 		}
@@ -364,12 +376,24 @@ func Extract(ctx context.Context, archive, work string) (string, error) {
 		if e = jsonFile(r, manifest, &m); e != nil {
 			return "", e
 		}
-		config, e = blob(ctx, r, m.Config)
+		if len(m.Layers) == 0 || len(m.Layers) > maxLayers {
+			return "", fmt.Errorf("invalid image layer count")
+		}
+		layerBytes := int64(0)
+		for _, d := range m.Layers {
+			if d.Size < 0 || d.Size > maxBytes-layerBytes {
+				return "", fmt.Errorf("image layer total size limit exceeded")
+			}
+			layerBytes += d.Size
+		}
+		config, e = verifier.verify(ctx, m.Config)
 		if e != nil {
 			return "", e
 		}
+		identity.ManifestDigest = matches[0].Digest
+		identity.ConfigDigest = m.Config.Digest
 		for _, d := range m.Layers {
-			n, e := blob(ctx, r, d)
+			n, e := verifier.verify(ctx, d)
 			if e != nil {
 				return "", e
 			}
@@ -386,8 +410,15 @@ func Extract(ctx context.Context, archive, work string) (string, error) {
 	if cfg.OS != "linux" || cfg.Architecture != "amd64" {
 		return "", fmt.Errorf("only linux/amd64 image archives are supported")
 	}
-	if len(layers) == 0 || len(layers) > 256 {
+	identity.OS, identity.Architecture = cfg.OS, cfg.Architecture
+	if len(layers) == 0 || len(layers) > maxLayers {
 		return "", fmt.Errorf("invalid image layer count")
+	}
+	if identity.Format == "docker-save" {
+		identity.ConfigDigest, e = dockerConfigDigest(ctx, r, config)
+		if e != nil {
+			return "", e
+		}
 	}
 	var expanded int64
 	for _, n := range layers {

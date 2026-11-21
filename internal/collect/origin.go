@@ -66,7 +66,7 @@ func PackageOrigins(ctx context.Context, inventory *sbom.SBOM, plan localfs.Plan
 	if inventory == nil || inventory.Artifacts.Packages == nil {
 		return result
 	}
-	root, err := os.OpenRoot(plan.Root)
+	root, err := plan.OpenRoot()
 	if err != nil {
 		return result
 	}
@@ -168,7 +168,7 @@ func aptIndexNames(ctx context.Context, root *os.Root, plan localfs.Plan) (map[s
 	if plan.ExcludesPath(dir) {
 		return nil, nil, nil
 	}
-	f, err := root.Open(dir)
+	f, err := plan.OpenIndexedDirectory(root, dir)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -186,7 +186,7 @@ func aptIndexNames(ctx context.Context, root *os.Root, plan localfs.Plan) (map[s
 		if ctx.Err() != nil {
 			break
 		}
-		file, _, err := localfs.OpenRegularEvidence(root, dir+"/"+name)
+		file, _, err := plan.OpenIndexedRegular(root, dir+"/"+name)
 		if err != nil {
 			continue
 		}
@@ -245,7 +245,7 @@ func rpmRepositories(ctx context.Context, root *os.Root, plan localfs.Plan) (map
 	const history = "var/lib/dnf/history.sqlite"
 	if !plan.ExcludesPath(history) {
 		if _, err := root.Lstat(history); err == nil {
-			repos, err := dnfHistory(ctx, root, history)
+			repos, err := dnfHistory(ctx, root, plan, history)
 			if err != nil {
 				return nil, "", "dnf history unreadable; RPM origins were not recorded"
 			}
@@ -257,14 +257,14 @@ func rpmRepositories(ctx context.Context, root *os.Root, plan localfs.Plan) (map
 		return nil, "", ""
 	}
 	repos := map[string]string{}
-	letters, err := root.Open(yumdb)
+	letters, err := plan.OpenIndexedDirectory(root, yumdb)
 	if err != nil {
 		return nil, "", ""
 	}
 	groups, _ := letters.ReadDir(64)
 	letters.Close()
 	for _, g := range groups {
-		dir, err := root.Open(yumdb + "/" + g.Name())
+		dir, err := plan.OpenIndexedDirectory(root, yumdb+"/"+g.Name())
 		if err != nil {
 			continue
 		}
@@ -277,7 +277,7 @@ func rpmRepositories(ctx context.Context, root *os.Root, plan localfs.Plan) (map
 			if !ok || i < 0 || ctx.Err() != nil {
 				continue
 			}
-			file, _, err := localfs.OpenRegularEvidence(root, yumdb+"/"+g.Name()+"/"+item.Name()+"/from_repo")
+			file, _, err := plan.OpenIndexedRegular(root, yumdb+"/"+g.Name()+"/"+item.Name()+"/from_repo")
 			if err != nil {
 				continue
 			}
@@ -294,14 +294,14 @@ func rpmRepositories(ctx context.Context, root *os.Root, plan localfs.Plan) (map
 
 // dnfHistory copies the history database (and its WAL) to the scratch
 // directory before opening it, so SQLite never writes beside the target.
-func dnfHistory(ctx context.Context, root *os.Root, history string) (map[string]string, error) {
+func dnfHistory(ctx context.Context, root *os.Root, plan localfs.Plan, history string) (map[string]string, error) {
 	tmp, err := os.MkdirTemp("", "koda-dnf-")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(tmp)
 	for _, suffix := range []string{"", "-wal"} {
-		src, _, err := localfs.OpenRegularEvidence(root, history+suffix)
+		src, _, err := plan.OpenIndexedRegular(root, history+suffix)
 		if err != nil {
 			if suffix == "" {
 				return nil, err

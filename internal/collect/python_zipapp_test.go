@@ -60,7 +60,11 @@ func TestPythonZipappHonorsSelectedPaths(t *testing.T) {
 	}
 	inventory := &sbom.SBOM{}
 	inventory.Artifacts.Packages = pkg.NewCollection()
-	if err := collectPythonZipapps(context.Background(), inventory, localfs.Plan{Root: root}); err != nil {
+	plan, err := localfs.Build(context.Background(), root, []string{"excluded.pyz"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := collectPythonZipapps(context.Background(), inventory, plan); err != nil {
 		t.Fatal(err)
 	}
 	if inventory.Artifacts.Packages.PackageCount() != 0 {
@@ -78,7 +82,11 @@ func TestMalformedPythonZipappPreservesOtherPackages(t *testing.T) {
 	}
 	inventory := &sbom.SBOM{}
 	inventory.Artifacts.Packages = pkg.NewCollection()
-	if err := collectPythonZipapps(context.Background(), inventory, localfs.Plan{Root: root, Paths: []string{"bad.pyz", "good.pyz"}}); err != nil {
+	plan, err := localfs.Build(context.Background(), root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := collectPythonZipapps(context.Background(), inventory, plan); err != nil {
 		t.Fatal(err)
 	}
 	if inventory.Artifacts.Packages.PackageCount() != 1 {

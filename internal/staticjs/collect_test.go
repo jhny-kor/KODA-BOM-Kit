@@ -10,7 +10,19 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"koda.local/security-sbom-linux/internal/localfs"
 )
+
+func evidencePlan(t *testing.T, dir string, paths ...string) localfs.Plan {
+	t.Helper()
+	plan, err := localfs.Build(context.Background(), dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.Paths = paths
+	return plan
+}
 
 func TestCollectDeploymentEvidence(t *testing.T) {
 	const core = "/*! jQuery v3.1.1 | jquery.org/license */\n"
@@ -36,7 +48,7 @@ $.ui.fancytree.registerExtension({name:"wide",version:"0.0.3"})`
 		{"assets/duplicate.js", "/*! jQuery v4.5.7 | jquery.org/license */", 0},
 	})
 	paths := []string{"deploy.war", "jquery.fancytree.childcounter.min.js", "jquery-4.5.6.min.js", "jquery.js"}
-	components, issues := Collect(context.Background(), dir, paths)
+	components, issues := Collect(context.Background(), evidencePlan(t, dir, paths...))
 	want := []Component{
 		{"jquery-ui", "1.12.1", "pkg:npm/jquery-ui@1.12.1", []string{"deploy.war!/assets/renamed-bundle.js"}, nil},
 		{"jquery.fancytree", "2.17.0", "pkg:npm/jquery.fancytree@2.17.0", []string{"deploy.war!/assets/renamed-bundle.js"}, nil},
@@ -96,7 +108,7 @@ func TestCollectBoundsAndRoot(t *testing.T) {
 	copy(end, []byte("PK\x05\x06"))
 	binary.LittleEndian.PutUint16(end[10:12], maxArchiveEntries+1)
 	writeFile(t, dir, "oversized.war", end)
-	got, issues := Collect(context.Background(), dir, []string{"external/jquery.js", "../outside/jquery.js", "large.js", "oversized.war"})
+	got, issues := Collect(context.Background(), evidencePlan(t, dir, "external/jquery.js", "../outside/jquery.js", "large.js", "oversized.war"))
 	if len(got) != 0 || len(issues) != 4 {
 		t.Fatalf("got %#v, issues %#v", got, issues)
 	}
@@ -130,7 +142,7 @@ func TestNestedDeploymentArchives(t *testing.T) {
 		{"other/ui.zip", string(webZip), 0},
 	})
 	writeFile(t, dir, "boot.jar", boot)
-	got, issues := Collect(context.Background(), dir, []string{"app.ear", "boot.jar"})
+	got, issues := Collect(context.Background(), evidencePlan(t, dir, "app.ear", "boot.jar"))
 	want := []Component{
 		{"jquery", "2.2.4", "pkg:npm/jquery@2.2.4", []string{"app.ear!/apps/app.war!/WEB-INF/lib/web.jar!/META-INF/resources/jquery.min.js", "boot.jar!/BOOT-INF/lib/resources.jar!/META-INF/resources/jquery.min.js"}, nil},
 		{"jquery", "3.1.1", "pkg:npm/jquery@3.1.1", []string{"app.ear!/apps/app.war!/assets/jquery.min.js"}, nil},
@@ -161,7 +173,7 @@ func TestNestedArchiveBoundaries(t *testing.T) {
 		{"dupe.war", string(hidden), 0},
 		{"invalid.war", "not an archive", 0},
 	})
-	got, issues := Collect(context.Background(), dir, []string{"deep.zip", "invalid.ear"})
+	got, issues := Collect(context.Background(), evidencePlan(t, dir, "deep.zip", "invalid.ear"))
 	if len(got) != 0 {
 		t.Fatalf("unexpected components %#v", got)
 	}

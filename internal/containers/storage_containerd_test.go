@@ -165,7 +165,7 @@ func TestBoltReaderAndContainerdStore(t *testing.T) {
 	dir := func(id int) string {
 		return filepath.Join(base, "io.containerd.snapshotter.v1.overlayfs/snapshots", strconv.Itoa(id), "fs")
 	}
-	if len(stopped) != 1 || stopped[0].Names[0] != "web-1" || stopped[0].Image != "docker.io/library/app:1" ||
+	if len(stopped) != 1 || stopped[0].ID != "web" || stopped[0].Names[0] != "web-1" || stopped[0].Image != "docker.io/library/app:1" ||
 		!reflect.DeepEqual(stopped[0].Layers, []string{dir(1), dir(2), dir(300)}) {
 		t.Fatalf("stopped %+v", stopped)
 	}

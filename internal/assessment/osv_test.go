@@ -1,6 +1,7 @@
 package assessment
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 func TestOSVExactVersionsPreserveIdentifiers(t *testing.T) {
 	raw := `{"id":"GHSA-example","aliases":["CVE-2024-12345"],"modified":"2024-01-01T00:00:00Z","references":[{"type":"ADVISORY","url":"https://example.org/advisory"}],"affected":[{"package":{"purl":"pkg:npm/example"},"versions":["1.2.3","1.2.3","1.2.4-beta.1"]}]}`
 	for _, input := range []string{raw, "[" + raw + "]"} {
-		out, err := parseOSV([]byte(input))
+		out, err := parseOSV(context.Background(), []byte(input))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -22,7 +23,7 @@ func TestOSVExactVersionsPreserveIdentifiers(t *testing.T) {
 		strings.Replace(raw, `"id":`, `"withdrawn":"2024-02-01T00:00:00Z","id":`, 1),
 		strings.Replace(raw, "pkg:npm/example", "", 1),
 	} {
-		if _, err := parseOSV([]byte(bad)); err == nil {
+		if _, err := parseOSV(context.Background(), []byte(bad)); err == nil {
 			t.Fatalf("accepted %s", bad)
 		}
 	}

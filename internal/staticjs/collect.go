@@ -36,6 +36,7 @@ type Component struct {
 
 type collector struct {
 	ctx               context.Context
+	plan              localfs.Plan
 	root              *os.Root
 	components        map[string]*Component
 	issues            []model.Issue
@@ -51,17 +52,17 @@ type collector struct {
 
 // Collect uses only the root-relative regular files admitted by preflight.
 // Archive paths are observed in place. It never extracts or executes files.
-func Collect(ctx context.Context, root string, paths []string) ([]Component, []model.Issue) {
-	c := collector{ctx: ctx, components: make(map[string]*Component), archiveReadBudget: totalArchiveReads, fingerprints: fancytreeFingerprintIndex()}
-	dir, err := os.OpenRoot(root)
+func Collect(ctx context.Context, plan localfs.Plan) ([]Component, []model.Issue) {
+	c := collector{ctx: ctx, plan: plan, components: make(map[string]*Component), archiveReadBudget: totalArchiveReads, fingerprints: fancytreeFingerprintIndex()}
+	dir, err := plan.OpenRoot()
 	if err != nil {
 		c.issue("", "static_js_root_unavailable", "JavaScript scan root could not be opened")
 		return nil, c.issues
 	}
 	defer dir.Close()
 	c.root = dir
-	c.scanPaths(paths, false)
-	c.scanPaths(paths, true)
+	c.scanPaths(plan.Paths, false)
+	c.scanPaths(plan.Paths, true)
 	switch {
 	case ctx.Err() != nil:
 		c.issue("", "static_js_cancelled", "JavaScript collection was cancelled")
@@ -142,7 +143,7 @@ func safePath(name string) bool {
 
 func (c *collector) scanFile(rel, kind string) {
 	c.probes++
-	f, st, err := localfs.OpenRegularEvidence(c.root, rel)
+	f, st, err := c.plan.OpenIndexedRegular(c.root, rel)
 	if err != nil {
 		c.issue(rel, "static_js_file_unavailable", "evidence file is no longer a readable regular file")
 		return
