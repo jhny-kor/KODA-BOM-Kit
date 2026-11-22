@@ -50,7 +50,7 @@
 | 待受ソケット | 同じ名前空間のTCP LISTEN/UDPとプロセスFD。バインドのみでは到達性不明。所有者不明は `unattributedSockets` |
 | 外部接続 | ローカルポートが待受ポートでないESTABLISHED TCPを、プロセスと接続先ごとに集計（最大16,384ソケット）。固定ローカルポートから相手の一時ポートへの接続は受け付けた接続として扱います。収集時に開いている接続のみ、ホストのプロセスのみが対象。このホストが待ち受けるポートへの接続は、その待受ソケットと所有プロセスに結びます |
 | 定期ジョブ | `/etc/crontab`、`/etc/cron.d`、ユーザーcrontab、`cron.{hourly,daily,weekly,monthly}` のスクリプト、有効なsystemdタイマーの `On*` スケジュール。実行ファイルの絶対パスのみ記録し、引数は破棄 |
-| ファイアウォール | iptables-saveファイル（RHEL・Debian・ufw）、firewalldの既定ゾーンとサービス定義、nftablesのinput hookチェーンとリテラルinclude。ファイル上の宣言で、カーネルに読み込まれたルールは読みません。ポリシーのないbase chainは許可、`ENABLED=no` のufwは `disabled`。ループバック専用・確立済み状態・否定のルールは開いたポートとみなさず、プロトコル全体のTCP/UDP許可はそのプロトコルの全ポートを開くとみなします。ループバック以外の待受ソケットに `firewall-declared`（`accept-declared`、`accept-declared-restricted`、`policy-accept-declared`、`no-accept-declared`、`undetermined`）を付与 |
+| ファイアウォール | iptables-saveファイル（RHEL・Debian・ufw）、firewalldの既定ゾーンとサービス定義、nftablesのinput hookチェーンとリテラルinclude。ファイル上の宣言で、カーネルに読み込まれたルールは読みません。ポリシーのないbase chainは許可、`ENABLED=no` のufwは `disabled`。ループバック専用・確立済み状態・否定のルールは開いたポートとみなさず、プロトコル全体のTCP/UDP許可はそのプロトコルの全ポートを開くとみなします。ホストのネットワーク名前空間にあるループバック以外の待受ソケットに `firewall-declared`（`accept-declared`、`accept-declared-restricted`、`policy-accept-declared`、`no-accept-declared`、`undetermined`、有効な宣言を読めなかった場合は `none-observed`）を付与。コンテナのソケットは独自のネットワーク名前空間にあるため付与しません。コンテナがNATで公開するポートはFORWARDルールを通るため評価しません |
 | 設定・再起動 | SELinux、AppArmor、lockdown、FIPS、許可起動引数、カーネル `y`/`m`、再起動要求、実行モジュール、新しい同系統カーネル。信号不在だけでは再起動不要を証明できません |
 | SSH | グローバル宣言。`Match` を除外し `Include` の実効優先順位は計算しません |
 | taint・モジュール | `kernel.tainted`、`/proc/modules`、sysfsのversion/srcversion |

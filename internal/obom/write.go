@@ -181,7 +181,7 @@ func write(ctx context.Context, collectionDir, outputDir string, include17, veri
 		}
 	}
 	g.components[host] = hostRecord
-	g.firewall = hostContext.Firewall
+	g.firewall, g.firewallScope = hostContext.Firewall, host
 	g.processes(host, hostContext.ProcessLinks)
 	g.units(host, hostContext.EnabledServices)
 	g.jobs(host, hostContext.ScheduledJobs)

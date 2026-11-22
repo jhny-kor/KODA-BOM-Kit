@@ -39,8 +39,10 @@ type graph struct {
 	components map[string]component
 	services   map[string]service
 	edges      map[string]map[string]bool
-	// Host firewall declarations used to annotate non-loopback listening sockets.
-	firewall []model.FirewallDeclaration
+	// Host firewall declarations used to annotate non-loopback listening sockets
+	// of firewallScope. Containers have network namespaces of their own.
+	firewall      []model.FirewallDeclaration
+	firewallScope string
 	// Listening sockets and outbound connections, matched by resolveRemotes.
 	listeners []listener
 	pending   []pendingRemote
@@ -207,8 +209,8 @@ func (g *graph) socket(scope, owner string, s model.Socket) {
 	ref := reference(scope, "socket", owner, s.Protocol, label)
 	protocol := strings.TrimSuffix(s.Protocol, "6")
 	props := []property{prop("scope", scope), prop("protocol", s.Protocol), prop("bind-address", s.Address), prop("port", strconv.Itoa(s.Port)), prop("bind-scope", s.BindScope), prop("observation", "listening-socket")}
-	if declared := firewallAccepts(g.firewall, s.Protocol, s.Port); declared != "" && s.BindScope != "loopback" {
-		props = append(props, prop("firewall-declared", declared))
+	if s.BindScope != "loopback" && scope == g.firewallScope {
+		props = append(props, prop("firewall-declared", firewallAccepts(g.firewall, s.Protocol, s.Port)))
 	}
 	if owner == "" {
 		props = append(props, prop("owner", "unknown"))
@@ -289,7 +291,8 @@ func parseSocketLabel(label string) (model.Socket, error) {
 // firewallAccepts summarizes how active declarations treat an inbound port:
 // "accept-declared", "accept-declared-restricted", "policy-accept-declared",
 // "no-accept-declared", or "undetermined" when a policy or rule could not be
-// resolved. It returns "" when no active firewall declaration exists.
+// resolved. It returns "none-observed" when no active declaration was read:
+// none exists, all are disabled, or the files were unreadable.
 func firewallAccepts(declarations []model.FirewallDeclaration, protocol string, port int) string {
 	protocol = strings.TrimSuffix(protocol, "6")
 	active, restricted, policyAccept, unknown := false, false, false, false
@@ -320,7 +323,7 @@ func firewallAccepts(declarations []model.FirewallDeclaration, protocol string, 
 	}
 	switch {
 	case !active:
-		return ""
+		return "none-observed"
 	case policyAccept:
 		return "policy-accept-declared"
 	case restricted:

@@ -90,7 +90,8 @@ func TestFirewallAcceptsOrdering(t *testing.T) {
 		{[]model.FirewallDeclaration{{DefaultInputPolicy: "DROP", AllowedInbound: []string{"udp/all"}}}, "no-accept-declared"},
 		{[]model.FirewallDeclaration{{DefaultInputPolicy: "DROP", AllowedInbound: []string{"tcp/5432 restricted"}}}, "accept-declared-restricted"},
 		{[]model.FirewallDeclaration{{DefaultInputPolicy: "DROP", UnresolvedRules: 1}}, "undetermined"},
-		{[]model.FirewallDeclaration{{State: "disabled", DefaultInputPolicy: "DROP"}}, ""},
+		{[]model.FirewallDeclaration{{State: "disabled", DefaultInputPolicy: "DROP"}}, "none-observed"},
+		{nil, "none-observed"},
 	}
 	for _, tt := range tests {
 		if got := firewallAccepts(tt.d, "tcp6", 5432); got != tt.want {
@@ -161,5 +162,40 @@ func TestHostAddressAndSelfConnections(t *testing.T) {
 				t.Fatalf("no remote service expected: %s", s.Name)
 			}
 		}
+	}
+}
+
+func TestContainerSocketsAreNotJudgedByHostFirewall(t *testing.T) {
+	g := newGraph()
+	g.firewall, g.firewallScope = []model.FirewallDeclaration{{DefaultInputPolicy: "ACCEPT"}}, "host"
+	g.processes("host", []model.ProcessLink{{PID: 1, Executable: "usr/sbin/sshd", ListeningSockets: []model.Socket{{Protocol: "tcp", Address: "0.0.0.0", Port: 22, BindScope: "all-interfaces"}}}})
+	// A container's sockets live in its own network namespace; host INPUT rules do not govern them.
+	g.processes("container", []model.ProcessLink{{PID: 2, Executable: "usr/sbin/nginx", ListeningSockets: []model.Socket{{Protocol: "tcp", Address: "0.0.0.0", Port: 80, BindScope: "all-interfaces"}}}})
+	declared := map[string]string{}
+	for _, s := range g.services {
+		for _, p := range s.Properties {
+			if p.Name == "koda:obom:firewall-declared" {
+				declared[s.Name] = p.Value
+			}
+		}
+	}
+	if len(declared) != 1 || declared["tcp 0.0.0.0:22"] != "policy-accept-declared" {
+		t.Fatalf("only the host socket should carry a firewall verdict: %v", declared)
+	}
+	// Without an active declaration the host listener says so; loopback stays unannotated.
+	g = newGraph()
+	g.firewallScope = "host"
+	g.processes("host", []model.ProcessLink{{PID: 1, Executable: "usr/sbin/sshd", ListeningSockets: []model.Socket{
+		{Protocol: "tcp", Address: "0.0.0.0", Port: 22, BindScope: "all-interfaces"}, {Protocol: "tcp", Address: "127.0.0.1", Port: 631, BindScope: "loopback"}}}})
+	declared = map[string]string{}
+	for _, s := range g.services {
+		for _, p := range s.Properties {
+			if p.Name == "koda:obom:firewall-declared" {
+				declared[s.Name] = p.Value
+			}
+		}
+	}
+	if len(declared) != 1 || declared["tcp 0.0.0.0:22"] != "none-observed" {
+		t.Fatalf("unfirewalled host listener: %v", declared)
 	}
 }
