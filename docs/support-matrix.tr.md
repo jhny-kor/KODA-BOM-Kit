@@ -30,11 +30,11 @@ Host `/` ayrı belgeleri `boms/`, birleşik belgeyi `bom.cdx.json` içine yazar.
 | BOM | Mevcut kanıtlar | Ek girdiler |
 |---|---|---|
 | SBOM | OS/dil paketleri, sürüm/PURL, lisans/bağımlılık, JAR, modül, konteyner | Statik/derleme bağımlılıkları için çıktı SHA-256'ya bağlı sağlayıcı/CI CycloneDX/SPDX, `build-sbom.cdx.json` |
-| HBOM | CPU/kart/aygıt/sürücü/firmware, EDAC DIMM, güç/fan sensörü | Görünmeyen parça, numara, tedarikçi ve yaşam döngüsü için Redfish/varlık kaydı |
-| CBOM | Açık sertifika/anahtar/algoritma, doğrulanmış verenler, TLS/SSH, JKS | Ölçülmüş TLS, HSM/KMS/korumalı depoların açık metaveri çıktısı |
-| OBOM | Host/konteyner/süreç/dosya/paket/soket ve systemd | Aynı küme Kubernetes Pod/workload/Service/Ingress, etiketler, host eşleşen `--network-evidence` |
-| SaaSBOM | Hizmet/OpenAPI tanımlarından `saasbom.cdx.json` | Sağlayıcı/katalog/API, dış bağımlılık, kimlik doğrulama, güven, sınıflandırılmış akış |
-| AI-BOM | Yapılandırma, nicemleme/bağlam, indeks, GGUF/safetensors başlık/boyut, Ollama. Açık çıktının tam SHA-256 değeri. `aibom.cdx.json` | Kimlik/revizyon/ağırlık, soy, kart/lisans, eğitim/değerlendirme kaynağı |
+| HBOM | CPU/kart/aygıt/sürücü/firmware, EDAC DIMM, güç/fan sensörü, SMBIOS bellek modülleri (üretici, parça numarası, hız), güç kaynakları ve yuvalar | Görünmeyen parça, numara, tedarikçi ve yaşam döngüsü için Redfish/varlık kaydı |
+| CBOM | Açık sertifika/anahtar/algoritma, doğrulanmış verenler, TLS/SSH, JKS, SSH host açık anahtarları, sistem şifreleme politikası, OpenSSL protokol/şifre/grup beyanları | Ölçülmüş TLS, HSM/KMS/korumalı depoların açık metaveri çıktısı |
+| OBOM | Host/konteyner/süreç/dosya/paket/soket ve systemd, süreç başına giden TCP hedefleri, systemd zamanlayıcıları, cron işleri ve beyan edilmiş güvenlik duvarı kuralları | Aynı küme Kubernetes Pod/workload/Service/Ingress, etiketler, host eşleşen `--network-evidence` |
+| SaaSBOM | Hizmet/OpenAPI tanımlarından `saasbom.cdx.json`. Ayrıca OpenAPI YAML ile nginx, Apache ve HAProxy yapılandırmasında beyan edilen arka uçlar | Sağlayıcı/katalog/API, dış bağımlılık, kimlik doğrulama, güven, sınıflandırılmış akış |
+| AI-BOM | Yapılandırma, nicemleme/bağlam, indeks, GGUF/safetensors başlık/boyut, Ollama. Açık çıktının tam SHA-256 değeri. `aibom.cdx.json`. Ayrıca ONNX başlıkları, PyTorch pickle içe aktarma güvenliği, Hugging Face model kartları ve önbellek ref'leri, model sunucusunun başlatılırken belirttiği model | Kimlik/revizyon/ağırlık, soy, kart/lisans, eğitim/değerlendirme kaynağı |
 | MBOM | Eşleşen SLSA veya beyan edilmiş montaj/test, `mbom.cdx.json` `formulation` | CI aşama/araç/girdi/çıktı/çalıştırma veya üretim/denetim geçmişi |
 
 ## Katmanlar
@@ -48,15 +48,18 @@ Host `/` ayrı belgeleri `boms/`, birleşik belgeyi `bom.cdx.json` içine yazar.
 | Çalışan yazılım | Aynı kapsamda çalıştırılabilir/kütüphane ve sahip paket. Değişim yeniden başlatma incelemesi sağlar |
 | Kimlik | Host `/` için machine-id/UUID/seri SHA-256 ve açık etiket. İzin/genel varsayılanlara bağlıdır. Takma kimliklendirmedir |
 | Soketler | Aynı ağ alanı TCP LISTEN/UDP ve süreç FD'leri. Bind tek başına güvenlik duvarını belirlemez. Sahipsiz `unattributedSockets` |
+| Giden bağlantılar | Yerel portu dinleme portu olmayan ESTABLISHED TCP, süreç ve uzak hedef başına, en çok 16.384 soket. Sabit yerel porttan karşı tarafın geçici portuna giden bağlantı kabul edilmiş sayılır. Yalnızca toplama anında açık olan bağlantılar görülür. Yalnızca host süreçleri. Bu host'un dinlediği bir porta giden bağlantı, istemci süreci o dinleyen sokete ve sahibi olan sürece bağlar |
+| Zamanlanmış işler | `/etc/crontab`, `/etc/cron.d`, kullanıcı crontab'ları ve `cron.{hourly,daily,weekly,monthly}` betikleri ile etkin systemd zamanlayıcılarının `On*` takvimi. Yalnızca programın mutlak yolu tutulur; argümanlar atılır |
+| Güvenlik duvarı | iptables-save dosyaları (RHEL/Debian/ufw), firewalld varsayılan bölgesi ve hizmetleri, input hook'lu nftables zincirleri ve sabit include'lar. Bunlar dosya beyanlarıdır; çekirdeğe yüklü kural kümesi okunmaz. Politikasız base chain kabul eder; `ENABLED=no` olan ufw `disabled` olarak kaydedilir. Yalnızca loopback, kurulmuş durum ve olumsuzlanmış kurallar açık port sayılmaz; protokol genelinde TCP/UDP kabulü o protokolün tüm portlarını açar. Loopback dışındaki dinleyen soketlere `firewall-declared` eklenir: `accept-declared`, `accept-declared-restricted`, `policy-accept-declared`, `no-accept-declared` veya `undetermined` |
 | Ayar/yeniden başlatma | SELinux, AppArmor, lockdown, FIPS, izinli açılış, çekirdek `y`/`m`, reboot-required, modül/yeni aynı aile çekirdek. Sinyal yokluğu yeniden başlatmanın gereksizliğini kanıtlamaz |
 | SSH | Genel beyanlar, `Match` hariç, etkin `Include` önceliği hesaplanmaz |
 | Taint/modül | `kernel.tainted`, `/proc/modules`, varsa sysfs version/srcversion |
 | Bilinmeyen dosya | Aynı root'ta paket/bileşen/ürün sahibi yok. Diğer mount alanları hariç. Sınıflandırma ek araştırma ister |
 | Kaynak | apt düz/gz/lz4 ad eşleştirmesi, dnf/yumdb. Silinen listeler, dnf5/apk desteklenmez. URL/yol atlanır |
-| Hizmet | systemd wants/requires, unit/drop-in, cgroup v1/v2. İlk ExecStart, göreli dosya pakete bağlanmaz. Özel slice durmuş görünebilir. SysV yok |
+| Hizmet | systemd wants/requires, unit/drop-in, cgroup v1/v2. İlk ExecStart, göreli dosya pakete bağlanmaz. Özel slice durmuş görünebilir. SysV yok. Etkin zamanlayıcılar `On*` takvimini ve başlattıkları hizmeti kaydeder |
 | CPE | Intel Xeon/Core, AMD EPYC/Ryzen, Dell PowerEdge aygıt/BIOS, Lenovo ThinkSystem. Sözlük/model eksikleri eşleşmeyi engeller. HPE/BMC yok |
 | Bütünlük | RPM/dpkg/apk çalıştırılabilir/kütüphane hash'leri. Config/ghost hariç. 8 GiB host, 1 GiB konteyner. prelink yanlış fark verebilir |
-| CBOM | PEM/DER, açık anahtar/algoritma, JKS v1/v2 açık zincir/takma ad hash'i. Şifreli anahtar atlanır, JKS bütünlüğü doğrulanmaz. Adlar, özel anahtar, PKCS#12, OS depoları, >20 sertifika hariç |
+| CBOM | PEM/DER, açık anahtar/algoritma, JKS v1/v2 açık zincir/takma ad hash'i. Şifreli anahtar atlanır, JKS bütünlüğü doğrulanmaz. Adlar, özel anahtar, PKCS#12, OS depoları, >20 sertifika hariç. SSH host açık anahtarları da dahil. `crypto-policies` ve `openssl.cnf` içindeki MinProtocol/CipherString/Ciphersuites/Groups beyan olarak kaydedilir; `.include` ve bölüm etkinleştirme çözümlenmez |
 | Çekirdek | uname, kurulu imaj/modül, vermagic, RPM. Çalışan/kurulu ayrılır. Modül yokluğu gömülü işlev olabilir |
 | Livepatch | sysfs, Oracle raw Ksplice, isteğe bağlı Ksplice/Uptrack/Canonical helper. Boot/çekirdek/zaman farkı uygulama kanıtını geçersiz kılar. CVE ayrı analiz ister |
 | Java | JDK/JRE release, JAR/WAR/EAR manifest, Maven. Değiştirilmiş/silinmiş shaded metaveri sınırlıdır |

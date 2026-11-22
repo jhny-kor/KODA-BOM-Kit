@@ -58,7 +58,7 @@ Linux amd64용 압축파일과 이름이 일치하는 SHA-256 파일을 내려�
 | `boms/cbom.cdx.json` | 인증서·알고리즘 등 암호 자산 |
 | `boms/obom.cdx.json` | 서비스·프로세스·소켓·패키지 사이에서 관측된 관계 |
 | `boms/aibom.cdx.json` | 로컬 모델 파일·가중치와 제공된 모델 메타데이터 |
-| `boms/saasbom.cdx.json` | OpenAPI 문서나 서비스 명세에 정의된 서비스 |
+| `boms/saasbom.cdx.json` | OpenAPI 문서나 서비스 명세에 정의된 서비스와 프록시 설정에 선언된 백엔드 |
 | `boms/mbom.cdx.json` | 입력한 증적으로 확인되는 제조·빌드 공정 |
 
 해당 호스트에서 증거를 찾지 못한 BOM은 항목이 비어 있을 수 있습니다. 개별 BOM의 증거 상태와 `collection.json`에서 사유를 확인하세요. Tracker에는 최상위의 `sbom.cdx.json` 또는 `sbom.spdx.json`을 제출합니다. 기본 출력 형식은 CycloneDX 1.6과 SPDX 2.3입니다. `--cyclonedx-17`을 추가하면 CycloneDX 1.7도 함께 생성합니다.

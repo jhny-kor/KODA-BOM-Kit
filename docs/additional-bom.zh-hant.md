@@ -38,6 +38,10 @@
 
 `--saas-evidence` 接受OpenAPI 3.x JSON或 `koda-services-1`。從OpenAPI讀取標題、版本、根/路徑/操作明確聲明的絕對服務器地址和操作認證聲明。默認相對地址的部署位置保持未知。存在匿名操作則 `authenticated=false`，全部已檢查操作要求認證則為 `true`，聲明不足時省略。正文示例、安全方案內容、描述和秘密值不輸出。[OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
 
+OpenAPI也可以使用YAML。YAML只能包含一個文檔，拒絕重複鍵，數字保留原文（`version: 1.0` 保持為 `1.0`）。
+
+主機採集還會讀取反向代理和負載均衡器配置：nginx `upstream`、`proxy_pass`、`grpc_pass`，Apache `ProxyPass`、`BalancerMember`，以及HAProxy `backend` 中的 `server`。每個後端記錄為帶有 `observation=declared-proxy-backend` 和聲明所在文件、行號的服務。只保留協議、主機和端口，丟棄路徑、查詢和憑據；使用變量的目標報告為未解析。後端是否可達由OBOM的外部連接確認，而非此聲明。Debian的 `*-available` 文件僅通過 `*-enabled` 鏈接生效，CBOM的TLS聲明也適用同一規則。
+
 使用以下格式提供供應者、信任邊界、數據分類和服務依賴。
 
 ```json
@@ -78,6 +82,10 @@
 - Hugging Face的 `config.json` 提供架構、文本模型層數、注意力頭數、最大上下文和量化配置。權重索引提供聲明的張量數量和分片列表。
 - safetensors和GGUF頭提供格式、張量數和可用元數據。模型與權重文件通過依賴關係連接。大型權重也只讀取有限頭部範圍，配置/索引/頭部哈希與完整文件哈希分別標記。
 - Ollama清單連接模型層與可讀本地blob頭。模型服務器當前加載狀態需要運行時證據。
+- `config.json` 旁的Hugging Face `README.md` 模型卡提供許可證、`base_model`、`datasets`、`pipeline_tag`、語言和庫。基礎模型和數據集作為聲明的組件與模型關聯。在Hugging Face緩存中，指向該快照的 `refs/main` 等ref記錄為 `cache-ref`。模型卡內容仍是發佈者聲明。
+- ONNX文件提供IR版本、生成工具、模型版本和算子集。`ai.onnx`、`ai.onnx.ml` 以外的算子域需要原生自定義算子庫，因此列為 `onnx:custom-operator-domain`。
+- PyTorch檢查點（`pytorch_model*.bin`、`.pt`、`.pth`、`.ckpt`，zip或舊格式）是加載時會執行其導入函數的pickle。KODA不執行文件，只遍歷pickle操作碼，並將 `pickle:safety` 記錄為 `allowlisted-imports-only`、`unknown-imports` 或 `dangerous-imports`，`os.system` 等危險導入列為 `pickle:dangerous-import`。無法遍歷到末尾的文件記為 `pickle:inspection=incomplete`，絕不判定為僅允許列表，並保留失敗前找到的導入；協議0/1 pickle和舊版 `torch.save` 文件的全部五個流也會檢查。非僅允許列表的文件建議改用safetensors。Hugging Face模型文件夾中的pickle和ONNX文件（如 `pytorch_model.bin`、`training_args.bin`、`optimizer.pt`）關聯到該模型，模型以 `artifact-pickle-safety` 記錄其中最不安全的結果。
+- 在運行中的主機上，以模型路徑或倉庫ID啓動的vLLM、TGI、llama.cpp、SGLang、Triton或LMDeploy進程會使匹配的模型記錄 `runtime-state=referenced-by-running-process` 和 `serving-process`，OBOM進程帶有 `model-reference`。這基於啓動參數；按請求選擇模型的Ollama不做匹配。
 
 ### Linux 上的 Qwen 與 NVIDIA GPU
 
@@ -96,7 +104,7 @@ sudo ./koda-bom --output-dir ./koda-results
 | PyTorch、Transformers、vLLM、CUDA包版本 | 可讀取安裝元數據的主機或容器SBOM |
 | 服務進程和監聽套接字 | 觀察到進程及可執行文件時的 `boms/obom.cdx.json` |
 
-訓練/評估數據、許可證、上游修訂和譜系需要模型卡或來源聲明。當前GPU/VRAM使用、MIG分配和實際服務上下文需要另外的運行時觀察。
+模型卡之外的訓練/評估數據和譜系需要來源聲明。當前GPU/VRAM使用、MIG分配和實際服務上下文需要另外的運行時觀察。
 
 僅指定權重產物會記錄完整SHA-256及safetensors或GGUF v2/v3頭信息，並標記 `artifact-binding=sha256-calculated`。safetensors讀取dtype和數據範圍，GGUF讀取存在的 `general.name`、`general.architecture`、`general.file_type`。張量數據和模型計算需單獨驗證。[safetensors格式](https://github.com/safetensors/safetensors#format)
 

@@ -30,11 +30,11 @@
 | BOM | 取得できる証拠 | 追加資料 |
 |---|---|---|
 | SBOM | OS・言語パッケージ、版/PURL、ライセンス・依存関係、JAR、内蔵モジュール、コンテナー | 成果物SHA-256と対応する供給者/CI CycloneDX・SPDXで静的/ビルド依存を補完し `build-sbom.cdx.json` に出力 |
-| HBOM | CPU・基板・機器・ドライバー・ファームウェア、EDAC DIMM、電源・ファン | 見えない部品、部品番号、供給者、ライフサイクルのRedfish・資産台帳 |
-| CBOM | 公開証明書・鍵・アルゴリズム、検証した発行関係、TLS/SSH設定、JKS | TLS実測とHSM/KMS/保護ストアの公開メタデータ |
-| OBOM | ホスト・コンテナー・プロセス・実行ファイル・パッケージ・ソケット、systemd | 同一クラスターのPod/workload/Service/Ingress JSON、配置ラベル、ホスト一致の `--network-evidence` |
-| SaaSBOM | サービス仕様/OpenAPIを `saasbom.cdx.json` に変換 | 提供者・カタログ・API、外部依存、認証、信頼境界、分類したデータフロー |
-| AI-BOM | 設定、量子化/コンテキスト、重みインデックス、GGUF/safetensorsヘッダー/サイズ、Ollama。明示成果物の全体SHA-256。`aibom.cdx.json` | モデルID・リビジョン・重み・系譜、カード/ライセンス、学習/評価データ出所 |
+| HBOM | CPU・基板・機器・ドライバー・ファームウェア、EDAC DIMM、電源・ファン、SMBIOSのメモリーモジュール（製造元・部品番号・速度）・電源ユニット・スロット | 見えない部品、部品番号、供給者、ライフサイクルのRedfish・資産台帳 |
+| CBOM | 公開証明書・鍵・アルゴリズム、検証した発行関係、TLS/SSH設定、JKS、SSHホスト公開鍵、システム暗号ポリシー、OpenSSLのプロトコル・暗号スイート・グループ宣言 | TLS実測とHSM/KMS/保護ストアの公開メタデータ |
+| OBOM | ホスト・コンテナー・プロセス・実行ファイル・パッケージ・ソケット、systemd、プロセスごとの外部TCP接続先、systemdタイマー、cronジョブ、ファイアウォール設定の宣言 | 同一クラスターのPod/workload/Service/Ingress JSON、配置ラベル、ホスト一致の `--network-evidence` |
+| SaaSBOM | サービス仕様/OpenAPIを `saasbom.cdx.json` に変換。OpenAPI YAMLと、nginx・Apache・HAProxy設定で宣言されたバックエンドも対象 | 提供者・カタログ・API、外部依存、認証、信頼境界、分類したデータフロー |
+| AI-BOM | 設定、量子化/コンテキスト、重みインデックス、GGUF/safetensorsヘッダー/サイズ、Ollama。明示成果物の全体SHA-256。`aibom.cdx.json`。ONNXヘッダー、PyTorch pickleのimport安全性、Hugging Faceのモデルカード・キャッシュref、モデルサーバーが起動時に指定したモデルも観測 | モデルID・リビジョン・重み・系譜、カード/ライセンス、学習/評価データ出所 |
 | MBOM | 一致したSLSAまたは物理組立/試験の宣言・報告を `mbom.cdx.json` の `formulation` へ | CI工程・ツール・入出力・実行記録、製造工程・検査履歴 |
 
 ## 層ごとの収集
@@ -48,15 +48,18 @@
 | 実行ソフトウェア | 同じファイルシステム範囲で実行/共有ライブラリと所有パッケージを対応。置換は再起動レビューの根拠です |
 | ホスト識別 | ホスト `/` のmachine-id/DMI UUID/シリアルSHA-256と資産タグ。権限・共通初期値を考慮。仮名化情報です |
 | 待受ソケット | 同じ名前空間のTCP LISTEN/UDPとプロセスFD。バインドのみでは到達性不明。所有者不明は `unattributedSockets` |
+| 外部接続 | ローカルポートが待受ポートでないESTABLISHED TCPを、プロセスと接続先ごとに集計（最大16,384ソケット）。固定ローカルポートから相手の一時ポートへの接続は受け付けた接続として扱います。収集時に開いている接続のみ、ホストのプロセスのみが対象。このホストが待ち受けるポートへの接続は、その待受ソケットと所有プロセスに結びます |
+| 定期ジョブ | `/etc/crontab`、`/etc/cron.d`、ユーザーcrontab、`cron.{hourly,daily,weekly,monthly}` のスクリプト、有効なsystemdタイマーの `On*` スケジュール。実行ファイルの絶対パスのみ記録し、引数は破棄 |
+| ファイアウォール | iptables-saveファイル（RHEL・Debian・ufw）、firewalldの既定ゾーンとサービス定義、nftablesのinput hookチェーンとリテラルinclude。ファイル上の宣言で、カーネルに読み込まれたルールは読みません。ポリシーのないbase chainは許可、`ENABLED=no` のufwは `disabled`。ループバック専用・確立済み状態・否定のルールは開いたポートとみなさず、プロトコル全体のTCP/UDP許可はそのプロトコルの全ポートを開くとみなします。ループバック以外の待受ソケットに `firewall-declared`（`accept-declared`、`accept-declared-restricted`、`policy-accept-declared`、`no-accept-declared`、`undetermined`）を付与 |
 | 設定・再起動 | SELinux、AppArmor、lockdown、FIPS、許可起動引数、カーネル `y`/`m`、再起動要求、実行モジュール、新しい同系統カーネル。信号不在だけでは再起動不要を証明できません |
 | SSH | グローバル宣言。`Match` を除外し `Include` の実効優先順位は計算しません |
 | taint・モジュール | `kernel.tainted`、`/proc/modules`、sysfsのversion/srcversion |
 | 不明実行ファイル | 同じrootでパッケージ・構成要素・製品に帰属しない実行中ファイル。他mount namespaceを除外。追加調査で分類します |
 | パッケージ出所 | apt平文/gz/lz4、dnf履歴、yumdb。aptは名前照合。削除履歴・dnf5・apkは非対応。URL/パスは省略 |
-| 起動サービス | systemd wants/requires、unit/drop-in、cgroup v1/v2。最初のExecStart、相対実行パスはパッケージ未接続。独自sliceは停止表示の場合あり。SysVは非対応 |
+| 起動サービス | systemd wants/requires、unit/drop-in、cgroup v1/v2。最初のExecStart、相対実行パスはパッケージ未接続。独自sliceは停止表示の場合あり。SysVは非対応。有効なタイマーは `On*` スケジュールと起動するサービスを記録 |
 | 機器CPE | Intel Xeon/Core、AMD EPYC/Ryzen、Dell PowerEdge機器/BIOS、Lenovo ThinkSystem機器。辞書/モデル欠落で一致しない場合あり。HPE/BMCは省略 |
 | 整合性 | RPM/dpkg/apkの実行/ライブラリハッシュ。設定/ghost除外、ホスト8 GiB・コンテナー1 GiB。prelinkによる誤差の可能性 |
-| CBOM・証明書 | PEM/DER、公開鍵/アルゴリズム、JKS v1/v2公開チェーン・別名ハッシュ。暗号化鍵を読み飛ばし整合性未検証。主体/発行者名、秘密鍵、PKCS#12内容、OS信頼ストア、20証明書超の束は除外 |
+| CBOM・証明書 | PEM/DER、公開鍵/アルゴリズム、JKS v1/v2公開チェーン・別名ハッシュ。暗号化鍵を読み飛ばし整合性未検証。主体/発行者名、秘密鍵、PKCS#12内容、OS信頼ストア、20証明書超の束は除外。SSHホスト公開鍵も記録。`crypto-policies` と `openssl.cnf` のMinProtocol/CipherString/Ciphersuites/Groupsは宣言として記録し、`.include` とセクションの有効化は解決しません |
 | カーネル | uname、インストール済みイメージ/モジュール、vermagic、RPM版。実行中とインストール済みを区別。モジュール欠落は内蔵機能の可能性があります |
 | ライブパッチ | livepatch sysfs、Oracle raw Ksplice、任意Ksplice/Uptrack/Canonical helper。起動・カーネル・時刻不一致は適用根拠に使いません。CVEは別解析が必要です |
 | Java | JDK/JRE release、JAR/WAR/EAR manifest、Maven。shaded metadataの削除/変更で部分識別 |

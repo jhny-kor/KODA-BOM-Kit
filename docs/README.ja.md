@@ -58,7 +58,7 @@ Linux amd64 用のアーカイブと対応する SHA-256 ファイルをダウ�
 | `boms/cbom.cdx.json` | 証明書やアルゴリズムなどの暗号資産 |
 | `boms/obom.cdx.json` | サービス、プロセス、ソケット、パッケージ間で観測した関係 |
 | `boms/aibom.cdx.json` | ローカルのモデルファイル、重み、提供されたメタデータ |
-| `boms/saasbom.cdx.json` | OpenAPI 文書またはサービス定義に記載されたサービス |
+| `boms/saasbom.cdx.json` | OpenAPI 文書またはサービス定義に記載されたサービスと、プロキシ設定で宣言されたバックエンド |
 | `boms/mbom.cdx.json` | 提供された証跡に基づく製造・ビルド工程 |
 
 ホストで証跡が見つからなかった BOM の項目は空になる場合があります。各 BOM の証跡ステータスと `collection.json` で理由を確認してください。Tracker には最上位の `sbom.cdx.json` または `sbom.spdx.json` を登録します。 既定の形式は CycloneDX 1.6 と SPDX 2.3 です。`--cyclonedx-17` を追加すると CycloneDX 1.7 も同時に出力します。

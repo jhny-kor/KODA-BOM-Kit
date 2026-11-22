@@ -58,7 +58,7 @@ Dòng cuối hiển thị đường dẫn đến thư mục vừa tạo trong `b
 | `boms/cbom.cdx.json` | Tài sản mật mã như chứng thư và thuật toán |
 | `boms/obom.cdx.json` | Quan hệ quan sát được giữa dịch vụ, tiến trình, socket và gói phần mềm |
 | `boms/aibom.cdx.json` | Tệp mô hình cục bộ, trọng số và siêu dữ liệu được cung cấp |
-| `boms/saasbom.cdx.json` | Dịch vụ được mô tả trong tài liệu OpenAPI hoặc bản kê dịch vụ |
+| `boms/saasbom.cdx.json` | Dịch vụ được mô tả trong tài liệu OpenAPI hoặc bản kê dịch vụ, và backend khai báo trong cấu hình proxy |
 | `boms/mbom.cdx.json` | Quy trình sản xuất và biên dịch có bằng chứng đi kèm |
 
 Một bảng kê có thể trống nếu máy chủ không có bằng chứng tương ứng. Xem trạng thái bằng chứng và `collection.json` để biết lý do. Tracker nhận `sbom.cdx.json` hoặc `sbom.spdx.json` ở cấp cao nhất. Định dạng mặc định là CycloneDX 1.6 và SPDX 2.3. Thêm `--cyclonedx-17` để tạo cả CycloneDX 1.7.

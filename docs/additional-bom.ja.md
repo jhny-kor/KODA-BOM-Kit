@@ -38,6 +38,10 @@ SHA-256、観測範囲、宣言情報か報告情報かを記録します。署�
 
 `--saas-evidence` は OpenAPI 3.x JSON または `koda-services-1` を受け付けます。OpenAPIからタイトル、バージョン、ルート・パス・操作で明示された絶対サーバーURL、操作ごとの認証宣言を読みます。既定の相対URLの配置先は不明です。匿名操作があれば `authenticated=false`、調査した全操作が認証を要求すれば `true`、宣言不足なら省略します。本文例、セキュリティスキームの内容、説明、秘密情報は出力しません。[OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
 
+OpenAPIはYAMLでも指定できます。YAMLは1文書のみで、重複キーは拒否し、数値は記載どおり保持します（`version: 1.0` は `1.0` のまま）。
+
+ホスト収集ではリバースプロキシとロードバランサーの設定も読みます。対象はnginxの `upstream`・`proxy_pass`・`grpc_pass`、Apacheの `ProxyPass`・`BalancerMember`、HAProxyの `backend` 内の `server` です。各バックエンドは `observation=declared-proxy-backend` と、宣言したファイル・行を持つサービスとして記録します。スキーム・ホスト・ポートのみを残し、パス・クエリ・認証情報は破棄し、変数を使う宛先は未解決として報告します。到達できるかどうかは、この宣言ではなくOBOMの外部接続で確認します。Debianの `*-available` ファイルは `*-enabled` のリンク経由でのみ反映し、CBOMのTLS宣言にも同じ規則を適用します。
+
 提供者、信頼境界、データ分類、サービス依存関係には次の形式を使用します。
 
 ```json
@@ -78,6 +82,10 @@ SHA-256、観測範囲、宣言情報か報告情報かを記録します。署�
 - Hugging Faceの `config.json` からアーキテクチャ、層数、アテンションヘッド数、最大コンテキスト、量子化を読みます。重みインデックスは宣言されたテンソル数とシャード一覧を提供します。
 - safetensors・GGUFヘッダーから形式、テンソル数、取得可能なメタデータを読み、モデルと重みファイルを依存関係で結びます。大きなファイルでも限定範囲のヘッダーを読みます。設定・インデックス・ヘッダーのハッシュと全体ハッシュは区別します。
 - Ollamaマニフェストからモデルレイヤーと読めるローカルblobヘッダーを結びます。現在のロード状態には実行時の証拠が必要です。
+- `config.json` と同じ場所にあるHugging Faceの `README.md` モデルカードから、ライセンス、`base_model`、`datasets`、`pipeline_tag`、言語、ライブラリを読みます。ベースモデルとデータセットは宣言された構成要素としてモデルに結びます。Hugging Faceキャッシュでは、スナップショットを指す `refs/main` などのrefを `cache-ref` として記録します。モデルカードの値は公開者の宣言です。
+- ONNXファイルからIRバージョン、生成ツール、モデルバージョン、演算子セットを読みます。`ai.onnx`・`ai.onnx.ml` 以外の演算子ドメインはネイティブのカスタム演算子ライブラリが必要なため、`onnx:custom-operator-domain` として示します。
+- PyTorchチェックポイント（`pytorch_model*.bin`、`.pt`、`.pth`、`.ckpt`、zip形式または旧形式）は、読み込み時にimportした関数を実行するpickleです。KODAは実行せずにpickleのopcodeだけを走査し、`pickle:safety` を `allowlisted-imports-only`、`unknown-imports`、`dangerous-imports` のいずれかで記録し、`os.system` などの危険なimportを `pickle:dangerous-import` として列挙します。最後まで走査できないファイルは `pickle:inspection=incomplete` とし、許可リストのみとは判定せず、それまでに見つけたimportは保持します。プロトコル0/1のpickleと旧形式 `torch.save` の5ストリームもすべて検査します。許可リストのみでないファイルにはsafetensorsを推奨します。Hugging Faceのモデルフォルダー内のpickle・ONNXファイル（`pytorch_model.bin`、`training_args.bin`、`optimizer.pt` など）はそのモデルに結び、最も危険な結果をモデルの `artifact-pickle-safety` として記録します。
+- 稼働中のホストで、vLLM・TGI・llama.cpp・SGLang・Triton・LMDeployのプロセスがモデルパスまたはリポジトリIDを指定して起動されていれば、一致するモデルに `runtime-state=referenced-by-running-process` と `serving-process` を記録し、OBOMのプロセスに `model-reference` を残します。起動引数に基づく判定で、リクエストごとにモデルを選ぶOllamaは対象外です。
 
 ### NVIDIA GPUを搭載したLinuxのQwen
 
@@ -96,7 +104,7 @@ sudo ./koda-bom --output-dir ./koda-results
 | PyTorch・Transformers・vLLM・CUDAのパッケージ版 | インストールメタデータを読めるホストまたはコンテナーのSBOM |
 | サービングプロセスと待受ソケット | プロセスと実行ファイルを観測できた場合の `boms/obom.cdx.json` |
 
-学習・評価データ、ライセンス、上流リビジョン、系譜にはモデルカードや出所宣言が必要です。現在のGPU/VRAM使用量、MIG割当、実際のサービングコンテキストには別の実行時観測が必要です。
+モデルカードにない学習・評価データと系譜には出所宣言が必要です。現在のGPU/VRAM使用量、MIG割当、実際のサービングコンテキストには別の実行時観測が必要です。
 
 重みだけを指定すると、全体SHA-256とsafetensorsまたはGGUF v2/v3ヘッダー情報を `artifact-binding=sha256-calculated` として記録します。safetensorsではdtypeとデータ範囲、GGUFでは存在する `general.name`、`general.architecture`、`general.file_type` を読みます。テンソル内容とモデル計算は別途検証が必要です。[safetensors形式](https://github.com/safetensors/safetensors#format)
 

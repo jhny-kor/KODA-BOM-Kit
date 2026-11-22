@@ -58,7 +58,7 @@ The last line gives the new directory under `bom-output/`. Open `bom.cdx.json` f
 | `boms/cbom.cdx.json` | Cryptographic assets such as certificates and algorithms |
 | `boms/obom.cdx.json` | Observed relationships between services, processes, sockets and packages |
 | `boms/aibom.cdx.json` | Local model files, weights and supplied model metadata |
-| `boms/saasbom.cdx.json` | Services described by an OpenAPI document or service manifest |
+| `boms/saasbom.cdx.json` | Services described by an OpenAPI document or service manifest, and backends declared in proxy configuration |
 | `boms/mbom.cdx.json` | Manufacturing and build workflows described by supplied evidence |
 
 A host can produce a BOM with no entries. Check its evidence status and `collection.json` for the reason. Tracker accepts the top-level `sbom.cdx.json` or `sbom.spdx.json`. The default formats are CycloneDX 1.6 and SPDX 2.3. Add `--cyclonedx-17` to generate CycloneDX 1.7 alongside 1.6.

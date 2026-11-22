@@ -58,7 +58,7 @@
 | `boms/cbom.cdx.json` | 证书、算法等密码资产 |
 | `boms/obom.cdx.json` | 观测到的服务、进程、套接字与软件包之间的关系 |
 | `boms/aibom.cdx.json` | 本地模型文件、权重及提供的模型元数据 |
-| `boms/saasbom.cdx.json` | OpenAPI 文档或服务清单中描述的服务 |
+| `boms/saasbom.cdx.json` | OpenAPI 文档或服务清单中描述的服务，以及代理配置中声明的后端 |
 | `boms/mbom.cdx.json` | 由输入证据描述的制造和构建流程 |
 
 如果未找到相应证据，某份清单的条目可能为空。请查看该清单中的证据状态和 `collection.json` 了解原因。向 Tracker 提交顶层的 `sbom.cdx.json` 或 `sbom.spdx.json`。 默认输出 CycloneDX 1.6 和 SPDX 2.3。添加 `--cyclonedx-17` 可同时输出 CycloneDX 1.7。

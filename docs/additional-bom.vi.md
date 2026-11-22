@@ -38,6 +38,10 @@ Mỗi lệnh nhận tối đa 12 đầu vào cho cả ba miền. Mỗi tệp b�
 
 `--saas-evidence` nhận JSON OpenAPI 3.x hoặc `koda-services-1`. OpenAPI cung cấp tiêu đề, phiên bản, địa chỉ máy chủ tuyệt đối được khai báo ở cấp gốc, đường dẫn hoặc thao tác, cùng yêu cầu xác thực của từng thao tác. Địa chỉ tương đối mặc định không cho biết nơi triển khai. Thao tác cho phép truy cập ẩn danh đặt `authenticated=false`. Nếu mọi thao tác được kiểm tra đều yêu cầu xác thực, giá trị là `true`. Nếu khai báo chưa đủ, trường này được bỏ trống. Ví dụ về nội dung yêu cầu, nội dung lược đồ bảo mật, mô tả và bí mật không được lưu. [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
 
+OpenAPI cũng có thể ở dạng YAML. YAML chỉ được chứa một tài liệu, khóa trùng bị từ chối và số giữ nguyên văn bản gốc, nên `version: 1.0` vẫn là `1.0`.
+
+Khi thu thập máy chủ, công cụ còn đọc cấu hình reverse proxy và bộ cân bằng tải: `upstream`, `proxy_pass`, `grpc_pass` của nginx, `ProxyPass`, `BalancerMember` của Apache và các `server` trong `backend` của HAProxy. Mỗi backend được ghi thành dịch vụ có `observation=declared-proxy-backend` cùng tệp và dòng khai báo. Chỉ giữ scheme, máy chủ và cổng; bỏ đường dẫn, chuỗi truy vấn và thông tin xác thực, còn đích dùng biến được báo là chưa phân giải. Việc backend có truy cập được hay không được xác nhận qua kết nối ra ngoài trong OBOM, không qua khai báo này. Tệp `*-available` của Debian chỉ có hiệu lực qua liên kết `*-enabled`, áp dụng cả cho khai báo TLS trong CBOM.
+
 Dùng lược đồ sau để ghi nhà cung cấp, ranh giới tin cậy, phân loại dữ liệu và quan hệ phụ thuộc giữa các dịch vụ.
 
 ```json
@@ -78,6 +82,10 @@ Kiểm tra thư mục chứa mô hình trên máy chủ đích. Khi quét toàn 
 - `config.json` của Hugging Face cung cấp kiến trúc, số tầng và số đầu chú ý của mô hình văn bản, độ dài ngữ cảnh tối đa và thông tin lượng tử hóa. Chỉ mục trọng số cho biết số tensor khai báo và danh sách các tệp phân mảnh.
 - Phần đầu tệp safetensors hoặc GGUF cung cấp định dạng, số tensor và các siêu dữ liệu hiện có. Quan hệ phụ thuộc liên kết mô hình với tệp trọng số. Ngay cả khi trọng số lớn, bước dò tìm chỉ đọc một phần đầu tệp có giới hạn kích thước. Giá trị băm của cấu hình, chỉ mục, phần đầu tệp và toàn bộ tệp được ghi riêng.
 - Bản kê Ollama nối các lớp của mô hình với phần đầu các blob cục bộ mà công cụ đọc được. Để xác nhận mô hình đang được nạp trên máy chủ, cần có bằng chứng lúc chạy.
+- Thẻ mô hình `README.md` của Hugging Face nằm cạnh `config.json` cung cấp giấy phép, `base_model`, `datasets`, `pipeline_tag`, ngôn ngữ và thư viện. Mô hình nền và tập dữ liệu trở thành thành phần được khai báo, liên kết với mô hình. Trong bộ đệm Hugging Face, `refs/main` và các ref khác trỏ tới snapshot được ghi là `cache-ref`. Giá trị trong thẻ mô hình vẫn là khai báo của bên phát hành.
+- Tệp ONNX cung cấp phiên bản IR, công cụ tạo, phiên bản mô hình và các bộ toán tử. Miền toán tử ngoài `ai.onnx` và `ai.onnx.ml` được liệt kê là `onnx:custom-operator-domain` vì cần thư viện toán tử tùy chỉnh dạng mã gốc.
+- Checkpoint PyTorch (`pytorch_model*.bin`, `.pt`, `.pth`, `.ckpt`, dạng zip hoặc cũ) là pickle sẽ chạy các hàm được import khi nạp. KODA duyệt opcode pickle mà không thực thi và ghi `pickle:safety` là `allowlisted-imports-only`, `unknown-imports` hoặc `dangerous-imports`, kèm từng `pickle:dangerous-import` như `os.system`. Tệp không duyệt được tới cuối được ghi `pickle:inspection=incomplete`, không bao giờ được coi là chỉ dùng danh sách cho phép, và vẫn giữ các import tìm thấy trước khi lỗi. Pickle giao thức 0/1 và cả năm luồng của tệp `torch.save` dạng cũ đều được kiểm tra. Nên dùng safetensors cho tệp không thuộc loại chỉ dùng danh sách cho phép. Tệp pickle và ONNX trong thư mục mô hình Hugging Face, như `pytorch_model.bin`, `training_args.bin` hoặc `optimizer.pt`, được liên kết với mô hình đó, và mô hình ghi kết quả kém an toàn nhất trong `artifact-pickle-safety`.
+- Trên máy chủ đang chạy, tiến trình vLLM, TGI, llama.cpp, SGLang, Triton hoặc LMDeploy được khởi động với đường dẫn mô hình hoặc ID kho sẽ làm mô hình tương ứng được ghi `runtime-state=referenced-by-running-process` và `serving-process`, còn tiến trình trong OBOM có `model-reference`. Kết quả dựa trên tham số khởi động; Ollama chọn mô hình theo từng yêu cầu nên không được liên kết.
 
 ### Qwen trên máy chủ Linux có GPU NVIDIA
 
@@ -96,7 +104,7 @@ Thay `/srv/models/Qwen` bằng đường dẫn thực tế. Với liên kết t�
 | Phiên bản các gói PyTorch, Transformers, vLLM và CUDA | SBOM của máy chủ hoặc container khi đọc được siêu dữ liệu cài đặt |
 | Tiến trình phục vụ mô hình và socket lắng nghe | `boms/obom.cdx.json` khi quan sát được tiến trình và tệp thực thi |
 
-Dữ liệu huấn luyện hoặc đánh giá, giấy phép, phiên bản nguồn và phả hệ mô hình cần thẻ mô hình hoặc khai báo nguồn gốc. Mức sử dụng GPU/VRAM hiện tại, phân bổ MIG và ngữ cảnh phục vụ cần quan sát riêng lúc chạy.
+Dữ liệu huấn luyện hoặc đánh giá và phả hệ mô hình không có trong thẻ mô hình cần khai báo nguồn gốc. Mức sử dụng GPU/VRAM hiện tại, phân bổ MIG và ngữ cảnh phục vụ cần quan sát riêng lúc chạy.
 
 Khi nhập riêng tệp trọng số, công cụ tính SHA-256 cho toàn tệp, đọc siêu dữ liệu hiện có trong phần đầu safetensors hoặc GGUF v2/v3 và ghi `artifact-binding=sha256-calculated`. safetensors cung cấp kiểu dữ liệu và các khoảng dữ liệu. GGUF có thể cung cấp `general.name`, `general.architecture`, `general.file_type`. Dữ liệu tensor và phép tính của mô hình cần được kiểm chứng riêng. [Định dạng safetensors](https://github.com/safetensors/safetensors#format)
 

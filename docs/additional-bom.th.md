@@ -38,6 +38,10 @@
 
 `--saas-evidence` รับ OpenAPI 3.x JSON หรือ `koda-services-1` OpenAPI ให้ชื่อ รุ่น เซิร์ฟเวอร์แบบ URL สัมบูรณ์ที่ระบุชัดเจนในระดับราก/พาธ/operation และข้อประกาศการยืนยันตัวตนของ operation เซิร์ฟเวอร์เริ่มต้นแบบสัมพัทธ์จะมีตำแหน่งปรับใช้ที่ไม่ทราบ operation ที่ระบุให้ใช้แบบไม่ยืนยันตัวตนจะตั้ง `authenticated=false` หากทุก operation ที่ตรวจต้องยืนยันตัวตน ค่าจะเป็น `true` หากข้อประกาศไม่เพียงพอจะละฟิลด์ไว้ ตัดตัวอย่างเนื้อหา รายละเอียด security scheme คำอธิบาย และความลับออก [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
 
+OpenAPI ใช้ YAML ได้ด้วย YAML ต้องมีเอกสารเดียว คีย์ซ้ำจะถูกปฏิเสธ และตัวเลขคงข้อความตามที่เขียน ดังนั้น `version: 1.0` ยังคงเป็น `1.0`
+
+การเก็บข้อมูลโฮสต์ยังอ่านการตั้งค่า reverse proxy และ load balancer ได้แก่ `upstream`, `proxy_pass`, `grpc_pass` ของ nginx, `ProxyPass`, `BalancerMember` ของ Apache และ `server` ใน `backend` ของ HAProxy แต่ละ backend บันทึกเป็นบริการที่มี `observation=declared-proxy-backend` พร้อมไฟล์และบรรทัดที่ประกาศ เก็บเฉพาะ scheme โฮสต์ และพอร์ต ทิ้งพาธ query และข้อมูลรับรอง ปลายทางที่ใช้ตัวแปรรายงานว่ายัง resolve ไม่ได้ การเข้าถึง backend ได้จริงหรือไม่ดูจากการเชื่อมต่อขาออกใน OBOM ไม่ใช่จากข้อประกาศนี้ ไฟล์ `*-available` ของ Debian มีผลเฉพาะผ่านลิงก์ `*-enabled` และใช้กฎเดียวกันกับข้อประกาศ TLS ใน CBOM
+
 ใช้สคีมานี้ระบุผู้ให้บริการ ขอบเขตความเชื่อถือ การจำแนกข้อมูล และส่วนพึ่งพาของบริการ
 
 ```json
@@ -78,6 +82,10 @@
 - Hugging Face `config.json` ให้สถาปัตยกรรม จำนวนชั้นและ attention head ของโมเดลข้อความ context สูงสุด และ quantization ดัชนีน้ำหนักให้จำนวน tensor ที่ประกาศและรายการ shard
 - ส่วนหัว safetensors และ GGUF ให้รูปแบบ จำนวน tensor และเมทาดาทาที่มี ส่วนประกอบโมเดลกับไฟล์น้ำหนักเชื่อมกันผ่าน dependencies การค้นหาอ่านส่วนหัวแบบจำกัดขนาดแม้น้ำหนักจะใหญ่ แฮชการตั้งค่า ดัชนี และส่วนหัวระบุแยกจากแฮชทั้งไฟล์
 - แมนนิเฟสต์ Ollama เชื่อมชั้นโมเดลกับส่วนหัว blob ในเครื่องที่อ่านได้ การยืนยันว่าเซิร์ฟเวอร์โมเดลโหลดอะไรอยู่ในขณะนั้นต้องใช้หลักฐานรันไทม์
+- model card `README.md` ของ Hugging Face ที่อยู่ข้าง `config.json` ให้ใบอนุญาต `base_model`, `datasets`, `pipeline_tag` ภาษา และไลบรารี โมเดลฐานและชุดข้อมูลกลายเป็นคอมโพเนนต์ที่ประกาศและเชื่อมกับโมเดล ในแคช Hugging Face จะบันทึก `refs/main` และ ref อื่นที่ชี้ไปยัง snapshot เป็น `cache-ref` ค่าใน model card ยังเป็นข้อประกาศของผู้เผยแพร่
+- ไฟล์ ONNX ให้รุ่น IR ผู้สร้าง รุ่นโมเดล และชุดตัวดำเนินการ โดเมนตัวดำเนินการนอก `ai.onnx` และ `ai.onnx.ml` แสดงเป็น `onnx:custom-operator-domain` เพราะต้องใช้ไลบรารีตัวดำเนินการแบบกำหนดเองที่เป็น native code
+- checkpoint ของ PyTorch (`pytorch_model*.bin`, `.pt`, `.pth`, `.ckpt` แบบ zip หรือแบบเดิม) เป็น pickle ที่เรียกฟังก์ชันที่ import ไว้เมื่อโหลด KODA ไล่ดู opcode ของ pickle โดยไม่รัน และบันทึก `pickle:safety` เป็น `allowlisted-imports-only`, `unknown-imports` หรือ `dangerous-imports` พร้อม `pickle:dangerous-import` แต่ละรายการ เช่น `os.system` ไฟล์ที่ไล่ไม่ถึงท้ายรายงานด้วย `pickle:inspection=incomplete` และไม่ถือว่าเป็น allowlisted-only โดยยังเก็บ import ที่พบก่อนล้มเหลว pickle โปรโตคอล 0/1 และทั้งห้าสตรีมของไฟล์ `torch.save` แบบเดิมก็ถูกตรวจด้วย ไฟล์ที่ไม่ใช่ allowlisted-only ควรเปลี่ยนไปใช้ safetensors ไฟล์ pickle และ ONNX ในโฟลเดอร์โมเดลของ Hugging Face เช่น `pytorch_model.bin`, `training_args.bin` หรือ `optimizer.pt` จะเชื่อมกับโมเดลนั้น และโมเดลบันทึกผลที่ปลอดภัยน้อยที่สุดเป็น `artifact-pickle-safety`
+- บนโฮสต์ที่ทำงานอยู่ โปรเซส vLLM, TGI, llama.cpp, SGLang, Triton หรือ LMDeploy ที่เริ่มด้วยพาธโมเดลหรือ ID ของ repository จะทำให้โมเดลที่ตรงกันได้ `runtime-state=referenced-by-running-process` และ `serving-process` และโปรเซสใน OBOM มี `model-reference` ผลนี้อิงอาร์กิวเมนต์ตอนเริ่มทำงาน Ollama เลือกโมเดลตามคำขอจึงไม่ถูกจับคู่
 
 ### Qwen บนเซิร์ฟเวอร์ Linux ที่ใช้ NVIDIA GPU
 
@@ -96,7 +104,7 @@ sudo ./koda-bom --output-dir ./koda-results
 | รุ่นแพ็กเกจ PyTorch, Transformers, vLLM และ CUDA | SBOM ของโฮสต์หรือคอนเทนเนอร์เมื่ออ่านเมทาดาทาที่ติดตั้งได้ |
 | โปรเซสให้บริการและซ็อกเก็ตที่รอรับ | `boms/obom.cdx.json` เมื่อสังเกตพบโปรเซสและไฟล์ปฏิบัติการ |
 
-ข้อมูลฝึกและประเมิน ใบอนุญาต revision ต้นทาง และสายสืบทอด ต้องมี model card หรือข้อประกาศ provenance การใช้ GPU/VRAM ปัจจุบัน การจัดสรร MIG และ context ที่ให้บริการ ต้องมีการสังเกตรันไทม์แยกต่างหาก
+ข้อมูลฝึกและประเมินและสายสืบทอดที่ไม่มีใน model card ต้องมีข้อประกาศ provenance การใช้ GPU/VRAM ปัจจุบัน การจัดสรร MIG และ context ที่ให้บริการ ต้องมีการสังเกตรันไทม์แยกต่างหาก
 
 อาร์ติแฟกต์น้ำหนักแบบแยกบันทึก SHA-256 ทั้งไฟล์และเมทาดาทาส่วนหัว safetensors หรือ GGUF v2/v3 ที่มี พร้อม `artifact-binding=sha256-calculated` safetensors ให้ dtype และช่วงข้อมูล GGUF อาจให้ `general.name`, `general.architecture` และ `general.file_type` ข้อมูล tensor และการคำนวณโมเดลต้องตรวจสอบแยก [รูปแบบ safetensors](https://github.com/safetensors/safetensors#format)
 

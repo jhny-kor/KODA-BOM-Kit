@@ -38,6 +38,10 @@ SHA-256, gözlem kapsamı ve bilginin beyan mı rapor mu olduğu kaydedilir. İm
 
 `--saas-evidence`, OpenAPI 3.x JSON veya `koda-services-1` kabul eder. OpenAPI başlık, sürüm, kök/yol/işlem düzeyindeki açık mutlak sunucu adreslerini ve kimlik doğrulama beyanlarını sağlar. Göreli sunucuların dağıtım konumu bilinmez. Açık anonim işlem varsa `authenticated=false`, incelenen tüm işlemler kimlik doğrulama gerektiriyorsa `true` kaydedilir. Yetersiz beyanda alan atlanır. Gövde örnekleri, güvenlik şeması içerikleri, açıklamalar ve sırlar dışarıda bırakılır. [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
 
+OpenAPI YAML da olabilir. YAML tek belge içermelidir; yinelenen anahtarlar reddedilir ve sayılar yazıldığı gibi korunur, yani `version: 1.0` `1.0` olarak kalır.
+
+Host toplaması ters vekil ve yük dengeleyici yapılandırmasını da okur: nginx `upstream`, `proxy_pass` ve `grpc_pass`, Apache `ProxyPass` ve `BalancerMember`, HAProxy `backend` içindeki `server` satırları. Her arka uç, `observation=declared-proxy-backend` ve onu beyan eden dosya ile satırla birlikte hizmet olarak kaydedilir. Yalnızca şema, host ve port tutulur; yol, sorgu ve kimlik bilgileri atılır, değişken kullanan hedefler çözümlenmemiş olarak bildirilir. Bir arka ucun erişilebilir olup olmadığını bu beyan değil, OBOM'daki giden bağlantılar gösterir. Debian `*-available` dosyaları yalnızca `*-enabled` bağlantıları üzerinden geçerli sayılır; CBOM TLS beyanları için de aynı kural uygulanır.
+
 Sağlayıcı, güven sınırı, veri sınıflandırması ve hizmet bağımlılıkları için bu biçimi kullanın.
 
 ```json
@@ -78,6 +82,10 @@ Hedef sunucudaki model dizinini belirtin. Ana makine toplaması izin verilen yol
 - Hugging Face `config.json` mimari, katman sayısı, dikkat başlıkları, en büyük bağlam ve nicemleme ayarlarını sağlar. Ağırlık indeksleri beyan edilen tensör sayısını ve parça listesini verir.
 - safetensors/GGUF başlıkları biçim, tensör ve kullanılabilir metaveriyi sağlar. Model ve dosyalar bağımlılıklarla bağlanır. Büyük ağırlıklarda da sınırlı başlık alanı okunur. Yapılandırma/indeks/başlık hash'leri tüm dosya hash'inden ayrı tanımlanır.
 - Ollama manifestleri model katmanlarını okunabilen yerel blob başlıklarına bağlar. Sunucunun güncel yükleme durumu çalışma zamanı kanıtı gerektirir.
+- `config.json` yanındaki Hugging Face `README.md` model kartı lisans, `base_model`, `datasets`, `pipeline_tag`, dil ve kütüphane bilgisini verir. Temel modeller ve veri kümeleri modele bağlı beyan edilmiş bileşenler olur. Hugging Face önbelleğinde anlık görüntüyü gösteren `refs/main` ve diğer ref'ler `cache-ref` olarak kaydedilir. Model kartı alanları yayıncı beyanı olarak kalır.
+- ONNX dosyaları IR sürümünü, üreticiyi, model sürümünü ve operatör kümelerini bildirir. `ai.onnx` ve `ai.onnx.ml` dışındaki operatör alanları yerel bir özel operatör kütüphanesi gerektirdiğinden `onnx:custom-operator-domain` olarak listelenir.
+- PyTorch kontrol noktaları (`pytorch_model*.bin`, `.pt`, `.pth`, `.ckpt`, zip veya eski biçim), yüklenirken içe aktardıkları fonksiyonları çalıştıran pickle dosyalarıdır. KODA pickle opcode'larını çalıştırmadan gezer ve `pickle:safety` değerini `allowlisted-imports-only`, `unknown-imports` veya `dangerous-imports` olarak, `os.system` gibi her `pickle:dangerous-import` ile birlikte kaydeder. Sonuna kadar gezilemeyen dosya `pickle:inspection=incomplete` ile bildirilir ve asla yalnızca izinli sayılmaz; hatadan önce bulunan içe aktarmalar korunur. Protokol 0/1 pickle dosyaları ve eski `torch.save` dosyasının beş akışı da denetlenir. Yalnızca izinli olmayan her dosya için safetensors tercih edin. Bir Hugging Face model klasöründeki `pytorch_model.bin`, `training_args.bin` veya `optimizer.pt` gibi pickle ve ONNX dosyaları o modele bağlanır; model en az güvenli sonucu `artifact-pickle-safety` olarak bildirir.
+- Çalışan bir host'ta model yolu veya depo kimliğiyle başlatılmış vLLM, TGI, llama.cpp, SGLang, Triton ya da LMDeploy süreci, eşleşen modele `runtime-state=referenced-by-running-process` ve `serving-process` yazdırır; OBOM'daki süreç `model-reference` taşır. Bu başlangıç argümanlarını yansıtır; modeli her istekte seçen Ollama eşleştirilmez.
 
 ### NVIDIA GPU bulunan Linux sunucusunda Qwen
 
@@ -96,7 +104,7 @@ sudo ./koda-bom --output-dir ./koda-results
 | PyTorch, Transformers, vLLM, CUDA sürümleri | Kurulum metaverisi okunabiliyorsa ana makine/konteyner SBOM'u |
 | Sunum süreci ve dinleme soketleri | Süreç ve çalıştırılabilir dosya gözlemlenirse `boms/obom.cdx.json` |
 
-Eğitim/değerlendirme verisi, lisans, kaynak revizyonu ve soy bilgisi model kartı veya kaynak beyanı gerektirir. Güncel GPU/VRAM kullanımı, MIG ataması ve sunulan gerçek bağlam için çalışma zamanı gözlemleri gerekir.
+Model kartında bulunmayan eğitim/değerlendirme verisi ve soy bilgisi kaynak beyanı gerektirir. Güncel GPU/VRAM kullanımı, MIG ataması ve sunulan gerçek bağlam için çalışma zamanı gözlemleri gerekir.
 
 Tek başına ağırlık çıktısı, tam SHA-256 ve safetensors veya GGUF v2/v3 başlıklarını `artifact-binding=sha256-calculated` ile kaydeder. safetensors dtype ve veri aralıklarını, GGUF mevcutsa `general.name`, `general.architecture`, `general.file_type` alanlarını sağlar. Tensör verisi ve model hesaplamaları ayrıca doğrulanmalıdır. [safetensors biçimi](https://github.com/safetensors/safetensors#format)
 

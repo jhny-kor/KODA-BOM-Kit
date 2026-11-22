@@ -38,7 +38,7 @@
 
 `--saas-evidence`는 OpenAPI 3.x JSON·YAML 또는 `koda-services-1`을 받습니다. YAML은 문서 하나여야 하며 중복 키는 거부합니다. 숫자는 적힌 그대로 유지하므로 `version: 1.0`은 `1.0`으로 기록됩니다. OpenAPI에서는 제목·버전, 명시된 절대 서버 주소와 작업별 인증 선언을 읽습니다. 루트·경로·작업에 선언된 서버 주소를 모으며 기본 상대 주소의 배포 위치는 미확인으로 남깁니다. 익명 접근을 명시한 작업이 있으면 `authenticated=false`, 확인한 작업 전부에 인증 요구가 있으면 `true`를 기록합니다. 작업별 선언이 충분하지 않으면 이 필드를 생략합니다. 본문 예시, 보안 스킴 내용, 설명, 비밀 값은 출력 대상에 포함하지 않습니다. [OpenAPI 3.1 명세](https://spec.openapis.org/oas/v3.1.1.html)
 
-호스트 수집에서는 리버스 프록시·로드밸런서 설정도 읽습니다. nginx `upstream`·`proxy_pass`·`grpc_pass`, Apache `ProxyPass`·`BalancerMember`, HAProxy `backend`의 `server`가 대상입니다. 각 백엔드는 `observation=declared-proxy-backend`와 선언된 파일·줄 번호를 가진 서비스로 기록됩니다. 스킴·호스트·포트만 남기고 경로·쿼리·인증 정보는 버리며, 변수를 쓴 대상은 미해결로 표시합니다. 실제 접속 여부는 이 선언이 아니라 OBOM의 외부 연결에서 확인합니다.
+호스트 수집에서는 리버스 프록시·로드밸런서 설정도 읽습니다. nginx `upstream`·`proxy_pass`·`grpc_pass`, Apache `ProxyPass`·`BalancerMember`, HAProxy `backend`의 `server`가 대상입니다. 각 백엔드는 `observation=declared-proxy-backend`와 선언된 파일·줄 번호를 가진 서비스로 기록됩니다. 스킴·호스트·포트만 남기고 경로·쿼리·인증 정보는 버리며, 변수를 쓴 대상은 미해결로 표시합니다. 실제 접속 여부는 이 선언이 아니라 OBOM의 외부 연결에서 확인합니다. Debian의 `*-available` 파일은 `*-enabled` 링크를 통해서만 반영하며, CBOM의 TLS 선언에도 같은 규칙을 적용합니다.
 
 서비스 제공자·신뢰 경계·데이터 분류·서비스 간 의존관계를 함께 입력하려면 다음 형식을 사용합니다.
 
@@ -82,7 +82,7 @@
 - Ollama 저장소에서는 매니페스트의 모델 레이어와 읽을 수 있는 로컬 blob 헤더를 연결합니다. 파일로 확인 가능한 정보와 모델 서버의 현재 로딩 상태는 각각 다른 증거가 필요합니다.
 - `config.json` 옆의 Hugging Face `README.md` 모델 카드에서 라이선스, `base_model`, `datasets`, `pipeline_tag`, 언어, 라이브러리를 읽습니다. 기반 모델과 데이터셋은 선언된 구성요소로 만들어 모델과 연결합니다. Hugging Face 캐시에서는 해당 스냅숏을 가리키는 `refs/main` 등의 ref를 `cache-ref`로 기록합니다. 모델 카드 값은 게시자의 선언입니다.
 - ONNX 파일에서는 IR 버전, 생성 도구, 모델 버전, 연산자 집합을 읽습니다. `ai.onnx`·`ai.onnx.ml` 이외의 연산자 도메인은 네이티브 사용자 정의 연산자 라이브러리가 필요하므로 `onnx:custom-operator-domain`으로 표시합니다.
-- PyTorch 체크포인트(`pytorch_model*.bin`, `.pt`, `.pth`, `.ckpt`, zip 또는 구형식)는 로드할 때 import한 함수를 실행하는 pickle입니다. KODA는 실행하지 않고 pickle opcode만 읽어 `pickle:safety`를 `allowlisted-imports-only`, `unknown-imports`, `dangerous-imports` 중 하나로 기록하고, `os.system` 같은 위험 import는 `pickle:dangerous-import`로 나열합니다. 끝까지 해석하지 못한 파일은 `pickle:inspection=incomplete`로 표시하고 허용 목록 전용으로 판정하지 않으며, 그 전까지 찾은 import는 유지합니다. 프로토콜 0/1 pickle과 구형 `torch.save` 파일의 스트림 5개를 모두 검사합니다. 허용 목록만 쓰는 파일이 아니면 safetensors 사용을 권장합니다.
+- PyTorch 체크포인트(`pytorch_model*.bin`, `.pt`, `.pth`, `.ckpt`, zip 또는 구형식)는 로드할 때 import한 함수를 실행하는 pickle입니다. KODA는 실행하지 않고 pickle opcode만 읽어 `pickle:safety`를 `allowlisted-imports-only`, `unknown-imports`, `dangerous-imports` 중 하나로 기록하고, `os.system` 같은 위험 import는 `pickle:dangerous-import`로 나열합니다. 끝까지 해석하지 못한 파일은 `pickle:inspection=incomplete`로 표시하고 허용 목록 전용으로 판정하지 않으며, 그 전까지 찾은 import는 유지합니다. 프로토콜 0/1 pickle과 구형 `torch.save` 파일의 스트림 5개를 모두 검사합니다. 허용 목록만 쓰는 파일이 아니면 safetensors 사용을 권장합니다. Hugging Face 모델 폴더 안의 pickle·ONNX 파일(`pytorch_model.bin`, `training_args.bin`, `optimizer.pt` 등)은 그 모델에 연결하고, 가장 위험한 결과를 모델의 `artifact-pickle-safety`로 기록합니다.
 - 실행 중인 호스트에서 vLLM·TGI·llama.cpp·SGLang·Triton·LMDeploy 프로세스가 모델 경로나 저장소 ID로 시작됐으면, 일치하는 모델에 `runtime-state=referenced-by-running-process`와 `serving-process`를 기록하고 OBOM 프로세스에는 `model-reference`를 남깁니다. 시작 인자 기준이며, 요청마다 모델을 고르는 Ollama는 연결하지 않습니다.
 - 공급자, 모델 계보, 학습 데이터와 라이선스를 추가하려면 아래의 모델 명세 및 대응 산출물을 지정합니다.
 

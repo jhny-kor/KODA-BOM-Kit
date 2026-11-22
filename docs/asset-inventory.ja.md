@@ -43,21 +43,21 @@ Windows PowerShellでは `.\koda-bom.exe platform-inventory --output-dir .\repor
 
 | 領域 | 収集内容と解釈 |
 |---|---|
-| ハードウェア | CPU・マイクロコード、緩和策、基板、BIOS/UEFI、ESRT、PCI・ドライバー、NVMe/SCSI、USB、TPM。RAID/HBAの `mpt3sas`、`qla2xxx`、`lpfc`、`hpsa`、`smartpqi`、RDMAの `fw_ver`、NVIDIA Video BIOS、amdgpuの `vbios_version`。NICは `ethtool -i` 相当の読取専用ioctl。megaraid_sasはエクスポート証拠が必要です |
+| ハードウェア | CPU・マイクロコード、緩和策、基板、BIOS/UEFI、ESRT、PCI・ドライバー、NVMe/SCSI、USB、TPM。RAID/HBAの `mpt3sas`、`qla2xxx`、`lpfc`、`hpsa`、`smartpqi`、RDMAの `fw_ver`、NVIDIA Video BIOS、amdgpuの `vbios_version`。NICは `ethtool -i` 相当の読取専用ioctl。megaraid_sasはエクスポート証拠が必要です。root実行時はSMBIOSの生テーブルから、メモリーモジュールの製造元・部品番号・容量・速度、電源ユニットのモデル・定格出力、システムスロットと装着PCIアドレスを読み、シリアル番号はSHA-256のみ記録します |
 | BMC | rootと `ipmi_si`・`ipmi_devintf` により `/dev/ipmi0` の読取専用 `Get Device ID` を使用。ファームウェアリビジョン、IANAメーカー、製品ID、補助リビジョンを記録。取得できない理由も記録し、必要に応じRedfishで公開ビルド番号と照合します |
 | CPU識別 | x86の `cpuidSignature`・`familyModelStepping`、ソケット・コア、ARMメーカー・コア名・`r3p1` 形式のリビジョン。不明なARMは元コードを保持。USBの `bcdDevice` はデバイスリリース識別子です |
 | 外部資産 | 展開済みRedfish、fwupd、devlink JSONと共通形式。稼働中・保存済みファームウェアを区別し、項目は機種に依存します |
 | 実行状態 | 実行ファイル・共有ライブラリの置換、ファイル識別子、一意に特定した所有パッケージ。置換は `restart_review`。メモリー上の版は追加証拠が必要です |
 | ホスト識別 | ホスト `/` のmachine-id、DMI UUID・製品/基板シリアルの正規化SHA-256。`--no-context` でも取得。machine-id/UUIDは小文字、シリアルは前後空白を除去。共通初期値やゼロUUIDは除外。ハッシュは推測可能な仮名化です。`--asset-tag` は128文字以内の1行ラベル。コンテナーは `container-visible` |
-| ソケット | 同じネットワーク名前空間のTCP LISTENと未接続UDPをプロセスFDから帰属。`bindScope` は `all-interfaces`、`loopback`、`address`。到達性は別証拠が必要。所有者不明は `context.json.unattributedSockets` |
+| ソケット | 同じネットワーク名前空間のTCP LISTENと未接続UDPをプロセスFDから帰属。`bindScope` は `all-interfaces`、`loopback`、`address`。到達性は別証拠が必要。所有者不明は `context.json.unattributedSockets`。ホストのプロセスが確立した外部TCP接続は、プロセスと接続先ごとに `outboundConnections` へ `remoteScope`（`loopback`、`private`、`link-local`、`public`）付きで記録します |
 | 設定・再起動 | SELinux実行/設定モード、AppArmor有効/プロファイル数、lockdown、FIPS、許可された起動引数。認証情報は除外。`kernelConfig` は `/proc/config.gz` または `/boot/config-<running-kernel>` の `y`・`m`。再起動要求、実行カーネルのモジュール欠落、同系統の新カーネルを観測し、信号があれば `reboot.recommended=true`、なければ `not_observed`。系統判定はリリース文字列による推定です |
 | SSH | `sshd_config`・`sshd_config.d/*.conf` のグローバル宣言。`PermitRootLogin`、`PasswordAuthentication`、`PermitEmptyPasswords`、`KbdInteractiveAuthentication`、`LoginGraceTime`、`MaxStartups`、`X11Forwarding`、`AllowTcpForwarding`。`Match` は対象外で、実効値は `Include` 順序に依存します |
 | モジュール・不明プログラム | `kernel.tainted`、`taintedModules` の名前・`O`/`E`/`P`・version/srcversion。同じrootで所有元不明の実行ファイルは `unidentifiedExecutables` にパス/PIDを記録。usr-mergeを考慮します |
 | 整合性 | RPM/dpkg/apkのハッシュと実行ファイル・`.so` を比較。設定・ghostは除外。`modified`・`missing` は `collection.json.integrity.findings` と構成要素に記録。上限はホスト8 GiB、コンテナー1 GiBで、到達時は `partial`。prelinkで差異が出る場合があります |
 | パッケージ出所 | apt Packagesの平文/gz/lz4は名前で照合。dnf履歴とyum `from_repo` はリポジトリID。`repository`、`local-file`、`not-recorded`。履歴欠落・dnf5・apkは対象外。URLとローカルパスは除外し、dnf DBは一時コピーを読取専用で開きます |
-| 起動サービス | systemd wants/requires、unit/drop-in、最初の `ExecStart`、ソケット有効化、PURL。マスク済みを除外。`system.slice` のプロセスで稼働判定し、独自sliceは停止表示の場合があります |
+| 起動サービス | systemd wants/requires、unit/drop-in、最初の `ExecStart`、ソケット有効化、PURL。マスク済みを除外。`system.slice` のプロセスで稼働判定し、独自sliceは停止表示の場合があります。有効なタイマーは `On*` スケジュールと起動するサービスを記録します |
 | ハードウェアCPE | Intel Xeon/Core、AMD EPYC/Ryzen、Dell PowerEdge機器/BIOS、Lenovo ThinkSystem機器の対応パターン。不明機種・HPE・BMCには推測したCPEを付けません |
-| 証明書 | 公開X.509指紋、有効期間、アルゴリズム、鍵長、状態。SHA-1/MD5、2048ビット未満RSA、DSAを記録。古典暗号の `nistQuantumSecurityLevel=0`。主体/発行者名と秘密鍵は除外。OS信頼ストアと20証明書超の束は省略します |
+| 証明書 | 公開X.509指紋、有効期間、アルゴリズム、鍵長、状態。SHA-1/MD5、2048ビット未満RSA、DSAを記録。古典暗号の `nistQuantumSecurityLevel=0`。主体/発行者名と秘密鍵は除外。OS信頼ストアと20証明書超の束は省略します。SSHホスト公開鍵（`etc/ssh/ssh_host_*_key.pub`）もOpenSSHのSHA-256指紋とともに記録します |
 | アプリ | 有効snapと内包DEB、有効flatpak/AppStream、condaのチャネル名、`.pyz`/`.pex`、JAR、静的JS、Go/Rust。Docker/OCIのハッシュと検証できたダイジェストを保持します |
 
 ## コンテナーと出力

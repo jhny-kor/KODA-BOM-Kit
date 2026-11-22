@@ -30,11 +30,11 @@ El host `/` genera documentos individuales en `boms/` y uno combinado `bom.cdx.j
 | BOM | Evidencias disponibles | Aportaciones necesarias |
 |---|---|---|
 | SBOM | Paquetes OS/lenguaje, versiones/PURL, licencias/dependencias, JAR, módulos y contenedores | CycloneDX/SPDX del proveedor/CI ligado a SHA-256 para dependencias estáticas/de compilación, en `build-sbom.cdx.json` |
-| HBOM | CPU/placa/dispositivos/drivers/firmware, DIMM EDAC y sensores | Redfish/registros para piezas invisibles, números, proveedores y ciclo de vida |
-| CBOM | Certificados/claves/algoritmos públicos, emisores comprobados, TLS/SSH, JKS | TLS medido y metadatos públicos exportados de HSM/KMS/almacenes protegidos |
-| OBOM | Host/contenedor/proceso/archivo/paquete/socket y systemd | Kubernetes del mismo clúster, Pod/workload/Service/Ingress, etiquetas y `--network-evidence` del host |
-| SaaSBOM | Especificaciones/OpenAPI a `saasbom.cdx.json` | Proveedor/catálogo/API, dependencias externas, autenticación, confianza y flujos clasificados |
-| AI-BOM | Configuración, cuantización/contexto, índices, encabezados/tamaños GGUF/safetensors, Ollama. SHA-256 completo de artefactos explícitos. `aibom.cdx.json` | Identidad/revisión/pesos, linaje, tarjetas/licencias y fuentes de entrenamiento/evaluación |
+| HBOM | CPU/placa/dispositivos/drivers/firmware, DIMM EDAC y sensores, módulos de memoria SMBIOS (fabricante, número de pieza, velocidad), fuentes de alimentación y ranuras | Redfish/registros para piezas invisibles, números, proveedores y ciclo de vida |
+| CBOM | Certificados/claves/algoritmos públicos, emisores comprobados, TLS/SSH, JKS, claves públicas de host SSH, política criptográfica del sistema y declaraciones de protocolo/cifrado/grupo de OpenSSL | TLS medido y metadatos públicos exportados de HSM/KMS/almacenes protegidos |
+| OBOM | Host/contenedor/proceso/archivo/paquete/socket y systemd, destinos TCP salientes por proceso, temporizadores systemd, tareas cron y reglas de cortafuegos declaradas | Kubernetes del mismo clúster, Pod/workload/Service/Ingress, etiquetas y `--network-evidence` del host |
+| SaaSBOM | Especificaciones/OpenAPI a `saasbom.cdx.json`. También OpenAPI YAML y backends declarados en nginx, Apache y HAProxy | Proveedor/catálogo/API, dependencias externas, autenticación, confianza y flujos clasificados |
+| AI-BOM | Configuración, cuantización/contexto, índices, encabezados/tamaños GGUF/safetensors, Ollama. SHA-256 completo de artefactos explícitos. `aibom.cdx.json`. También encabezados ONNX, seguridad de importaciones pickle de PyTorch, tarjetas de modelo y refs de caché de Hugging Face, y el modelo indicado al iniciar un servidor de modelos | Identidad/revisión/pesos, linaje, tarjetas/licencias y fuentes de entrenamiento/evaluación |
 | MBOM | SLSA coincidente o montaje/pruebas declarados, en `mbom.cdx.json` `formulation` | Pasos/herramientas/entradas/salidas/registros CI o historia de fabricación/inspección |
 
 ## Capas
@@ -48,15 +48,18 @@ El host `/` genera documentos individuales en `boms/` y uno combinado `bom.cdx.j
 | Software activo | Ejecutables/bibliotecas y propiedad dentro del mismo alcance. Sustituciones justifican revisión de reinicio |
 | Identidad | SHA-256 machine-id/UUID/series y etiqueta explícita del host `/`. Depende de permisos/valores genéricos. Es seudonimización |
 | Sockets | TCP LISTEN/UDP del mismo espacio y FD. Bind no determina cortafuegos. Sin dueño, `unattributedSockets` |
+| Conexiones salientes | TCP establecido cuyo puerto local no escucha, por proceso y destino remoto, hasta 16.384 sockets. Un puerto local fijo hacia un puerto efímero del par cuenta como conexión aceptada. Solo se ven las conexiones abiertas al recopilar. Solo procesos del host. Una conexión a un puerto en el que escucha este host vincula el proceso cliente con ese socket y su proceso propietario |
+| Tareas programadas | `/etc/crontab`, `/etc/cron.d`, crontabs de usuario y scripts de `cron.{hourly,daily,weekly,monthly}`, más temporizadores systemd habilitados con su calendario `On*`. Solo se guarda la ruta absoluta del programa; los argumentos se descartan |
+| Cortafuegos | Archivos iptables-save (RHEL/Debian/ufw), la zona predeterminada de firewalld con sus servicios y cadenas nftables con hook input e includes literales. Son declaraciones de archivo; no se lee el conjunto de reglas cargado en el kernel. Una cadena base sin política acepta; ufw con `ENABLED=no` se registra como `disabled`. Las reglas solo de loopback, de estado establecido y negadas no cuentan como puertos abiertos; una aceptación TCP/UDP de todo el protocolo abre todos sus puertos. Los sockets que escuchan fuera de loopback reciben `firewall-declared`: `accept-declared`, `accept-declared-restricted`, `policy-accept-declared`, `no-accept-declared` o `undetermined` |
 | Ajustes/reinicio | SELinux, AppArmor, lockdown, FIPS, arranque permitido, kernel `y`/`m`, reboot-required, módulos/kernel más nuevo de familia. Ausencia de señales no demuestra que no haga falta reiniciar |
 | SSH | Declaraciones globales, excluye `Match`, no calcula precedencia efectiva de `Include` |
 | Taint/módulos | `kernel.tainted`, `/proc/modules`, sysfs version/srcversion cuando existen |
 | Ejecutables desconocidos | Mismo root sin paquete/componente/producto. Excluye otros espacios de montaje, requiere investigación |
 | Origen | apt plano/gz/lz4 por nombre, dnf/yumdb. Listas eliminadas, dnf5/apk sin soporte. Omite URL/rutas |
-| Servicios | systemd wants/requires, units/drop-ins, cgroup v1/v2. Primer ExecStart. Ejecutable relativo sin paquete. Slice propio puede parecer detenido. Sin SysV |
+| Servicios | systemd wants/requires, units/drop-ins, cgroup v1/v2. Primer ExecStart. Ejecutable relativo sin paquete. Slice propio puede parecer detenido. Sin SysV. Los temporizadores habilitados registran su calendario `On*` y el servicio que inician |
 | CPE | Intel Xeon/Core, AMD EPYC/Ryzen, Dell PowerEdge dispositivo/BIOS, Lenovo ThinkSystem. Vacíos de diccionario/modelo impiden coincidencias. Sin HPE/BMC |
 | Integridad | Hashes de ejecutables/bibliotecas RPM/dpkg/apk. Excluye config/ghost. 8 GiB host, 1 GiB contenedor. prelink puede dar falsos cambios |
-| CBOM | PEM/DER, claves/algoritmos públicos, cadenas JKS v1/v2 y hashes de alias. Omite claves cifradas e integridad JKS sin verificar. Excluye nombres, claves privadas, PKCS#12, almacenes OS y paquetes >20 certificados |
+| CBOM | PEM/DER, claves/algoritmos públicos, cadenas JKS v1/v2 y hashes de alias. Omite claves cifradas e integridad JKS sin verificar. Excluye nombres, claves privadas, PKCS#12, almacenes OS y paquetes >20 certificados. Incluye claves públicas de host SSH. `crypto-policies` y MinProtocol/CipherString/Ciphersuites/Groups de `openssl.cnf` son declaraciones; no se resuelven `.include` ni la activación de secciones |
 | Kernel | uname, imágenes/módulos instalados, vermagic, RPM. Distingue activo e instalado. Módulo ausente puede ser función integrada |
 | Livepatch | sysfs, Oracle raw Ksplice y helper Ksplice/Uptrack/Canonical opcional. Diferencias boot/kernel/hora invalidan evidencia de aplicación. CVE necesita análisis |
 | Java | JDK/JRE release, manifiestos JAR/WAR/EAR, Maven. Shaded modificado/eliminado limita identificación |

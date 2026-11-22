@@ -58,7 +58,7 @@ Son satırda `bom-output/` altında oluşturulan dizin gösterilir. Birleşik en
 | `boms/cbom.cdx.json` | Sertifikalar ve algoritmalar gibi kriptografik varlıklar |
 | `boms/obom.cdx.json` | Hizmetler, süreçler, soketler ve paketler arasında gözlenen ilişkiler |
 | `boms/aibom.cdx.json` | Yerel model dosyaları, ağırlıklar ve sağlanan model üst verileri |
-| `boms/saasbom.cdx.json` | OpenAPI belgesinde veya hizmet bildiriminde tanımlanan hizmetler |
+| `boms/saasbom.cdx.json` | OpenAPI belgesinde veya hizmet bildiriminde tanımlanan hizmetler ile vekil yapılandırmasında beyan edilen arka uçlar |
 | `boms/mbom.cdx.json` | Sağlanan kanıtların tanımladığı üretim ve derleme süreçleri |
 
 İlgili kanıt bulunmadığında bir liste boş kalabilir. Nedeni için listenin kanıt durumuna ve `collection.json` dosyasına bakın. Tracker, üst dizindeki `sbom.cdx.json` veya `sbom.spdx.json` dosyasını kabul eder. Varsayılan biçimler CycloneDX 1.6 ve SPDX 2.3’tür. CycloneDX 1.7 çıktısını da almak için `--cyclonedx-17` ekleyin.

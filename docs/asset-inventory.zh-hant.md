@@ -43,21 +43,21 @@ Windows PowerShell使用 `.\koda-bom.exe platform-inventory --output-dir .\repor
 
 | 領域 | 內容及解釋 |
 |---|---|
-| 硬件 | CPU/微碼、緩解措施、主板、BIOS/UEFI、ESRT、PCI/驅動、NVMe/SCSI、USB和TPM。讀取公開的RAID/HBA `mpt3sas`、`qla2xxx`、`lpfc`、`hpsa`、`smartpqi`，RDMA `fw_ver`，NVIDIA Video BIOS，amdgpu `vbios_version`。NIC使用相當於 `ethtool -i` 的只讀ioctl。megaraid_sas需要導出證據 |
+| 硬件 | CPU/微碼、緩解措施、主板、BIOS/UEFI、ESRT、PCI/驅動、NVMe/SCSI、USB和TPM。讀取公開的RAID/HBA `mpt3sas`、`qla2xxx`、`lpfc`、`hpsa`、`smartpqi`，RDMA `fw_ver`，NVIDIA Video BIOS，amdgpu `vbios_version`。NIC使用相當於 `ethtool -i` 的只讀ioctl。megaraid_sas需要導出證據。以root運行時，從SMBIOS原始表讀取內存模塊的製造商、零件號、容量和速度，電源型號和額定功率，以及系統插槽及其PCI地址；序列號僅記錄SHA-256 |
 | BMC | 通過 `/dev/ipmi0` 的只讀IPMI `Get Device ID`，需要root及 `ipmi_si`/`ipmi_devintf`。記錄固件修訂、IANA製造商、產品ID和輔助修訂。缺失設備給出原因，需要時用Redfish核對廠商構建標籤 |
 | CPU標識 | x86 `cpuidSignature`、`familyModelStepping`、插槽/核心拓撲，ARM廠商/核心名及 `r3p1` 類修訂。未知ARM保留原始標識。USB `bcdDevice` 保持設備發行標識含義 |
 | 外部資產 | 展開的Redfish對象、fwupd、devlink JSON和下方通用格式。運行/存儲固件分別保留，字段取決於廠商型號 |
 | 運行狀態 | 可執行文件/共享庫替換、文件標識和唯一識別的歸屬包。替換產生 `restart_review`，已安裝版本不足以確定內存版本 |
 | 主機身份 | 主機 `/` 上machine-id和DMI UUID/產品/主板序列號的規範化SHA-256，`--no-context` 時也採集。machine-id/UUID轉小寫，序列號去首尾空格。公共默認值和全零UUID省略。哈希屬於可能被猜測的假名化。`--asset-tag` 原樣記錄最多128字符的單行標籤。容器範圍為 `container-visible` |
-| 套接字 | 採集器網絡命名空間內TCP LISTEN和未連接UDP，通過進程FD歸屬。`bindScope` 為 `all-interfaces`、`loopback`、`address`。防火牆/路由可達性需另外證據。無歸屬項寫入 `context.json.unattributedSockets` |
+| 套接字 | 採集器網絡命名空間內TCP LISTEN和未連接UDP，通過進程FD歸屬。`bindScope` 為 `all-interfaces`、`loopback`、`address`。防火牆/路由可達性需另外證據。無歸屬項寫入 `context.json.unattributedSockets`。主機進程已建立的外部TCP連接按進程和遠程端點記錄在 `outboundConnections`，並帶 `remoteScope`（`loopback`、`private`、`link-local`、`public`） |
 | 安全與重啓 | SELinux當前/配置模式、AppArmor啓用/配置數量、lockdown、FIPS、允許的啓動參數。排除憑據和無關參數。`kernelConfig` 讀取 `/proc/config.gz` 或 `/boot/config-<running-kernel>` 的 `y`/`m`。重啓請求、運行內核模塊缺失、同系列較新內核作為信號，有信號則 `reboot.recommended=true`，否則 `not_observed`。系列匹配基於發行字符串推斷 |
 | SSH | `sshd_config` 與 `sshd_config.d/*.conf` 全局聲明，包括 `PermitRootLogin`、`PasswordAuthentication`、`PermitEmptyPasswords`、`KbdInteractiveAuthentication`、`LoginGraceTime`、`MaxStartups`、`X11Forwarding`、`AllowTcpForwarding`。排除 `Match`，生效值取決於 `Include` 順序 |
 | 模塊與未知程序 | `kernel.tainted` 和 `taintedModules` 記錄名稱、`O`/`E`/`P`、version/srcversion。同一root且無包/組件/產品歸屬的程序寫入 `unidentifiedExecutables` 路徑/PID。考慮usr-merge路徑 |
 | 完整性 | 比較RPM/dpkg/apk數據庫哈希與可執行文件/`.so`。排除配置和ghost。`modified`/`missing` 記錄於 `collection.json.integrity.findings` 和組件屬性。主機預算8 GiB、每容器1 GiB，用盡標記 `partial`。prelink可能造成差異 |
 | 包來源 | apt Packages平文/gz/lz4按名稱匹配，dnf歷史和yum `from_repo` 提供倉庫ID。分類為 `repository`、`local-file`、`not-recorded`。缺少歷史、dnf5、apk不支持。省略倉庫URL/本地路徑，dnf DB複製到臨時目錄只讀打開 |
-| 啓動服務 | systemd wants/requires、unit/drop-in、首個 `ExecStart`、socket激活、包PURL。排除被屏蔽unit，主機以 `system.slice` 進程判斷運行。自定義slice可能顯示停止 |
+| 啓動服務 | systemd wants/requires、unit/drop-in、首個 `ExecStart`、socket激活、包PURL。排除被屏蔽unit，主機以 `system.slice` 進程判斷運行。自定義slice可能顯示停止。已啓用的定時器記錄 `On*` 計劃和其啓動的服務 |
 | 硬件CPE | 支持Intel Xeon/Core、AMD EPYC/Ryzen、Dell PowerEdge設備/BIOS、Lenovo ThinkSystem設備模式。未知型號、HPE、BMC不猜測CPE |
-| 證書 | 公共X.509指紋、有效期、算法、密鑰長度、狀態。弱項包括SHA-1/MD5、低於2048位RSA、DSA。經典算法 `nistQuantumSecurityLevel=0`。排除主體/簽發者名稱與私鑰，跳過發行版信任庫及超過20證書的文件 |
+| 證書 | 公共X.509指紋、有效期、算法、密鑰長度、狀態。弱項包括SHA-1/MD5、低於2048位RSA、DSA。經典算法 `nistQuantumSecurityLevel=0`。排除主體/簽發者名稱與私鑰，跳過發行版信任庫及超過20證書的文件。另記錄SSH主機公鑰（`etc/ssh/ssh_host_*_key.pub`）及其OpenSSH SHA-256指紋 |
 | 應用 | 當前snap及內置DEB、active flatpak/AppStream、conda渠道名、`.pyz`/`.pex`、JAR、靜態JS、Go/Rust。保留Docker/OCI產物哈希和可驗證摘要 |
 
 ## 容器與輸出

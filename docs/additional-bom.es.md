@@ -38,6 +38,10 @@ Se admiten 12 entradas entre los tres dominios, 16 MiB por JSON y 10.000 element
 
 `--saas-evidence` acepta OpenAPI 3.x JSON o `koda-services-1`. OpenAPI aporta título, versión, servidores absolutos de raíz/ruta/operación y declaraciones de autenticación. La ubicación de servidores relativos queda desconocida. Una operación anónima explícita establece `authenticated=false`. Si todas las operaciones inspeccionadas exigen autenticación, se registra `true`. Si faltan declaraciones, se omite el campo. Se excluyen ejemplos de cuerpos, contenidos de esquemas de seguridad, descripciones y secretos. [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
 
+OpenAPI también puede ser YAML. El YAML debe contener un solo documento; se rechazan las claves duplicadas y los números conservan su texto literal, de modo que `version: 1.0` queda como `1.0`.
+
+La recopilación del host también lee la configuración de proxies inversos y balanceadores: `upstream`, `proxy_pass` y `grpc_pass` de nginx, `ProxyPass` y `BalancerMember` de Apache, y los `server` de cada `backend` de HAProxy. Cada backend se registra como servicio con `observation=declared-proxy-backend` y el archivo y la línea que lo declaran. Solo se conservan esquema, host y puerto; se descartan rutas, consultas y credenciales, y los destinos con variables se informan como no resueltos. Si un backend es alcanzable lo indican las conexiones salientes del OBOM, no esta declaración. Los archivos `*-available` de Debian solo cuentan a través de sus enlaces `*-enabled`, también para las declaraciones TLS del CBOM.
+
 Este formato permite proveedores, límites de confianza, clasificación de datos y dependencias.
 
 ```json
@@ -78,6 +82,10 @@ Indique el directorio del modelo en el servidor. La recopilación del host aplic
 - Hugging Face `config.json` aporta arquitectura, capas, cabezas de atención, contexto máximo y cuantización. Los índices aportan cantidades de tensores declaradas y fragmentos de pesos.
 - Los encabezados safetensors/GGUF aportan formato, tensores y metadatos. Los modelos y archivos se enlazan mediante dependencias. Se leen encabezados acotados incluso para pesos grandes. Los hashes de configuración, índices y encabezados se distinguen del hash completo.
 - Los manifiestos Ollama vinculan capas con encabezados de blobs locales legibles. Confirmar la carga actual del servidor requiere evidencia de ejecución.
+- Una tarjeta de modelo `README.md` de Hugging Face junto a `config.json` aporta licencia, `base_model`, `datasets`, `pipeline_tag`, idioma y biblioteca. Los modelos base y los conjuntos de datos se convierten en componentes declarados vinculados al modelo. En una caché de Hugging Face, `refs/main` y otras refs que apuntan a la instantánea se registran como `cache-ref`. Los campos de la tarjeta siguen siendo declaraciones del publicador.
+- Los archivos ONNX informan versión IR, productor, versión del modelo y conjuntos de operadores. Los dominios de operadores distintos de `ai.onnx` y `ai.onnx.ml` se listan como `onnx:custom-operator-domain`, porque requieren una biblioteca nativa de operadores personalizados.
+- Los puntos de control de PyTorch (`pytorch_model*.bin`, `.pt`, `.pth`, `.ckpt`, zip o heredados) son pickles que ejecutan al cargarse las funciones que importan. KODA recorre los opcodes de pickle sin ejecutarlos y registra `pickle:safety`: `allowlisted-imports-only`, `unknown-imports` o `dangerous-imports`, con cada `pickle:dangerous-import`, como `os.system`. Un archivo que el escáner no puede recorrer hasta el final se informa con `pickle:inspection=incomplete` y nunca como solo permitido; se conservan las importaciones halladas antes del fallo. También se revisan los pickles de protocolo 0/1 y los cinco flujos de un archivo `torch.save` heredado. Prefiera safetensors para cualquier archivo que no sea solo permitido. Los archivos pickle y ONNX de una carpeta de modelo de Hugging Face, como `pytorch_model.bin`, `training_args.bin` u `optimizer.pt`, se vinculan a ese modelo, que informa el resultado menos seguro como `artifact-pickle-safety`.
+- En un host en ejecución, un proceso vLLM, TGI, llama.cpp, SGLang, Triton o LMDeploy iniciado con una ruta de modelo o un ID de repositorio marca el modelo coincidente con `runtime-state=referenced-by-running-process` y `serving-process`, y el proceso del OBOM lleva `model-reference`. Refleja los argumentos de inicio; Ollama elige el modelo en cada solicitud y no se vincula.
 
 ### Qwen en Linux con GPU NVIDIA
 
@@ -96,7 +104,7 @@ Sustituya `/srv/models/Qwen` por la ruta real. Si `snapshots/<revision>/` enlaza
 | Versiones PyTorch, Transformers, vLLM y CUDA | SBOM del host/contenedor cuando se pueden leer los metadatos instalados |
 | Proceso de servicio y sockets de escucha | `boms/obom.cdx.json` si se observan proceso y ejecutable |
 
-Datos de entrenamiento/evaluación, licencias, revisión de origen y linaje requieren tarjetas del modelo o declaraciones. Uso GPU/VRAM, asignación MIG y contexto real del servicio necesitan observaciones de ejecución.
+Los datos de entrenamiento/evaluación y el linaje que no figuran en la tarjeta del modelo requieren declaraciones de procedencia. Uso GPU/VRAM, asignación MIG y contexto real del servicio necesitan observaciones de ejecución.
 
 Un archivo de pesos independiente registra SHA-256 completo y encabezados safetensors o GGUF v2/v3 con `artifact-binding=sha256-calculated`. safetensors aporta dtype y rangos. GGUF puede aportar `general.name`, `general.architecture`, `general.file_type`. Los datos de tensores y cálculos requieren validación adicional. [Formato safetensors](https://github.com/safetensors/safetensors#format)
 

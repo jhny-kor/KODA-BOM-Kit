@@ -58,7 +58,7 @@ La dernière ligne indique le répertoire créé dans `bom-output/`. Ouvrez `bom
 | `boms/cbom.cdx.json` | Actifs cryptographiques tels que certificats et algorithmes |
 | `boms/obom.cdx.json` | Relations observées entre services, processus, sockets et paquets |
 | `boms/aibom.cdx.json` | Fichiers de modèles locaux, poids et métadonnées fournis |
-| `boms/saasbom.cdx.json` | Services décrits par un document OpenAPI ou un manifeste de service |
+| `boms/saasbom.cdx.json` | Services décrits par un document OpenAPI ou un manifeste de service, et backends déclarés dans la configuration des proxys |
 | `boms/mbom.cdx.json` | Processus de fabrication et de compilation décrits par les éléments fournis |
 
 Une nomenclature peut rester vide en l’absence d’éléments observables. Consultez son état et `collection.json` pour en connaître la raison. Tracker accepte `sbom.cdx.json` ou `sbom.spdx.json` à la racine du résultat. Les formats par défaut sont CycloneDX 1.6 et SPDX 2.3. Ajoutez `--cyclonedx-17` pour produire également CycloneDX 1.7.
