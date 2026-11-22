@@ -1,5 +1,26 @@
 # 한 파일로 하드웨어와 소프트웨어 수집
 
+<!-- koda-doc-nav -->
+<p align="center">
+  <a href="asset-inventory.md"><img src="badges/en.svg" alt="English"></a>
+  <a href="asset-inventory.ja.md"><img src="badges/ja.svg" alt="日本語"></a>
+  <a href="asset-inventory.zh.md"><img src="badges/zh.svg" alt="简体中文"></a>
+  <a href="asset-inventory.zh-hant.md"><img src="badges/zh-hant.svg" alt="繁體中文"></a>
+  <strong>한국어</strong>
+  <a href="asset-inventory.es.md"><img src="badges/es.svg" alt="Español"></a>
+  <a href="asset-inventory.fr.md"><img src="badges/fr.svg" alt="Français"></a>
+  <a href="asset-inventory.vi.md"><img src="badges/vi.svg" alt="Tiếng Việt"></a>
+  <a href="asset-inventory.pt.md"><img src="badges/pt.svg" alt="Português"></a>
+  <a href="asset-inventory.th.md"><img src="badges/th.svg" alt="ไทย"></a>
+  <a href="asset-inventory.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
+</p>
+<!-- /koda-doc-nav -->
+
+
 대상 OS와 CPU 종류에 맞는 `koda-bom` 실행 파일 한 개를 사용합니다. Linux에서는 기존 `scan` 명령으로 패키지와 호스트 하드웨어를 함께 수집합니다. Windows와 macOS용 실행 파일의 `platform-inventory`는 운영체제가 제공하는 로컬 인벤토리 도구를 호출합니다.
 
 ```sh
@@ -44,7 +65,7 @@ Windows PowerShell에서 위 마지막 명령은 `.\koda-bom.exe platform-invent
 - **실행 중인 컨테이너**. 호스트 `/` 수집이면 실행 중인 컨테이너마다 `containers/<이름>/`에 `sbom.cdx.json`·`sbom.spdx.json`·`collection.json`·`SHA256SUMS`를 별도로 만듭니다. Kubernetes 컨테이너는 `<namespace>_<pod>_<container>` 이름을 사용하고, 같은 이름이 겹치면 컨테이너 ID 앞 12자리를 붙입니다. 이름과 이미지는 Docker·containerd(Kubernetes·nerdctl)·Podman·CRI-O가 디스크에 남긴 상태 파일에서 읽으며 런타임 API나 소켓에는 연결하지 않습니다. 컨테이너 root filesystem은 컨테이너 프로세스의 `mountinfo`와 수집기의 `mountinfo`를 장치 번호로 대조해 찾습니다. 이미지 계층과 쓰기 계층이 대상이며 볼륨·bind mount는 포함하지 않습니다. 각 SBOM의 `koda:container:*` 속성에 이름·ID·런타임·이미지·이미지 digest, `koda:host:*` 속성에 같은 호스트 식별을 기록하므로 Tracker에서 컨테이너별 프로젝트로 등록해도 호스트와 연결할 수 있습니다. 컨테이너의 네트워크 네임스페이스에서 수신 대기 중인 소켓은 컨테이너 프로세스의 실행 파일과 대조해 `collection.json`의 `listeningSockets`에 기록하고, 실행 파일을 제공하는 구성요소가 하나로 확인되면 컨테이너 SBOM의 해당 구성요소에 `koda:runtime:listening`과 `koda:runtime:bind-scope`를 붙입니다. 설치 패키지가 소유한 파일이 우선이며, Go 바이너리는 main module을 사용합니다. root filesystem이 보이지 않거나 시간 제한에 걸린 컨테이너는 호스트 `collection.json`의 `containers`에 `not_collected`와 사유를 남깁니다. 끄려면 `--no-containers`를 지정합니다.
 - **중지된 컨테이너와 로컬 이미지**. 호스트 `/` 수집이면 런타임이 디스크에 남긴 메타데이터로 실행 중이 아닌 컨테이너와 로컬 이미지도 찾습니다. Docker overlay2 저장소(`/var/lib/docker/image/overlay2`), containerd 저장소(`/var/lib/containerd`, Docker 29의 containerd 이미지 저장소, Kubernetes·nerdctl, k3s·RKE2), Podman·CRI-O의 containers-storage(`/var/lib/containers/storage`, rootful)를 읽습니다. containerd의 bolt DB는 내장한 읽기 전용 파서로 열며 런타임 API·소켓에는 연결하지 않습니다. 이미지 계층(과 컨테이너의 쓰기 계층)을 결과 폴더의 임시 디렉터리에 합쳐 복사하고 overlay whiteout·opaque 디렉터리를 적용한 뒤 실행 중인 컨테이너와 같은 방식으로 수집하고, 끝나면 복사본을 지웁니다. 장치 파일과 set-ID 비트는 복사하지 않습니다. 중지된 컨테이너는 `containers/<이름>/`에 `state: stopped`로, 어느 컨테이너(실행·중지)도 쓰지 않는 이미지는 `images/<이름>/`에 `state: image`로 만듭니다. 이미 컨테이너가 쓰는 이미지는 그 컨테이너 SBOM에 포함되므로 다시 만들지 않습니다. 여러 플랫폼 이미지는 이 서버 아키텍처의 매니페스트를 먼저, 없으면 내려받아진 다른 Linux 매니페스트를 사용합니다. 하나의 root filesystem이 16 GiB를 넘거나 결과 폴더 디스크 여유 공간이 크기+1 GiB보다 적으면 복사하지 않고 `not_collected`와 사유를 남깁니다. 실행 중이 아니므로 수신 소켓은 기록하지 않습니다. 수집하는 동안 시작되거나 삭제된 컨테이너는 계층이 바뀌어 `not_collected`가 될 수 있습니다. 끄려면 `--no-images`를 지정합니다. Docker의 btrfs·zfs·devicemapper 등 다른 저장 드라이버와 rootless Podman 저장소는 읽지 않습니다.
 - **배포물**. 기존 JAR, 정적 JS, Go/Rust 등 수집과 함께 `.pyz`·`.pex`의 실제 `dist-info/METADATA`를 읽습니다. Docker/OCI에서는 원본 아카이브 SHA-256과 config digest를 기록하며, OCI에서는 검증된 manifest digest도 기록합니다.
-- **출력**. CycloneDX 1.6과 SPDX 2.3에 장비·펌웨어·드라이버를 기록합니다. `--cyclonedx-17`을 지정하면 같은 인벤토리를 `sbom.cdx-1.7.json`으로도 저장합니다. SPDX 2.3에 전용 드라이버 유형이 없어 `OTHER`와 KODA 주석을 사용합니다. 호스트 식별은 CycloneDX `metadata.properties`의 `koda:host:*`와 SPDX 문서 `annotations`에 기록합니다. 수신 대기 소켓은 해당 패키지 구성요소의 `koda:runtime:listening`(소켓마다 하나)과 가장 넓은 범위인 `koda:runtime:bind-scope`로 기록하며, SPDX에서는 같은 이름으로 패키지 `annotations`에 기록합니다. Tracker에서 `koda:runtime:bind-scope = all-interfaces`인 구성요소의 취약점을 먼저 검토할 수 있습니다. `assets.json`에는 장비 증적, `context.json`에는 실행·설정 관측, `collection.json`에는 미확인 사유와 수집 범위가 있습니다. `inventory.syft.json`은 패키지 인벤토리입니다. `SHA256SUMS`로 결과를 검증할 수 있습니다.
+- **출력**. 기본 실행은 `boms/` 아래에 7종의 개별 BOM과 루트 `bom.cdx.json` 병합본을 만듭니다. AI-BOM 파일명은 `aibom.cdx.json`입니다.  CycloneDX 1.6과 SPDX 2.3에 장비·펌웨어·드라이버를 기록합니다. `--cyclonedx-17`을 지정하면 같은 인벤토리를 `sbom.cdx-1.7.json`으로도 저장합니다. SPDX 2.3에 전용 드라이버 유형이 없어 `OTHER`와 KODA 주석을 사용합니다. 호스트 식별은 CycloneDX `metadata.properties`의 `koda:host:*`와 SPDX 문서 `annotations`에 기록합니다. 수신 대기 소켓은 해당 패키지 구성요소의 `koda:runtime:listening`(소켓마다 하나)과 가장 넓은 범위인 `koda:runtime:bind-scope`로 기록하며, SPDX에서는 같은 이름으로 패키지 `annotations`에 기록합니다. Tracker에서 `koda:runtime:bind-scope = all-interfaces`인 구성요소의 취약점을 먼저 검토할 수 있습니다. `assets.json`에는 장비 증적, `context.json`에는 실행·설정 관측, `collection.json`에는 미확인 사유와 수집 범위가 있습니다. `inventory.syft.json`은 패키지 인벤토리입니다. `SHA256SUMS`로 결과를 검증할 수 있습니다.
 
 ## 공통 장비 증적
 
@@ -72,7 +93,7 @@ Windows PowerShell에서 위 마지막 명령은 `.\koda-bom.exe platform-invent
 
 ## 암호 자산과 TLS 세션 증적
 
-호스트·디렉터리·컨테이너에서 확인한 X.509 인증서와 공개키, 알고리즘을 CycloneDX `cryptographic-asset`으로 기록합니다. 발급자 후보가 있으면 서명을 확인해 관계를 기록합니다. Nginx·Apache·sshd에서 읽은 허용 지시문은 설정 증거로 표시합니다. JKS v1/v2에서는 공개 인증서 체인과 엔트리 별칭을 읽으며 암호화된 키 내용을 건너뜁니다. 비밀번호 없이 읽은 JKS의 저장소 무결성은 미검증으로 표시합니다.
+호스트·디렉터리·컨테이너에서 확인한 X.509 인증서와 공개키, 알고리즘을 CycloneDX `cryptographic-asset`으로 기록합니다. 발급자 후보가 있으면 서명을 확인해 관계를 기록합니다. Nginx·Apache·sshd에서 읽은 허용 지시문은 설정 증거로 표시합니다. JKS v1/v2에서는 공개 인증서 체인과 엔트리 별칭의 SHA-256을 기록하며 암호화된 키 내용을 건너뜁니다. 비밀번호 없이 읽은 JKS의 저장소 무결성은 미검증으로 표시합니다.
 
 보호된 PKCS#12·HSM·KMS는 관리자가 공개 가능한 메타데이터를 공통 장비 증적에 기록해 `--asset-evidence`로 반입합니다. 예를 들어 `cryptographic-asset`에 `cryptoProperties.assetType=related-crypto-material`과 `relatedCryptoMaterialProperties`의 키 종류·크기·상태·`algorithmRef`를 지정하고, `properties.storageType`과 `keyAlias`에 저장 방식과 별칭을 둡니다. 소비 애플리케이션의 `dependsOn`은 같은 파일 안의 키 메타데이터 ID를 가리킵니다.
 

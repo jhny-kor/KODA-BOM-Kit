@@ -1,4 +1,25 @@
-# SaaSBOM·AI/ML-BOM·MBOM 보강 자료
+# SaaSBOM·AI-BOM·MBOM 보강 자료
+
+<!-- koda-doc-nav -->
+<p align="center">
+  <a href="additional-bom.md"><img src="badges/en.svg" alt="English"></a>
+  <a href="additional-bom.ja.md"><img src="badges/ja.svg" alt="日本語"></a>
+  <a href="additional-bom.zh.md"><img src="badges/zh.svg" alt="简体中文"></a>
+  <a href="additional-bom.zh-hant.md"><img src="badges/zh-hant.svg" alt="繁體中文"></a>
+  <strong>한국어</strong>
+  <a href="additional-bom.es.md"><img src="badges/es.svg" alt="Español"></a>
+  <a href="additional-bom.fr.md"><img src="badges/fr.svg" alt="Français"></a>
+  <a href="additional-bom.vi.md"><img src="badges/vi.svg" alt="Tiếng Việt"></a>
+  <a href="additional-bom.pt.md"><img src="badges/pt.svg" alt="Português"></a>
+  <a href="additional-bom.th.md"><img src="badges/th.svg" alt="ไทย"></a>
+  <a href="additional-bom.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
+</p>
+<!-- /koda-doc-nav -->
+
 
 `domain-bom`은 지정한 로컬 증적과 산출물을 읽어 `saasbom.cdx.json`, `aibom.cdx.json`, `mbom.cdx.json`을 생성합니다. `--cyclonedx-17`을 지정하면 각 문서의 1.7 파일도 만듭니다. 증적과 산출물의 SHA-256, 관측 범위, 선언 또는 보고된 정보라는 구분을 함께 기록합니다. `scan`에도 같은 증적 옵션을 전달할 수 있습니다.
 
@@ -46,7 +67,7 @@
 
 `id`와 `name`은 필수입니다. `version`, `provider`, `endpoints`, `authenticated`, `trustBoundary`, `trustZone`, `data`, `dependsOn`은 선택 항목입니다. `dependsOn`의 ID는 같은 파일의 서비스여야 합니다. 데이터의 `flow`는 `inbound`, `outbound`, `bi-directional`, `unknown` 중 하나이며 서비스 기준의 방향입니다. 인증·신뢰 경계·실제 호출 관계는 공급한 선언에 근거합니다.
 
-## AI/ML-BOM
+## AI-BOM
 
 설치된 모델 하나를 확인하려면 모델 파일이 있는 로컬 디렉터리를 지정합니다. 전체 호스트 수집에서도 허용된 파일에 같은 검사를 적용합니다.
 

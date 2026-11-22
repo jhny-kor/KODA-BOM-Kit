@@ -1,17 +1,30 @@
-# Ubuntu 24.04.1 실제 커널 VM 검증
+# Ubuntu 24.04.1 real-kernel VM validation
 
-시험용 도구이며 폐쇄망 배포 실행 파일의 의존성이 아닙니다. Ubuntu Base **24.04.1 amd64**와
-공식 Ubuntu **6.8.0-47-generic / 패키지 6.8.0-47.47**를 custom initramfs로 직접 부팅합니다.
-QEMU user-mode 또는 디렉터리 fixture를 실제 커널 부팅 증거로 사용하지 않습니다.
+<!-- koda-doc-nav -->
+<p align="center">
+  <strong>English</strong>
+  <a href="README.ja.md"><img src="../../docs/badges/ja.svg" alt="日本語"></a>
+  <a href="README.zh.md"><img src="../../docs/badges/zh.svg" alt="简体中文"></a>
+  <a href="README.zh-hant.md"><img src="../../docs/badges/zh-hant.svg" alt="繁體中文"></a>
+  <a href="README.ko.md"><img src="../../docs/badges/ko.svg" alt="한국어"></a>
+  <a href="README.es.md"><img src="../../docs/badges/es.svg" alt="Español"></a>
+  <a href="README.fr.md"><img src="../../docs/badges/fr.svg" alt="Français"></a>
+  <a href="README.vi.md"><img src="../../docs/badges/vi.svg" alt="Tiếng Việt"></a>
+  <a href="README.pt.md"><img src="../../docs/badges/pt.svg" alt="Português"></a>
+  <a href="README.th.md"><img src="../../docs/badges/th.svg" alt="ไทย"></a>
+  <a href="README.tr.md"><img src="../../docs/badges/tr.svg" alt="Türkçe"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="../../docs/badges/release.svg" alt="v0.1.8"></a>
+  <a href="../../LICENSE"><img src="../../docs/badges/license.svg" alt="Apache-2.0"></a>
+</p>
+<!-- /koda-doc-nav -->
 
-Ubuntu Base 원본은 보존된 Ubuntu 배포 미러에서 받으며 SHA256SUMS.gpg를 Ubuntu CD Image
-Automatic Signing Key (2012) `843938DF228D22F7B3742BC0D94AA3F0EFE21092`로 검증합니다.
-그 인증된 rootfs에 들어 있는 Ubuntu archive keyring으로 공식 Snapshot 서비스의
-2024-10-18 noble-updates InRelease를 검증하고, 서명된 Release → Packages.xz → 두 DEB의
-SHA-256·크기를 연결합니다. 모든 입력 URL, 체크섬, 서명 로그 및 Docker 이미지 ID를 보존합니다.
+This is a KODA BOM Kit test tool. It is not a dependency of the executable deployed to an air-gapped server. It directly boots Ubuntu Base **24.04.1 amd64** and the official Ubuntu kernel **6.8.0-47-generic / package 6.8.0-47.47** using a custom initramfs. QEMU user-mode and directory fixtures do not establish real-kernel boot evidence.
 
-빌드 호스트에는 Go, Python 3/jsonschema, Docker, GnuPG(gpg/gpgv)가 필요합니다.
-기존 Oracle VM 도구 이미지를 재사용합니다. 대상 서버에는 이 도구들을 설치하지 않습니다.
+The Ubuntu Base source comes from an archived Ubuntu distribution mirror. Its SHA256SUMS.gpg is verified with the Ubuntu CD Image Automatic Signing Key (2012), `843938DF228D22F7B3742BC0D94AA3F0EFE21092`. The Ubuntu archive keyring in this authenticated rootfs verifies the official Snapshot service’s 2024-10-18 noble-updates InRelease. Verification connects signed Release → Packages.xz → SHA-256 and size of both DEBs. Preserve every input URL, checksum, signature log and Docker image ID.
+
+The build host requires Go, Python 3 with `jsonschema`, Docker and GnuPG (`gpg`/`gpgv`). It reuses the Oracle VM tool image. These tools are not installed on the target server. Run the following from the project root, replacing `<ID>` with the actual run ID.
 
 ```bash
 docker build --platform linux/arm64 -t local/koda-sbom-oracle-vm:20261029 \
@@ -24,20 +37,10 @@ python3 tests/ubuntu-vm/validate.py /tmp/koda-sbom-ubuntu-vm-012/runs/ubuntu-<ID
   --report /tmp/koda-sbom-ubuntu-vm-012/runs/ubuntu-<ID>/validation.json
 ```
 
-`init.go`는 Oracle 하네스의 같은 bounded export/독립 baseline 방식을 재사용하며, Ubuntu는
-loop 드라이버가 built-in이므로 실제 `dummy.ko`를 로드하여 모듈 관측을 검증합니다.
-실행 중인 uname와 proc release, OS, collector SHA, 로드 모듈을 독립 기록하고 두 SBOM의
-공식 고정 스키마·체크섬·DEB 원본 버전/source/PURL·설치 커널/모듈을 대조합니다.
-새 최종 바이너리를 전달할 때 prepare/run/validate를 다시 실행해야 합니다.
+`init.go` reuses the Oracle harness’s bounded export and independent baseline design. Ubuntu has a built-in loop driver, so this test loads an actual `dummy.ko` to verify module observation. It independently records running uname and proc release, OS, collector SHA and loaded modules, then compares both SBOMs against pinned official schemas, checksums, original DEB versions/source/PURL and installed kernels/modules. Rerun prepare, run and validate whenever a new final binary is supplied.
 
-시험용 rootfs는 `dpkg --unpack`으로 원본 DEB를 풀고 실제 dpkg DB를 생성합니다. 강제 의존성
-허용 후 unpack 상태로 남기며 일반 apt 설치·설정 완료를 주장하지 않습니다. 전체 systemd,
-GRUB, UEFI/Secure Boot, 운영 서비스 및 실제 하드웨어 검증은 별도입니다. QEMU에 NIC/디스크를
-연결하지 않으며 Docker도 `--network none`, 읽기 전용 rootfs, capability 제거 상태입니다.
-실제 상용/구독 라이브패치를 설치하는 시험은 포함하지 않습니다.
+The test rootfs uses `dpkg --unpack` to extract original DEBs and create a real dpkg database. Dependency overrides are allowed and packages remain unpacked. It does not establish a completed normal apt installation or configuration. Full systemd boot, GRUB, UEFI/Secure Boot, production services and physical hardware validation require separate tests. QEMU has no NIC or disk. Docker uses `--network none`, a read-only rootfs and dropped capabilities. Installing actual commercial or subscription live patches is outside this test.
 
-0.1.3은 수집기에 `--max-files 0 --timeout 0`을 전달하여 두 제한을 해제한 상태로
-검증합니다. 시험용 PID 1의 별도 11분 watchdog과 호스트 QEMU runner 제한은 유지합니다.
+Validation for 0.1.3 passes `--max-files 0 --timeout 0` to disable the collector’s two limits. The test PID 1 retains its separate 11-minute watchdog and the host QEMU runner retains its timeout.
 
-provenance, 서명 로그, dpkg 로그, command.json, serial.log, boot-report.json, baseline.json,
-두 SBOM 및 validation.json을 함께 보존합니다. 부분 수집 exit 3을 정상 완전 수집 0으로 바꾸지 않습니다.
+Preserve provenance, signature logs, dpkg logs, `command.json`, `serial.log`, `boot-report.json`, `baseline.json`, both SBOMs and `validation.json` together. Keep partial-collection exit 3 as 3. Do not convert it to complete-collection exit 0.

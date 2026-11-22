@@ -1,10 +1,31 @@
 # 수집 범위와 확인 한계
 
+<!-- koda-doc-nav -->
+<p align="center">
+  <a href="support-matrix.md"><img src="badges/en.svg" alt="English"></a>
+  <a href="support-matrix.ja.md"><img src="badges/ja.svg" alt="日本語"></a>
+  <a href="support-matrix.zh.md"><img src="badges/zh.svg" alt="简体中文"></a>
+  <a href="support-matrix.zh-hant.md"><img src="badges/zh-hant.svg" alt="繁體中文"></a>
+  <strong>한국어</strong>
+  <a href="support-matrix.es.md"><img src="badges/es.svg" alt="Español"></a>
+  <a href="support-matrix.fr.md"><img src="badges/fr.svg" alt="Français"></a>
+  <a href="support-matrix.vi.md"><img src="badges/vi.svg" alt="Tiếng Việt"></a>
+  <a href="support-matrix.pt.md"><img src="badges/pt.svg" alt="Português"></a>
+  <a href="support-matrix.th.md"><img src="badges/th.svg" alt="ไทย"></a>
+  <a href="support-matrix.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
+</p>
+<!-- /koda-doc-nav -->
+
+
 이 목록은 식별 가능한 자료 종류를 설명합니다. 모든 버전의 모든 제품에 대한 완전 수집이나 취약점 판정을 보장하는 목록이 아닙니다. 실행 결과 `collection.json`의 상태와 근거를 함께 확인하세요.
 
 ## CycloneDX 7종과 Linux 수집 범위
 
-호스트 `/`를 기본 옵션으로 수집하면 소프트웨어·장비·암호 자산을 `sbom.cdx.json`에, 운영 관계를 `obom.cdx.json`에 기록합니다. `--cyclonedx-17`을 추가하면 각 문서의 1.7 출력도 생성합니다. 아래 표의 보강 자료는 Linux에서 관측할 수 있는 범위를 더 넓히려는 경우에 해당합니다. [CycloneDX 공식 분류](https://github.com/CycloneDX/specification#readme)
+호스트 `/`를 기본 옵션으로 수집하면 `boms/` 아래에 `sbom.cdx.json`, `hbom.cdx.json`, `cbom.cdx.json`, `obom.cdx.json`, `saasbom.cdx.json`, `aibom.cdx.json`, `mbom.cdx.json`을 만들고 `bom.cdx.json`으로 병합합니다. 호환용 루트 `sbom.cdx.json`에는 소프트웨어·장비·암호 자산을 함께 기록합니다. 증적이 없는 도메인은 `no-evidence`와 `unknown` 범위로 표시합니다. `--cyclonedx-17`을 추가하면 각 문서의 1.7 출력도 생성합니다. 아래 표의 보강 자료는 Linux에서 관측할 수 있는 범위를 더 넓히려는 경우에 해당합니다. [CycloneDX 공식 분류](https://github.com/CycloneDX/specification#readme)
 
 | 종류 | 현재 Linux 수집과 출력 | 범위를 넓히는 데 필요한 자료 |
 |---|---|---|
@@ -13,7 +34,7 @@
 | CBOM · 암호 자산 | 공개 인증서·공개키·알고리즘·확인된 발급 관계, 지원하는 TLS/SSH 설정의 사용처, JKS 공개 인증서와 엔트리 메타데이터 | 실제 협상된 TLS 버전·암호군은 관측 기록, HSM/KMS·보호된 키 저장소는 관리자가 내보낸 공개 메타데이터 필요 |
 | OBOM · 운영 구성 | 호스트·컨테이너·프로세스·실행 파일·소유 패키지·수신 소켓, systemd 활성화 설정. 패키지를 확인할 수 있는 포트만 소유 패키지에 연결 | 전체 Pod·워크로드·Service·Ingress 관계는 같은 클러스터의 Kubernetes JSON 내보내기, 배포 식별은 운영 측 라벨 필요. 접속 여부는 호스트 식별자가 일치하는 지점별 TCP 접속 관측을 `--network-evidence`로 반입 |
 | SaaSBOM · 서비스 | 서비스 명세나 OpenAPI JSON에서 서비스·엔드포인트를 `saasbom.cdx.json`으로 출력. 운영 측 로컬 소켓은 별도 OBOM에서 조회 | 서비스 카탈로그·API 명세, 제공자·외부 서비스 의존성, 인증·신뢰 경계, 데이터 흐름의 방향·분류 필요 |
-| AI/ML-BOM · 모델·데이터 | 승인된 로컬 경로에서 모델 설정, 양자화·컨텍스트, 가중치 인덱스, GGUF·safetensors 헤더·크기 및 Ollama 모델 레이어를 관측. 명시한 산출물의 전체 SHA-256 및 일치하는 선언의 모델·데이터 계보를 `aibom.cdx.json`으로 출력. 프레임워크 패키지는 SBOM에서도 조회 | 가중치·모델 식별자·리비전·해시, 기반 모델과 파생 관계, 모델 카드·라이선스, 학습·평가 데이터 출처 필요 |
+| AI-BOM · 모델·데이터 | 승인된 로컬 경로에서 모델 설정, 양자화·컨텍스트, 가중치 인덱스, GGUF·safetensors 헤더·크기 및 Ollama 모델 레이어를 관측. 명시한 산출물의 전체 SHA-256 및 일치하는 선언의 모델·데이터 계보를 `aibom.cdx.json`으로 출력. 프레임워크 패키지는 SBOM에서도 조회 | 가중치·모델 식별자·리비전·해시, 기반 모델과 파생 관계, 모델 카드·라이선스, 학습·평가 데이터 출처 필요 |
 | MBOM · 제조·빌드 공정 | 산출물과 SHA-256이 일치하는 SLSA 빌드 기록 또는 제공된 물리 조립·검사 단계를 CycloneDX `formulation`으로 변환해 `mbom.cdx.json`에 기록 | 소프트웨어는 CI 작업 단계·도구·입출력·빌드 실행 기록, 하드웨어는 제조사의 조립·공정·검사 이력 필요 |
 
 ## 계층별 수집 근거
@@ -35,7 +56,7 @@
 | 부팅 시작 서비스 | systemd `*.wants`·`*.requires` 링크, 단위 파일·drop-in, cgroup v2·v1 실행 여부 | 첫 `ExecStart`만 사용. 상대 경로 실행 파일은 패키지와 연결하지 않음. 다른 slice의 서비스는 `stopped`로 보일 수 있음. SysV init 스크립트 미지원 |
 | 하드웨어 CPE | Intel Xeon·Core, AMD EPYC·Ryzen, Dell PowerEdge(장치·BIOS), Lenovo ThinkSystem(장치) | NVD 사전 명명을 따른 형식. 사전에 없는 모델은 일치하지 않을 수 있음. HPE·BMC는 미생성 |
 | 패키지 파일 무결성 | RPM·dpkg·apk DB에 해시가 있는 실행 파일·공유 라이브러리와 실제 파일의 비교 | 설정·ghost 파일 제외. 해시 예산(호스트 8 GiB, 컨테이너 1 GiB) 초과 시 부분 확인. prelink 바이너리는 오탐 가능. 불일치 원인은 별도 판단 |
-| 인증서·CBOM | 수집 범위의 PEM·DER X.509 인증서, 서명·공개키 알고리즘 | 주체·발급자 이름 미기록. 개인키·PKCS#12·Java keystore는 읽지 않음. 배포판 신뢰 저장소와 20개 초과 번들 제외 |
+| 인증서·CBOM | 수집 범위의 PEM·DER X.509 인증서, 서명·공개키 알고리즘 | 주체·발급자 이름 미기록. JKS v1/v2의 공개 인증서와 엔트리 메타데이터를 읽고 별칭은 SHA-256으로 기록합니다. 암호화된 키 내용은 건너뛰며 저장소 무결성은 미검증으로 표시합니다. 개인키·PKCS#12 내용은 수집하지 않음. 배포판 신뢰 저장소와 20개 초과 번들 제외 |
 | 커널 | 현재 uname, 설치 커널 이미지·모듈, vermagic, RPM 버전 | 설치된 옛 커널과 실제 부팅 커널 구분. 모듈 미관측은 내장 기능 부재를 뜻하지 않음 |
 | 라이브패치 | Linux livepatch sysfs, Oracle raw Ksplice stage, 선택 실행 helper의 Ksplice·Uptrack·Canonical 상태 보고 | 관측과 클라이언트 보고 구분. 부팅·커널·시간이 다른 증거는 적용 상태로 사용하지 않음. CVE 취약성 자동판정 없음 |
 | Java | JDK/JRE release, JAR/WAR/EAR manifest·Maven 메타데이터 | 식별정보 제거·수정된 shaded archive는 부분 식별 가능 |

@@ -1,9 +1,29 @@
 # Native platform observations
 
-`Collect(ctx)` provides bounded observations from system tools already installed on the target platform. It uses fixed command arguments and a 60-second deadline per command, with a 32 MiB output limit. Data fields are selected before output to the SBOM. Serial numbers, UUIDs, usernames and full application paths are omitted. Local paths contribute only to hashed component identity.
+<!-- koda-doc-nav -->
+<p align="center">
+  <strong>English</strong>
+  <a href="README.ja.md"><img src="../../docs/badges/ja.svg" alt="日本語"></a>
+  <a href="README.zh.md"><img src="../../docs/badges/zh.svg" alt="简体中文"></a>
+  <a href="README.zh-hant.md"><img src="../../docs/badges/zh-hant.svg" alt="繁體中文"></a>
+  <a href="README.ko.md"><img src="../../docs/badges/ko.svg" alt="한국어"></a>
+  <a href="README.es.md"><img src="../../docs/badges/es.svg" alt="Español"></a>
+  <a href="README.fr.md"><img src="../../docs/badges/fr.svg" alt="Français"></a>
+  <a href="README.vi.md"><img src="../../docs/badges/vi.svg" alt="Tiếng Việt"></a>
+  <a href="README.pt.md"><img src="../../docs/badges/pt.svg" alt="Português"></a>
+  <a href="README.th.md"><img src="../../docs/badges/th.svg" alt="ไทย"></a>
+  <a href="README.tr.md"><img src="../../docs/badges/tr.svg" alt="Türkçe"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="../../docs/badges/release.svg" alt="v0.1.8"></a>
+  <a href="../../LICENSE"><img src="../../docs/badges/license.svg" alt="Apache-2.0"></a>
+</p>
+<!-- /koda-doc-nav -->
 
-On macOS the collector invokes `/usr/sbin/system_profiler` for hardware, software and application metadata. System firmware, OS loader, CPU and applications are emitted. OS build is retained in the OS version string. Application version and metadata may be unavailable for some applications.
+KODA BOM Kit’s `Collect(ctx)` gathers bounded observations using tools already installed on the target. It uses fixed command arguments, a 60-second deadline per command and a 32 MiB output limit. It selects fields before writing them to the SBOM. Serial numbers, UUIDs, usernames and full application paths are omitted. Local paths contribute only to hashed component identity.
 
-On Windows the collector invokes system PowerShell without profiles and reads CIM computer/BIOS/OS/QuickFixEngineering records and machine/current-user uninstall registry entries. OS build and architecture are preserved. QuickFixEngineering covers only its reported updates. Registry inventory does not enumerate every user profile, Store application or embedded dependency. The collector records a coverage issue for these limits.
+On macOS, `/usr/sbin/system_profiler` supplies hardware, software and application metadata. The collector emits system firmware, OS loader, CPU and applications, retaining the OS build in the OS version string. Some applications may lack version or metadata.
 
-Native macOS verification can be run with `KODA_TEST_NATIVE_PLATFORM=1 go test -v ./internal/platforminventory`. Windows parsing fixtures and cross-compilation verify the source shape. Actual Windows execution requires a Windows target.
+On Windows, system PowerShell runs without profiles and reads CIM computer, BIOS, OS and QuickFixEngineering records, plus machine and current-user uninstall registry entries. OS build and architecture are retained. QuickFixEngineering covers only the updates it reports. Registry inventory does not enumerate every user profile, Store application or embedded dependency. The collector records a coverage issue for these limits.
+
+Run native macOS verification with `KODA_TEST_NATIVE_PLATFORM=1 go test -v ./internal/platforminventory`. Windows parsing fixtures and cross-compilation verify the source shape. Actual Windows execution requires a Windows target.

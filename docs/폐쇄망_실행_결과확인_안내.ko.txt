@@ -1,5 +1,6 @@
 폐쇄망 실행 및 결과 확인 안내
-KODA BOM Linux 안내
+KODA BOM Kit 안내
+다국어 Markdown 안내: air-gapped.ko.md (한국어), air-gapped.md (English)
 안내 보완일 2026-11-22 (한국 표준시)
 
 현재 버전 0.1.8의 단일 실행 파일 사용법

@@ -1,10 +1,30 @@
 # 빌드·검증과 증거 구분
 
+<!-- koda-doc-nav -->
+<p align="center">
+  <a href="verification.md"><img src="badges/en.svg" alt="English"></a>
+  <a href="verification.ja.md"><img src="badges/ja.svg" alt="日本語"></a>
+  <a href="verification.zh.md"><img src="badges/zh.svg" alt="简体中文"></a>
+  <a href="verification.zh-hant.md"><img src="badges/zh-hant.svg" alt="繁體中文"></a>
+  <strong>한국어</strong>
+  <a href="verification.es.md"><img src="badges/es.svg" alt="Español"></a>
+  <a href="verification.fr.md"><img src="badges/fr.svg" alt="Français"></a>
+  <a href="verification.vi.md"><img src="badges/vi.svg" alt="Tiếng Việt"></a>
+  <a href="verification.pt.md"><img src="badges/pt.svg" alt="Português"></a>
+  <a href="verification.th.md"><img src="badges/th.svg" alt="ไทย"></a>
+  <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
+</p>
+<!-- /koda-doc-nav -->
+
 ## 0.1.8 현재 검증 범위
 
-현재 소스 버전은 `0.1.8`입니다. Linux amd64 폐쇄망 배포본의 압축파일과 SHA-256
+KODA BOM Kit의 현재 소스 버전은 `0.1.8`입니다. Linux amd64 폐쇄망 배포본의 압축파일과 SHA-256
 체크섬은 [공식 릴리스](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)에서
-받습니다. 반입·압축 해제·실행 명령은 [README](../README.md#018-폐쇄망-배포본-반입-후-실행)에 있습니다.
+받습니다. 반입·압축 해제·실행 명령은 [폐쇄망 실행 안내](air-gapped.ko.md)에 있습니다.
 각 배포본의 실행 파일 SHA-256과 실행 환경은 해당 릴리스 설명에서 확인합니다.
 [검증 결과 기록](검증결과.ko.md)과 아래 0.1.5 이하 배포·VM 절차는 해당 버전의 이력입니다.
 
@@ -202,7 +222,7 @@ sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results --max-files 0 --ti
 ## Ubuntu·라이브패치 검증
 
 Ubuntu 24.04.1/`6.8.0-47-generic` 실제 커널 검증 절차는
-[`tests/ubuntu-vm/README.md`](../tests/ubuntu-vm/README.md)에 있습니다.
+[`tests/ubuntu-vm/README.ko.md`](../tests/ubuntu-vm/README.ko.md)에 있습니다.
 Ubuntu CD 서명키로 인증한 Base rootfs와 서명된 Ubuntu Snapshot 인덱스의 커널 DEB를 사용하며,
 원본 DEB를 unpack한 시험용 사용자 공간을 custom initramfs로 부팅합니다.
 독립 uname·proc release·실제 `dummy` 모듈 로드와 수집 결과를 비교하고,

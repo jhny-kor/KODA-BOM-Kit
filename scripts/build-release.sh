@@ -141,7 +141,7 @@ if test "$(run_python scripts/source-identity.py)" != "$revision"; then
 fi
 build_flags="-s -w -X main.version=$release_version -X main.revision=$revision -X main.builtAt=$built_at"
 run_go build -mod=readonly -trimpath -buildvcs=false -ldflags "$build_flags" -o "$stage/koda-bom" ./cmd/koda-bom
-cp README.md LICENSE NOTICE THIRD_PARTY_NOTICES.md "$stage/"
+run_python scripts/docs-navigation.py --stage "$stage" >&2
 cp scripts/collect-livepatch-status.sh "$stage/collect-livepatch-status.sh"
 chmod 0755 "$stage/collect-livepatch-status.sh"
 cp scripts/scan-directory.sh "$stage/scan-directory.sh"
@@ -150,7 +150,6 @@ cp scripts/collect-aix-evidence.sh "$stage/collect-aix-evidence.sh"
 chmod 0755 "$stage/collect-aix-evidence.sh"
 mkdir "$stage/scripts"
 cp scripts/compare-sbom-inventory.py scripts/verify-tracker-inventory.py "$stage/scripts/"
-cp -R docs "$stage/docs"
 env -i "${go_environment[@]}" "$python_bin" -I scripts/license-inventory.py --go "$go_bin" --output "$stage/licenses" --strict
 run_go version -m -json "$stage/koda-bom" > "$build_work/binary.json"
 run_python - "$stage" "$release_id" "$built_at" "$revision" "$go_sha256" "$build_work" "$build_flags" "$sum_database" <<'PY'
