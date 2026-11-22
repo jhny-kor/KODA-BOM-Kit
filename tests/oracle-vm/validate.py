@@ -135,7 +135,7 @@ def validate_vm(directory: Path | str, *, expected_kernel: str | None = None,
 
     result_dirs = baseline.get("resultDirectories")
     if not isinstance(result_dirs, list) or len(result_dirs) != 1 or not isinstance(result_dirs[0], str) or not RESULT_NAME.fullmatch(result_dirs[0]):
-        raise VerificationError("one unambiguous koda-sbom result directory must be declared in baseline.json")
+        raise VerificationError("one unambiguous koda-bom result directory must be declared in baseline.json")
     result_name = result_dirs[0]
     result = (root / result_name).resolve(strict=True)
     try:

@@ -17,10 +17,10 @@ SHA-256·크기를 연결합니다. 모든 입력 URL, 체크섬, 서명 로그 
 docker build --platform linux/arm64 -t local/koda-sbom-oracle-vm:20261029 \
   -f tests/oracle-vm/Dockerfile .
 python3 tests/ubuntu-vm/prepare.py --work-dir /tmp/koda-sbom-ubuntu-vm-012 \
-  --binary /path/to/final/koda-sbom --go /path/to/go/bin/go
+  --binary /path/to/final/koda-bom --go /path/to/go/bin/go
 python3 tests/ubuntu-vm/run.py --work-dir /tmp/koda-sbom-ubuntu-vm-012
 python3 tests/ubuntu-vm/validate.py /tmp/koda-sbom-ubuntu-vm-012/runs/ubuntu-<ID>/results \
-  --binary /path/to/final/koda-sbom \
+  --binary /path/to/final/koda-bom \
   --report /tmp/koda-sbom-ubuntu-vm-012/runs/ubuntu-<ID>/validation.json
 ```
 

@@ -62,14 +62,14 @@ def main():
             assert r.stdout.count('V3 RSA/SHA256 Signature, key ID ad986da3: OK')==8,r.stdout
             run(['docker','export','--output',str(root_tar),cid])
         finally:run(['docker','rm',cid],stdout=subprocess.DEVNULL)
-    shutil.copy2(a.binary.resolve(),work/'koda-sbom')
+    shutil.copy2(a.binary.resolve(),work/'koda-bom')
     env=dict(os.environ,CGO_ENABLED='0',GOOS='linux',GOARCH='amd64',GOAMD64='v1',GOTOOLCHAIN='local')
     run([a.go,'build','-trimpath','-ldflags','-s -w','-o',str(work/'init'),str(base/'init.go')],env=env)
     script='''set -euo pipefail
 mkdir -p /tmp/rootfs
 tar --no-same-owner --delay-directory-restore --exclude='dev/*' --exclude='proc/*' --exclude='sys/*' -xf /work/oracle82-rootfs.tar -C /tmp/rootfs
 cp /work/init /tmp/rootfs/init
-cp /work/koda-sbom /tmp/rootfs/koda-sbom
+cp /work/koda-bom /tmp/rootfs/koda-bom
 mkdir -p /tmp/rootfs/proc /tmp/rootfs/sys /tmp/rootfs/dev /tmp/rootfs/tmp /tmp/rootfs/results /tmp/rootfs/vm-test/modules
 for release in 4.18.0-193.el8.x86_64 5.4.17-2011.1.2.el8uek.x86_64; do
  mkdir -p "/tmp/rootfs/vm-test/modules/$release"
@@ -84,12 +84,12 @@ find . -print0 | LC_ALL=C sort -z | cpio --null --create --format=newc --reprodu
 '''
     run(['docker','run','--rm','--platform','linux/arm64','--network','none','--read-only','--cap-drop','ALL','--cap-add','DAC_OVERRIDE','--cap-add','FOWNER','--security-opt','no-new-privileges','--tmpfs','/tmp:rw,size=2g','--mount',f'type=bind,src={work},dst=/work','local/koda-sbom-oracle-vm:20261029','/bin/bash','-ec',script])
     provenance={'schema':'koda-sbom-oracle-vm-inputs-v1','kernelRPMs':manifest['packages'],'oracleKeyFingerprint':key_fingerprint(key.read_text()),'files':{},'imageIDs':{}}
-    for name in ['oracle82-rootfs.tar','oracle82-initramfs.cpio.gz','init','koda-sbom','vmlinuz-4.18.0-193.el8.x86_64','vmlinuz-5.4.17-2011.1.2.el8uek.x86_64','rpm-signature-install.log']:
+    for name in ['oracle82-rootfs.tar','oracle82-initramfs.cpio.gz','init','koda-bom','vmlinuz-4.18.0-193.el8.x86_64','vmlinuz-5.4.17-2011.1.2.el8uek.x86_64','rpm-signature-install.log']:
         f=work/name
         with f.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
         provenance['files'][name]={'bytes':f.stat().st_size,'sha256':digest}
     for image in ['oraclelinux:8.2','local/koda-sbom-oracle-vm:20261029']:
         provenance['imageIDs'][image]=subprocess.check_output(['docker','image','inspect',image,'--format','{{.Id}}'],text=True).strip()
     (work/'input-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
-    print(json.dumps({'workDirectory':str(work),'initramfs':str(work/'oracle82-initramfs.cpio.gz'),'binarySHA256':hashlib.sha256((work/'koda-sbom').read_bytes()).hexdigest()},indent=2))
+    print(json.dumps({'workDirectory':str(work),'initramfs':str(work/'oracle82-initramfs.cpio.gz'),'binarySHA256':hashlib.sha256((work/'koda-bom').read_bytes()).hexdigest()},indent=2))
 if __name__=='__main__':main()

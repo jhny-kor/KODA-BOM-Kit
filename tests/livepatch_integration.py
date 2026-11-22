@@ -92,7 +92,7 @@ printf 'Installed updates:\\n[up1234] CVE-2026-98432: Synthetic fix.\\n'
         assert not list(rawtmp.iterdir()), 'Helper left raw client status files behind'
         print(json.dumps({
             'passed': True, 'scope': 'Synthetic installed clients and real Linux helper/collector execution; no genuine vendor patch applied',
-            'binarySha256': hashlib.sha256((stage / 'koda-sbom').read_bytes()).hexdigest(),
+            'binarySha256': hashlib.sha256((stage / 'koda-bom').read_bytes()).hexdigest(),
             'providers': sorted(imported), 'scanExitCode': result.returncode,
             'schemas': standard, 'rawClientFilesRemoved': True, 'secretCanaryAbsent': True,
             'availableUpdatesAndExploitDetectionNotClassifiedAsCVEPatches': True,

@@ -51,7 +51,7 @@ def main():
     evidence = args.evidence_dir.resolve(strict=True)
     evidence.relative_to(repo / 'dist' / 'evidence')
     release = read(stage / 'release.json')
-    binary = stage / 'koda-sbom'
+    binary = stage / 'koda-bom'
     binary_sha = digest(binary)
     identity_command = [sys.executable, '-I', str(repo / 'scripts/source-identity.py')]
     identity = subprocess.check_output(identity_command, text=True).strip()
@@ -73,7 +73,7 @@ def main():
         ('ubuntu24041', args.ubuntu_work.resolve(), [read(args.ubuntu_work / 'latest-boot.json')], ubuntu.validate_vm),
     ]:
         inputs = read(work / 'input-provenance.json')
-        require(inputs['files']['koda-sbom']['sha256'] == binary_sha, f'{family} input must match the staged binary')
+        require(inputs['files']['koda-bom']['sha256'] == binary_sha, f'{family} input must match the staged binary')
         for filename, info in inputs['files'].items():
             require(digest(work / filename) == info['sha256'], filename)
         provenance[family] = inputs
@@ -137,14 +137,14 @@ def main():
     }
     write(stage / 'VERIFICATION.json', report)
     (stage / '반입후실행.ko.txt').write_text(
-        'KODA SBOM Linux ' + release['release'] + '\n\n'
-        'sha256sum -c SHA256SUMS\n./koda-sbom doctor\n'
+        'KODA BOM Linux ' + release['release'] + '\n\n'
+        'sha256sum -c SHA256SUMS\n./koda-bom doctor\n'
         '특정 디렉터리와 그 하위만 수집 (아래 경로를 실제 대상 폴더로 변경):\n'
         'sudo ./scan-directory.sh /opt/application /var/tmp/koda-sbom-results --max-files 0 --timeout 0\n\n'
         '호스트 전체를 수집:\n'
-        'sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results\n\n'
+        'sudo ./koda-bom scan --output-dir /var/tmp/koda-sbom-results\n\n'
         '파일 개수·수집 시간 제한을 해제하려면:\n'
-        'sudo ./koda-sbom scan --max-files 0 --timeout 0 --output-dir /var/tmp/koda-sbom-results\n\n'
+        'sudo ./koda-bom scan --max-files 0 --timeout 0 --output-dir /var/tmp/koda-sbom-results\n\n'
         'Ksplice·Livepatch 클라이언트 상세 상태와 함께 수집:\n'
         'sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results --max-files 0 --timeout 0\n\n'
         '종료 코드 0=완전 수집, 3=부분 수집, 2=실패. 결과 폴더 전체를 보관합니다.\n'

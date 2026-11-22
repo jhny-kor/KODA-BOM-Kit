@@ -10,12 +10,12 @@ set +e
 docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL \
  --cap-add SYS_PTRACE --security-opt seccomp=unconfined --security-opt no-new-privileges \
  --tmpfs /tmp:rw,nosuid,nodev,size=512m \
- --mount "type=bind,src=$binary,dst=/koda-sbom,readonly" \
+ --mount "type=bind,src=$binary,dst=/koda-bom,readonly" \
  --mount "type=bind,src=$fixture,dst=/fixture,readonly" \
  --mount "type=bind,src=$result_dir,dst=/results" \
  local/koda-sbom-trace:20261029 \
  strace -f -e trace=network,execve -o /results/syscalls.log \
- /koda-sbom scan --target /fixture --no-context --output-dir /results/output
+ /koda-bom scan --target /fixture --no-context --output-dir /results/output
 scan_status=$?
 set -e
 if test "$scan_status" -ne 0 && test "$scan_status" -ne 3; then exit "$scan_status"; fi
@@ -30,7 +30,7 @@ for line in text.splitlines():
  if re.search(r'\bexecve\(',line):execs.append(line)
 if network:
  raise SystemExit('Network syscall attempts:\n'+'\n'.join(network))
-if len(execs) != 1 or '"/koda-sbom"' not in execs[0]:
+if len(execs) != 1 or '"/koda-bom"' not in execs[0]:
  raise SystemExit('Unexpected external command execution:\n'+'\n'.join(execs))
-print('PASS: network syscalls 0, only initial /koda-sbom execve')
+print('PASS: network syscalls 0, only initial /koda-bom execve')
 PY

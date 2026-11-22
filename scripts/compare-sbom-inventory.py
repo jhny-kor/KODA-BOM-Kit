@@ -500,7 +500,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--deployment", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True, help="new directory outside the deployment")
-    parser.add_argument("--koda", type=Path, required=True, help="locally installed koda-sbom binary")
+    parser.add_argument("--koda", type=Path, required=True, help="locally installed koda-bom binary")
     parser.add_argument("--syft", type=Path, required=True)
     parser.add_argument("--trivy", type=Path, required=True)
     parser.add_argument("--trivy-cache-dir", type=Path, help="local cache with Java index when required")

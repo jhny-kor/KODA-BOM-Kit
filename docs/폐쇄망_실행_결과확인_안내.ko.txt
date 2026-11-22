@@ -1,11 +1,11 @@
 폐쇄망 실행 및 결과 확인 안내
-KODA SBOM Linux 안내
-안내 보완일 2026-11-19 (한국 표준시)
+KODA BOM Linux 안내
+안내 보완일 2026-11-22 (한국 표준시)
 
 현재 소스(0.1.7-dev)의 단일 실행 파일 사용법
-  ./koda-sbom version
-  ./koda-sbom scan --output-dir ./reports
-  ./koda-sbom scan --output-dir ./reports --cyclonedx-17
+  ./koda-bom version
+  ./koda-bom scan --output-dir ./reports
+  ./koda-bom scan --output-dir ./reports --cyclonedx-17
 
 마지막 명령은 한 번 수집한 결과를 sbom.cdx.json(1.6),
 sbom.cdx-1.7.json(1.7), sbom.spdx.json으로 저장합니다.

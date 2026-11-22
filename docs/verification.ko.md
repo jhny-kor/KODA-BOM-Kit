@@ -29,7 +29,7 @@ linux/amd64 이미지가 대상입니다. macOS·Windows의 `platform-inventory`
 디렉터리 수집의 재현 명령은 다음과 같습니다. 출력 부모 경로는 수집 대상 밖으로 지정합니다.
 
 ```bash
-./koda-sbom scan --target /path/to/input --no-context \
+./koda-bom scan --target /path/to/input --no-context \
   --output-dir /path/to/results --format both --cyclonedx-17
 # 수집기가 출력한 실제 결과 디렉터리를 지정합니다.
 python3 tests/validate_outputs.py /path/to/scan-result
@@ -81,7 +81,7 @@ docker run --rm -v "$PWD":/repo:ro -w /repo/internal/hostcontext debian:bookworm
 
 ```bash
 docker run --rm --privileged --pid=host -v /var/lib/docker:/var/lib/docker:ro,rslave \
-  -v "$PWD/bin":/b:ro -v "$PWD/out":/out debian:bookworm-slim /b/koda-sbom scan --output-dir /out --exclude '/b/**'
+  -v "$PWD/bin":/b:ro -v "$PWD/out":/out debian:bookworm-slim /b/koda-bom scan --output-dir /out --exclude '/b/**'
 ```
 
 fixture 통과는 실제 BMC·펌웨어·OT 장비, Windows 실행 또는 모든 공급사 advisory 형식의
@@ -188,7 +188,7 @@ python3 tests/directory_integration.py --stage /path/to/final-stage
 `scan --max-files N`은 기본 1,000,000개이며 `0`은 수집 대상으로 채택하는 일반 파일 수 상한을 해제합니다. `--timeout D`는 기본 30분이며 `0` 또는 `0s`는 수집 시간 제한을 해제합니다. 옵션은 서로 독립적이고 두 제한을 모두 해제해도 Ctrl+C에 의한 취소를 처리해야 합니다. 음수와 잘못된 옵션, 작은 파일 상한 초과, `--max-files 0` 및 `--timeout 0` 실행을 회귀 시나리오로 확인합니다.
 
 ```bash
-sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results --max-files 0 --timeout 0
+sudo ./koda-bom scan --output-dir /var/tmp/koda-sbom-results --max-files 0 --timeout 0
 sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results --max-files 0 --timeout 0
 ```
 
@@ -246,17 +246,17 @@ GOPROXY=off ./scripts/build-release.sh --go /path/to/go --go-sha256 "$trusted_go
 python3 tests/release_guards.py
 stage=/path/to/unpacked-linux-amd64-release
 (cd "$stage" && sha256sum -c SHA256SUMS)
-python3 tests/check_binary.py "$stage/koda-sbom"
-python3 tests/docker_integration.py --binary "$stage/koda-sbom"
+python3 tests/check_binary.py "$stage/koda-bom"
+python3 tests/docker_integration.py --binary "$stage/koda-bom"
 python3 tests/directory_integration.py --stage "$stage"
 ```
 
 `docker_integration.py`는 미리 받은 Linux amd64 `debian:bookworm-slim` 이미지를
 사용하고 실행 중 네트워크를 차단합니다. 이미지 준비에는 `--pull`을 사용할 수 있습니다.
 macOS에서는 체크섬을 `shasum -a 256 -c SHA256SUMS`로 확인할 수 있습니다.
-Linux amd64 빌드 호스트에서 직접 확인하려면 `python3 tests/integration.py --binary "$stage/koda-sbom"`을 실행합니다.
+Linux amd64 빌드 호스트에서 직접 확인하려면 `python3 tests/integration.py --binary "$stage/koda-bom"`을 실행합니다.
 Oracle 컨테이너 검증은 `docker pull --platform linux/amd64 oraclelinux:8.2`로
-이미지를 준비한 뒤 `python3 tests/oracle82.py --binary "$stage/koda-sbom"`으로 실행합니다.
+이미지를 준비한 뒤 `python3 tests/oracle82.py --binary "$stage/koda-bom"`으로 실행합니다.
 
 검증용 Python·Docker·jsonschema는 빌드 PC에서만 사용합니다. 배포 실행 파일은 이 프로그램들에 의존하지 않습니다. 표준 스키마는 `tests/schemas`에 버전 고정해 두며 검증 시 외부 참조를 다운로드하지 않습니다.
 
@@ -289,7 +289,7 @@ RPM URL·SHA-256·크기와 Oracle 서명키 지문은 `tests/oracle-vm/kernels.
 
 ### VM 재현
 
-아래 도구와 다운로드는 외부 빌드 PC에서만 필요합니다. Python 3·Go·Docker·jsonschema를 준비하고 Docker에 최소 6 GiB 메모리 여유를 둡니다. `/path/to/koda-sbom`에는 검증할 **최종 배포 파일에서 추출한 바이너리**를 지정합니다.
+아래 도구와 다운로드는 외부 빌드 PC에서만 필요합니다. Python 3·Go·Docker·jsonschema를 준비하고 Docker에 최소 6 GiB 메모리 여유를 둡니다. `/path/to/koda-bom`에는 검증할 **최종 배포 파일에서 추출한 바이너리**를 지정합니다.
 
 ```bash
 docker pull --platform linux/amd64 oraclelinux:8.2
@@ -297,15 +297,15 @@ docker build --platform linux/arm64 -t local/koda-sbom-oracle-vm:20261029 \
   -f tests/oracle-vm/Dockerfile .
 
 python3 tests/oracle-vm/prepare.py --work-dir /tmp/koda-oracle-vm-check \
-  --binary /path/to/koda-sbom --go /path/to/go1.26.11/bin/go
+  --binary /path/to/koda-bom --go /path/to/go1.26.11/bin/go
 python3 tests/oracle-vm/run.py --work-dir /tmp/koda-oracle-vm-check --flavor both --timeout 1200
 
 # run.py가 출력한 각 실행 디렉터리를 사용합니다. 두 명령은 각각 따로 실행합니다.
 python3 tests/oracle-vm/validate.py /tmp/koda-oracle-vm-check/runs/rhck-<ID>/results \
-  --expected-kernel 4.18.0-193.el8.x86_64 --binary /path/to/koda-sbom \
+  --expected-kernel 4.18.0-193.el8.x86_64 --binary /path/to/koda-bom \
   --report /tmp/koda-oracle-vm-check/runs/rhck-<ID>/validation.json
 python3 tests/oracle-vm/validate.py /tmp/koda-oracle-vm-check/runs/uek-<ID>/results \
-  --expected-kernel 5.4.17-2011.1.2.el8uek.x86_64 --binary /path/to/koda-sbom \
+  --expected-kernel 5.4.17-2011.1.2.el8uek.x86_64 --binary /path/to/koda-bom \
   --report /tmp/koda-oracle-vm-check/runs/uek-<ID>/validation.json
 ```
 
@@ -316,8 +316,8 @@ python3 tests/oracle-vm/validate.py /tmp/koda-oracle-vm-check/runs/uek-<ID>/resu
 실제 서버에서는 아래 명령으로 권한·SELinux·noexec·파일시스템 조건을 추가 검증합니다.
 
 ```bash
-./koda-sbom doctor
-sudo ./koda-sbom scan --output-dir ./oracle82-verification
+./koda-bom doctor
+sudo ./koda-bom scan --output-dir ./oracle82-verification
 ```
 
 실제 서버에서 실행 중 커널과 설치된 다른 커널이 구분되는지 확인하고 실행 조건을 함께 기록합니다. 커널 3.2 이상은 Go 실행 최소 조건이며 모든 해당 커널/제품 조합을 검증했다는 의미가 아닙니다.
@@ -334,7 +334,7 @@ sudo ./koda-sbom scan --output-dir ./oracle82-verification
 
 ```bash
 docker build --platform linux/amd64 -t local/koda-sbom-trace:20261029 -f tests/Dockerfile.trace .
-bash tests/trace-network.sh /path/to/koda-sbom /path/to/fixture /path/to/qa-results
+bash tests/trace-network.sh /path/to/koda-bom /path/to/fixture /path/to/qa-results
 ```
 
 이 디버그 이미지는 빌드 PC 검증에만 사용하며 대상 서버 배포물에 포함하지 않습니다. amd64 에뮬레이션에서 ptrace가 지원되지 않으면 시도 0회라고 주장하지 않고, 네이티브 x86_64 Linux에서 별도 추적해야 합니다.
@@ -343,7 +343,7 @@ ARM64 빌드 PC에서 ptrace 레지스터 해석이 깨지는 경우 `trace-netw
 
 ```bash
 docker build --platform linux/arm64 -t local/koda-sbom-qemu-trace:20261029 -f tests/Dockerfile.qemu-trace .
-bash tests/trace-qemu.sh /path/to/koda-sbom /path/to/fixture /path/to/qa-results
+bash tests/trace-qemu.sh /path/to/koda-bom /path/to/fixture /path/to/qa-results
 # 기본 호스트 수집과 새 livepatch sysfs 읽기도 추적
-bash tests/trace-qemu.sh /path/to/koda-sbom /path/to/fixture /path/to/qa-live-host live-host
+bash tests/trace-qemu.sh /path/to/koda-bom /path/to/fixture /path/to/qa-live-host live-host
 ```

@@ -82,7 +82,7 @@ if stamp != built:
 PY
 revision="$(run_python scripts/source-identity.py)"
 release_id="${release_version}-${release_stamp}-${revision}"
-stage="$root_dir/dist/koda-sbom-linux-amd64-$release_id"
+stage="$root_dir/dist/koda-bom-linux-amd64-$release_id"
 mkdir -p "$root_dir/dist"
 # Keep generated license directories containing @version outside root Go wildcards.
 if ! test -f "$root_dir/dist/go.mod"; then
@@ -132,7 +132,7 @@ go_environment=(
 run_go() {
   env -i "${go_environment[@]}" "$go_bin" "$@"
 }
-run_go list -mod=readonly -deps ./cmd/koda-sbom > /dev/null
+run_go list -mod=readonly -deps ./cmd/koda-bom > /dev/null
 run_go mod verify >&2
 run_go list -mod=readonly -m -json all > "$build_work/modules.json"
 if test "$(run_python scripts/source-identity.py)" != "$revision"; then
@@ -140,7 +140,7 @@ if test "$(run_python scripts/source-identity.py)" != "$revision"; then
   exit 2
 fi
 build_flags="-s -w -X main.version=$release_version -X main.revision=$revision -X main.builtAt=$built_at"
-run_go build -mod=readonly -trimpath -buildvcs=false -ldflags "$build_flags" -o "$stage/koda-sbom" ./cmd/koda-sbom
+run_go build -mod=readonly -trimpath -buildvcs=false -ldflags "$build_flags" -o "$stage/koda-bom" ./cmd/koda-bom
 cp README.md LICENSE THIRD_PARTY_NOTICES.md "$stage/"
 cp scripts/collect-livepatch-status.sh "$stage/collect-livepatch-status.sh"
 chmod 0755 "$stage/collect-livepatch-status.sh"
@@ -152,7 +152,7 @@ mkdir "$stage/scripts"
 cp scripts/compare-sbom-inventory.py scripts/verify-tracker-inventory.py "$stage/scripts/"
 cp -R docs "$stage/docs"
 env -i "${go_environment[@]}" "$python_bin" -I scripts/license-inventory.py --go "$go_bin" --output "$stage/licenses" --strict
-run_go version -m -json "$stage/koda-sbom" > "$build_work/binary.json"
+run_go version -m -json "$stage/koda-bom" > "$build_work/binary.json"
 run_python - "$stage" "$release_id" "$built_at" "$revision" "$go_sha256" "$build_work" "$build_flags" "$sum_database" <<'PY'
 import hashlib,json,sys
 from pathlib import Path
@@ -174,7 +174,7 @@ inputs={name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in ('g
 provenance={
     'toolchainSHA256':sys.argv[5],
     'sourceInputsSHA256':inputs,
-    'command':['go','build','-mod=readonly','-trimpath','-buildvcs=false','-ldflags',sys.argv[7],'-o','$STAGE/koda-sbom','./cmd/koda-sbom'],
+    'command':['go','build','-mod=readonly','-trimpath','-buildvcs=false','-ldflags',sys.argv[7],'-o','$STAGE/koda-bom','./cmd/koda-bom'],
     'environment':{'GOENV':'off','GOWORK':'off','GOFLAGS':'','GOTOOLCHAIN':'local','GOAUTH':'netrc','GOSUMDB':sys.argv[8]},
     'moduleGraph':modules,
 }

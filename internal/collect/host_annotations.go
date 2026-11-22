@@ -17,7 +17,7 @@ const (
 	HostPropertyPrefix       = "koda:host:"
 	RuntimeListeningProperty = "koda:runtime:listening"
 	RuntimeBindScopeProperty = "koda:runtime:bind-scope"
-	annotationTool           = "Tool: koda-sbom"
+	annotationTool           = "Tool: koda-bom"
 )
 
 // Exposure is the listening sockets of processes whose executable belongs to

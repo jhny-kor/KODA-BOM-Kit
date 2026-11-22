@@ -16,7 +16,7 @@ from validate_outputs import require_unoptimized, validate
 def exercise(stage):
     require_unoptimized()
     stage = stage.resolve(strict=True)
-    binary = stage / 'koda-sbom'
+    binary = stage / 'koda-bom'
     helper = stage / 'scan-directory.sh'
     assert binary.is_file() and helper.is_file()
     reports = []

@@ -1,24 +1,38 @@
-# KODA SBOM Linux
+# KODA BOM Linux
 
-KODA SBOM Maker는 폐쇄망에서 **실행 파일 하나로 소프트웨어와 하드웨어 인벤토리를 수집**하고 CycloneDX와 SPDX로 저장합니다. Linux 수집은 로컬 파일과 커널 인터페이스를 읽으며 대상 서버에 Python, Go, Java, Node.js, Docker 또는 취약점 DB를 설치할 필요가 없습니다. 선택 명령 `assess`는 운영자가 제공한 로컬 보안 권고와 수집 결과를 대조합니다.
-
-출력 범위는 이름의 "SBOM"보다 넓습니다. 하나의 CycloneDX BOM에 **SBOM(패키지와 펌웨어) + HBOM(장치, CycloneDX `device`) + CBOM(인증서·암호 알고리즘, CycloneDX `cryptographic-asset`)**을 함께 담으며, SPDX 2.3에서는 장치와 펌웨어가 각각 `primaryPackagePurpose` `DEVICE`·`FIRMWARE` 패키지로 기록됩니다.
+KODA BOM은 폐쇄망에서 **실행 파일 하나로 소프트웨어와 하드웨어 인벤토리를 수집**하고 CycloneDX와 SPDX로 저장합니다. Linux 수집은 로컬 파일과 커널 인터페이스를 읽으며 대상 서버에 Python, Go, Java, Node.js, Docker 또는 취약점 DB를 설치할 필요가 없습니다. 선택 명령 `assess`는 운영자가 제공한 로컬 보안 권고와 수집 결과를 대조합니다.
 
 ## 현재 소스에서 실행
 
-현재 소스의 개발 버전은 `0.1.7-dev`입니다. Linux x86_64·ARM64에서 `scan`을, macOS·Windows에서는 대상 OS용 실행 파일의 `platform-inventory`를 사용합니다. Linux 호스트 전체 수집은 패키지, 실행 상태, 커널에서 확인할 수 있는 장치와 펌웨어 정보를 함께 저장합니다.
+Linux x86_64·ARM64에서 실행 파일은 `koda-bom`입니다. 현재 소스의 개발 버전은 `0.1.7-dev`입니다.
 
 ```sh
-./koda-sbom version
-./koda-sbom scan --output-dir ./reports
-./koda-sbom scan --output-dir ./reports --cyclonedx-17
+sudo ./koda-bom
 ```
 
-마지막 명령은 **한 번 수집한 결과**를 CycloneDX 1.6·1.7과 SPDX 2.3으로 저장합니다. BMC·NIC 등 외부 장비의 내보내기 파일 반입, macOS·Windows 실행법, 오프라인 권고 대조는 [단일 파일 CLI 안내](docs/asset-inventory.ko.md)에 있습니다. 검증한 플랫폼과 확인 한계는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
+인자 없이 실행하면 현재 Linux 호스트를 수집합니다. 결과는 현재 디렉터리의 `bom-output/` 아래 새 폴더에 저장하고, 마지막 줄에 그 경로를 표시합니다.
+
+| 파일 | 내용 |
+|---|---|
+| `bom.cdx.json` | 아래 개별 BOM의 구성요소·서비스·관계·제조 또는 빌드 공정을 병합한 CycloneDX 문서 |
+| `boms/sbom.cdx.json`, `boms/hbom.cdx.json`, `boms/cbom.cdx.json` | 소프트웨어, 하드웨어·펌웨어, 암호 자산 |
+| `boms/obom.cdx.json` | 호스트에서 관측한 운영 구성과 서비스·프로세스 관계 |
+| `boms/aibom.cdx.json`, `boms/saasbom.cdx.json`, `boms/mbom.cdx.json` | AI 모델, SaaS 서비스, 제조·빌드 공정 |
+| `sbom.cdx.json`, `sbom.spdx.json` | 기존 Tracker 업로드 및 비교용 인벤토리 |
+| `collection.json`, `SHA256SUMS` | 수집 상태와 누락 사유, 결과 파일 체크섬 |
+
+기본 CycloneDX 버전은 1.6입니다. 출력 경로와 1.7 동시 출력을 지정할 수 있습니다.
+
+```sh
+sudo ./koda-bom --output-dir ./reports --cyclonedx-17
+./koda-bom ai-bom --model-dir /srv/models/Qwen --output-dir ./model-results
+```
+
+AI 모델과 가중치는 수집 범위에서 발견한 자료를 기록합니다. SaaS·제조 공정은 운영자가 지정한 명세를 읽습니다. 해당 증거가 없을 때는 개별 문서에 `no-evidence`와 이유를 남깁니다. BMC·NIC 내보내기, macOS·Windows 수집 명령과 권고 대조 방법은 [단일 파일 CLI 안내](docs/asset-inventory.ko.md)에 있습니다.
 
 2026-11-21 Daybreak 점검의 12건을 조치했습니다. 배포 빌드 설정, 파일 수집 범위, 이미지·아카이브 처리, 오프라인 권고 대조가 대상입니다. Linux amd64에서 단일 실행 파일의 하드웨어·소프트웨어 수집과 동시 출력을 다시 확인했습니다. [항목별 조치와 회귀 결과](docs/검증결과.ko.md#2026-11-21-daybreak-12건-조치-검증)
 
-## 0.1.7 배포본 반입 후 실행
+## 기존 0.1.7 배포본 반입 후 실행
 
 빌드 PC의 `dist/`에서 만든 `koda-sbom-linux-amd64-0.1.7-<UTC일시>-<소스식별자>.tar.gz`와 같은 이름의 `.sha256`을 반입합니다. 0.1.7 배포본은 아래 [새 수집 항목](#서버-보안-관리-정보)을 포함하며, 0.1.5처럼 실제 커널 VM 검증 보고서(`VERIFICATION.json`)를 동봉한 `-verified` 묶음은 아닙니다. 검증한 범위와 미검증 범위는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
 
@@ -107,7 +121,7 @@ sudo ./scan-directory.sh /opt/application /var/tmp/koda-sbom-results \
 `--target`을 반복해서 지정하면 디렉터리마다 수집한 구성요소를 하나의 결과에 담습니다.
 
 ```bash
-./koda-sbom scan --target '/opt/application' --target '/opt/runtime' \
+./koda-bom scan --target '/opt/application' --target '/opt/runtime' \
   --exclude-dir '/opt/application/cache' --exclude-dir '/opt/runtime/logs' \
   --exclude '**/*.bak' --output-dir '/var/tmp/koda-sbom-results'
 ```
@@ -149,11 +163,61 @@ helper는 원문을 임시 파일로만 취급하고 정제된 증거 JSON을 �
 정제된 보고서를 수동으로 다시 지정할 수도 있습니다.
 
 ```bash
-sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results \
+sudo ./koda-bom scan --output-dir /var/tmp/koda-sbom-results \
   --livepatch-evidence /path/to/livepatch-evidence/canonical-livepatch.json
 ```
 
 이 옵션은 실제 `/` 호스트 수집에서만 사용할 수 있으며 `--no-context`, 이미지 또는 앱 경로 수집과 함께 사용할 수 없습니다. 공급자별 최대 한 보고서, 합계 세 보고서를 허용합니다. 다른 커널·부팅의 보고서, 24시간을 넘은 증거 또는 허용 범위를 넘는 미래 시각은 현재 적용 근거로 사용하지 않습니다. Canonical의 마지막 서버 확인 `Last-Check`와 `CheckState`도 기록하며, 확인 실패·시각 미확인·24시간 초과 캐시는 보수적으로 unknown/stale로 표시합니다. 장기간 폐쇄망에서도 예전 보고 상태를 현재 새로 확인한 CVE 수정으로 승격하지 않습니다. Canonical은 실행 중인 커널의 항목과 실제 적용으로 보고된 수정만 취급합니다. Ksplice 목록의 탐지 기능·단순 CVE 언급을 CVE 수정 완료로 해석하지 않습니다. 클라이언트가 보고한 적용 상태이며 진위가 서명 검증된 증명이나 CVE 취약성 판정은 아닙니다. 실제 구독/패치가 적용된 운영 클라이언트의 검증 여부는 동봉 검증 보고서의 한계를 확인하세요.
+
+## 호스트 운영 명세(OBOM)
+
+호스트 `/`에서 컨텍스트를 켠 기본 `scan`은 소프트웨어·하드웨어·암호 자산을 담은 `sbom.cdx.json`과 실행 관계를 담은 `obom.cdx.json`을 같은 회차에 생성합니다. OBOM의 `metadata.lifecycles`는 `operations`입니다. 컨테이너, 프로세스, 해당 실행 파일과 매핑된 라이브러리의 설치 패키지를 구성요소로, 수신 소켓을 `services`로 기록합니다. 한 포트의 소유자를 확인하려면 그 서비스의 `bom-ref`로 `dependencies`를 따라 프로세스를 찾고, 프로세스의 `koda:obom:executable-package` 또는 근거가 있는 패키지 관계를 확인합니다. 수신 주소는 로컬 바인딩이며 패키지 버전은 설치 DB에서 확인한 버전입니다.
+
+```sh
+# 현재 Linux 호스트. 1.7 파일도 함께 생성
+sudo ./koda-bom scan --output-dir ./reports --cyclonedx-17
+
+# 이미 수집한 호스트 디렉터리. 원본 밖에 새 결과 폴더 생성
+./koda-bom obom --collection ./previous-host-scan --output-dir ./replayed --cyclonedx-17
+```
+
+재생성 시 읽은 `collection.json`, `context.json` 및 사용한 컨테이너 파일은 각 디렉터리의 `SHA256SUMS`와 대조합니다. 이전 버전의 컨테이너 자료에는 포트를 연 실행 파일만 남아 있을 수 있습니다. 이 경우 실행 파일과 소켓에 대응하는 패키지가 하나씩 확인될 때만 연결합니다. 소유자 미확인 포트, 불완전한 관측, 중지된 컨테이너, 부팅 시 시작하도록 설정된 서비스는 상태를 구분합니다. 디렉터리·이미지 스캔, `--no-context`, `--format spdx`에서는 운영 명세를 새로 만들지 않습니다.
+
+운영 환경 라벨은 `--environment prod --deployment-id RELEASE_ID`로 지정합니다. `--kubernetes-evidence FILE`은 같은 클러스터에서 내보낸 Kubernetes JSON 객체 또는 List를 받으며 여러 번 지정할 수 있습니다. Pod 상태의 컨테이너 전체 ID가 로컬 관측과 일치할 때만 연결합니다. 컨트롤러는 소유자 UID, Service는 같은 네임스페이스의 Pod 라벨 선택자, Ingress는 백엔드 Service 이름으로 연결합니다. 이 관계는 내보낸 설정 시점의 배포 구성입니다. 라벨과 Kubernetes 증적은 새 호스트 스캔과 기존 결과의 `obom` 재생성 양쪽에 지정할 수 있습니다.
+
+### 개별 BOM 생성과 재병합
+
+AI-BOM 파일명은 `aibom.cdx.json`이며, CycloneDX 1.7 동시 출력 파일은 `aibom.cdx-1.7.json`입니다. 이전에 생성한 `mlbom.cdx.json` 세트도 원래 파일명과 체크섬 그대로 재병합할 수 있습니다.
+
+기본 호스트 스캔은 일곱 개별 BOM을 `boms/`에 쓰고 같은 회차의 병합본을 상위 폴더에 저장합니다. 디렉터리·이미지 스캔과 `--no-context`에서는 실행 관측이 필요한 OBOM을 생략합니다. `--separate-boms=false`로 자동 분리·병합을 끌 수 있습니다. `--format spdx`는 SPDX 전용 출력입니다.
+
+```sh
+sudo ./koda-bom --output-dir ./results --cyclonedx-17
+./koda-bom bom-merge --set ./results/<수집폴더>/boms --output-dir ./merged --cyclonedx-17
+```
+
+`bom-merge`가 출력한 폴더에 `bom.cdx.json`이 생깁니다. 원래의 구성요소 식별자와 의존 관계를 복원하고, 운영 그래프가 있으면 호스트와 실행 관계도 포함합니다. 다른 폴더나 장비로 옮길 때는 **`bom-set.json`, 관계 파일(`relationships*.jsonl.gz`), `SHA256SUMS`를 포함한 `boms/` 폴더 전체**를 복사합니다. 병합하려는 파일 하나라도 누락되거나 같은 회차의 매니페스트와 해시가 다르면 오류를 반환합니다.
+
+이미 수집한 디렉터리는 원본 밖에 새 세트를 만들 수 있습니다. 예전 호스트 수집본에 OBOM 파일이 없으면 체크섬이 확인된 운영 컨텍스트로 재생성합니다. 1.7 출력에는 원본 인벤토리의 1.7 파일이 필요합니다. 과거 파일에서 하나의 구성요소 ID에 서로 다른 레코드가 있으면 각각 고유 ID를 부여하고 원래 ID와 레코드 해시를 남깁니다. 관계의 대상이 어느 레코드인지 구별할 수 없는 경우 이를 모호한 참조로 표시합니다.
+
+```sh
+./koda-bom bom-split --collection ./previous-host-scan --output-dir ./separated
+./koda-bom bom-merge --set ./separated/<출력된-세트폴더> --output-dir ./merged
+```
+
+### 서비스·모델·제조 공정 자료
+
+`domain-bom`은 OpenAPI 또는 서비스 명세, 로컬 모델 파일과 모델 명세, 소프트웨어 빌드 또는 물리 제조 증적을 받아 `saasbom.cdx.json`, `aibom.cdx.json`, `mbom.cdx.json` 중 입력에 해당하는 파일을 생성합니다. 같은 증적 옵션을 `scan`에 주면 해당 수집 폴더에 함께 기록합니다. 명시적으로 지정한 모델·제품 파일과 외부 증적의 범위는 설치 인벤토리와 구분됩니다. [증적 형식과 실행 예시](docs/additional-bom.ko.md)
+
+실제 접속 시험 결과를 호스트 OBOM의 소켓에 표시하려면 `scan` 또는 `obom`에 `--network-evidence FILE`을 지정합니다. 보고서의 호스트 식별자와 소켓의 네임스페이스·바인딩 주소·포트가 한 곳에 대응할 때 관측 지점·대상 주소·시각·결과와 원본 해시를 붙입니다. 모호한 관측은 OBOM 메타데이터의 미연결 건수에서 확인합니다. [접속 관측 형식](docs/asset-inventory.ko.md#tcp-접속-관측)
+
+### 소프트웨어·하드웨어·암호 자산 보강
+
+| 범위 | 수집 방법 |
+|---|---|
+| 빌드 시점 SBOM | `scan --build-sbom supplier.json --build-artifact /opt/app/product.bin`에 평소의 `--output-dir`를 함께 지정합니다. 대상 산출물은 스캔에 포함된 파일 또는 선택한 이미지 아카이브여야 합니다. 공급사 CycloneDX/SPDX 문서의 대상 SHA-256이 실물과 일치할 때 구성요소와 확인 가능한 의존관계를 `build-sbom.cdx.json`에 기록합니다. 빌드 선언과 현장 설치 목록은 각각 조회할 수 있습니다. |
+| 물리 부품 | Linux가 노출한 EDAC DIMM 용량·위치, 식별 가능한 전원공급장치, 팬 속도 센서를 읽습니다. 교체 부품 번호·제조사·부품 계층은 Redfish Memory, PowerSupply, Fan 등 개별 객체나 확장 목록을 `--asset-evidence FILE`로 반입합니다. 센서 채널과 물리 팬의 수량은 별개입니다. |
+| 암호 사용처 | 허용된 Nginx·Apache·sshd 설정에서 TLS/SSH 선언을 읽습니다. 확인 가능한 인증서 경로와 서명 검증을 통과한 발급자 인증서를 연결합니다. JKS에서는 공개 인증서·체인과 엔트리 메타데이터를 읽습니다. 실제 협상된 TLS 세션, 보호된 PKCS#12·HSM·KMS의 키 메타데이터는 관리자가 내보낸 증적을 반입합니다. [외부 자산 증적](docs/asset-inventory.ko.md#암호-자산과-tls-세션-증적) |
 
 ## 서버 보안 관리 정보
 
@@ -182,10 +246,10 @@ sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results \
 
 ```bash
 # 기본: 호스트 / 전체, 두 표준 형식, 제한된 호스트 컨텍스트
-sudo ./koda-sbom scan --output-dir /var/tmp/sbom-output
+sudo ./koda-bom scan --output-dir /var/tmp/sbom-output
 
 # 파일 수·시간 제한 해제. Ctrl+C로 중단 가능
-sudo ./koda-sbom scan --output-dir /var/tmp/sbom-output --max-files 0 --timeout 0
+sudo ./koda-bom scan --output-dir /var/tmp/sbom-output --max-files 0 --timeout 0
 
 # 실제 제외할 경로를 확인한 뒤 지정. /data/docker는 예시
 sudo ./collect-livepatch-status.sh /var/tmp/sbom-output \
@@ -193,16 +257,16 @@ sudo ./collect-livepatch-status.sh /var/tmp/sbom-output \
 
 # 자산 라벨을 붙여 수집. 컨테이너·이미지별 SBOM을 모두 빼려면 --no-containers,
 # 중지된 컨테이너와 로컬 이미지만 빼려면 --no-images
-sudo ./koda-sbom scan --output-dir /var/tmp/sbom-output --asset-tag 'web-01' --no-containers
+sudo ./koda-bom scan --output-dir /var/tmp/sbom-output --asset-tag 'web-01' --no-containers
 
 # 특정 애플리케이션 / 가상환경의 설치 파일
-./koda-sbom scan --target /opt/application --no-context --output-dir ./application-sbom
+./koda-bom scan --target /opt/application --no-context --output-dir ./application-sbom
 
 # 별도로 반출한 로컬 Docker/OCI 이미지 tar — Docker 소켓에 연결하지 않음
-./koda-sbom scan --image-archive ./application-image.tar --output-dir ./image-sbom
+./koda-bom scan --image-archive ./application-image.tar --output-dir ./image-sbom
 
 # 한 형식, 시간 제한, 특정 경로 제외
-./koda-sbom scan --target /opt/application --format spdx --timeout 10m \
+./koda-bom scan --target /opt/application --format spdx --timeout 10m \
   --exclude '**/cache/**' --no-context --output-dir ./application-sbom
 ```
 
@@ -222,7 +286,7 @@ AIX 명령의 조회 권한이 필요하며 수집기는 Listener나 Oracle 설�
 ./collect-aix-evidence.sh ./aix-evidence /actual/oracle/home ./opatch-report.txt
 
 # 폐쇄망 Linux x86_64 분석 호스트에서 실행.
-./koda-sbom aix-import --evidence ./aix-evidence --output-dir ./sbom-output
+./koda-bom aix-import --evidence ./aix-evidence --output-dir ./sbom-output
 ```
 
 Oracle 없이 AIX OS만 수집할 때는 첫 번째 인수만 지정합니다. DBA가 내보낸 SQL 패치 이력도
@@ -353,7 +417,7 @@ CycloneDX의 위치 증거와 SPDX의 패키지 주석에서
 `reconcile`을 지원하는 수집기에서 실제 배포 파일 한 개와 그 파일에 대응하는 공급사 SBOM을 지정합니다.
 
 ```bash
-./koda-sbom reconcile --artifact '/opt/app/app.war' \
+./koda-bom reconcile --artifact '/opt/app/app.war' \
   --supplier-sbom '/path/to/supplier.cdx.json' --output-dir '/var/tmp/koda-sbom-results'
 ```
 
@@ -379,12 +443,12 @@ Tracker에는 직접 관측한 `sbom.cdx.json` 또는 `sbom.spdx.json`을 제출
 
 ## 수집 누락 자동 검증
 
-동일한 배포 디렉터리에서 `koda-sbom`, Syft, Trivy `fs`를 실행해 구성요소·버전·방향이 있는 패키지 간 의존 관계를 비교합니다. Python 3.11 이상과 로컬 수집기 실행 파일 3개가 필요합니다. 배포본은 읽기 전용으로 마운트하거나 변경되지 않는 복사본을 지정합니다. 검증기는 수집할 때마다 파일 목록과 내용을 해시로 확인합니다. 이번 검증은 `koda-sbom 0.1.4`, Syft 1.57.1, Trivy 0.76.2를 사용했습니다.
+동일한 배포 디렉터리에서 `koda-bom`, Syft, Trivy `fs`를 실행해 구성요소·버전·방향이 있는 패키지 간 의존 관계를 비교합니다. Python 3.11 이상과 로컬 수집기 실행 파일 3개가 필요합니다. 배포본은 읽기 전용으로 마운트하거나 변경되지 않는 복사본을 지정합니다. 검증기는 수집할 때마다 파일 목록과 내용을 해시로 확인합니다. 이번 검증은 `koda-sbom 0.1.4`, Syft 1.57.1, Trivy 0.76.2를 사용했습니다.
 
 ```bash
 python3 scripts/compare-sbom-inventory.py \
   --deployment /data/deployment --output-dir /data/qa/inventory-01 \
-  --koda /opt/qa/koda-sbom --syft /opt/qa/syft --trivy /opt/qa/trivy \
+  --koda /opt/qa/koda-bom --syft /opt/qa/syft --trivy /opt/qa/trivy \
   --expected /data/qa/expected.json --require-complete
 ```
 
@@ -419,11 +483,10 @@ Tracker 내부의 관계 저장까지 검증하려면 `--normalized-bom-command 
 CycloneDX 1.6과 1.7을 함께 만들려면 같은 실행에 `--cyclonedx-17`을 추가합니다.
 
 ```sh
-./koda-sbom scan --output-dir ./reports --cyclonedx-17
+./koda-bom scan --output-dir ./reports --cyclonedx-17
 ```
 
-두 버전은 한 번 수집한 인벤토리에서 생성되며, 두 파일의 SHA-256을 결과에 기록합니다.
-`--format cyclonedx --cyclonedx-17`은 두 CycloneDX 파일을 생성합니다.
+두 버전은 같은 인벤토리에서 생성되며 각 파일의 SHA-256을 결과에 기록합니다.
 `--cyclonedx-17`은 기본 형식 또는 `--format cyclonedx`에서 사용할 수 있습니다.
 Tracker에 등록할 때는 수집 회차당 필요한 버전 하나를 선택합니다.
 
@@ -431,6 +494,8 @@ Tracker에 등록할 때는 수집 회차당 필요한 버전 하나를 선택�
 |---|---|
 | `sbom.cdx.json` | CycloneDX 1.6 JSON (`--format spdx`이면 생략) |
 | `sbom.cdx-1.7.json` | CycloneDX 1.7 JSON (`--cyclonedx-17`을 지정할 때 함께 저장) |
+| `obom.cdx.json`, `obom.cdx-1.7.json` | 호스트·컨테이너·실행 패키지·수신 포트 관계. 1.7은 선택 출력 |
+| `build-sbom.cdx.json`, `build-sbom.cdx-1.7.json` | 산출물 해시로 연결된 공급사 빌드 선언을 반입했을 때 생성 |
 | `sbom.spdx.json` | SPDX 2.3 JSON (`--format cyclonedx`이면 생략) |
 | `inventory.syft.json` | 패키지 릴리스·설치 메타데이터를 보존하는 개인정보 정제 Syft JSON |
 | `context.json` | 실행 파일·라이브러리와 수신 대기 포트, 실행 커널·로드 모듈·taint 모듈, 라이브패치, 보안 설정·재부팅 신호, 식별되지 않은 실행 프로그램과 한계 |
@@ -454,7 +519,7 @@ CycloneDX와 SPDX에는 수집 대상 유형, 구성요소 수, 사용자가 설
 - OS의 RPM/DEB/APK 정보, Java/JDK/JRE, PHP/Composer, Python 설치·가상환경, Node.js 설치 패키지를 수집합니다. 미설치 의존성 선언과 실제 설치 정보를 혼합하지 않습니다.
 - 알려진 서버 제품과 수동 설치 구성요소는 읽을 수 있는 manifest·release·설치 inventory·바이너리 증거로 식별합니다. 파일명만으로 제품 버전이나 CPE를 확정하지 않습니다.
 - 실행 중인 커널과 설치된 커널은 별개입니다. Oracle/Red Hat의 백포트 검토를 위해 epoch/version/release/architecture와 source package 정보를 유지해야 합니다.
-- 호스트 컨텍스트는 실행 파일·공유 라이브러리 연결, 로드 모듈, 허용된 설정만 수집합니다. 전체 `/proc`, 원문 명령줄, 환경변수, 설정 원문, 비밀번호·개인키·인증서 본문은 저장하지 않습니다. 인증서는 지문·유효기간·알고리즘만 기록합니다.
+- 호스트 컨텍스트는 실행 파일·공유 라이브러리 연결, 로드 모듈, 허용된 설정만 수집합니다. 전체 `/proc`, 원문 명령줄, 환경변수, 설정 원문, 비밀번호·개인키·인증서 본문은 저장하지 않습니다. 인증서의 지문·유효기간·알고리즘, 공개키 식별 정보, 서명으로 확인한 발급 관계를 기록합니다.
 - 설정 파일에 선언된 값은 실제 적용값이나 네트워크 노출의 증명이 아닙니다. PHP `ini_set()` 같은 실행 중 변경까지 확인하지 않습니다.
 - 생성 결과에는 소프트웨어 이름·버전·설치 경로가 포함됩니다. 경로 자체에 사용자 이름이나 내부 프로젝트명이 있을 수 있으므로 결과를 외부에 공유하기 전 검토하세요.
 - 장치와 펌웨어의 수집 범위는 커널이 노출하는 속성, 읽기 전용 ioctl(NIC `ETHTOOL_GDRVINFO`, BMC IPMI `Get Device ID`)과 관리자가 제공한 증적에 따릅니다. megaraid_sas처럼 커널이 펌웨어 버전을 노출하지 않거나 정확한 빌드 대조가 필요하면 Redfish·fwupd·devlink 등에서 내보낸 파일을 반입합니다.
@@ -473,7 +538,7 @@ VERSION=0.1.7-dev GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 
 # Linux ARM64용 단일 바이너리 빌드
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-sbom ./cmd/koda-sbom
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-bom ./cmd/koda-bom
 ```
 
 빌드 PC에는 Go 1.26.11 이상(검증 버전 1.26.11)과 Python 3이 필요합니다. 기본 빌드는 시스템 설치 경로의 Go를 사용합니다. 다른 Go 설치본은 `--go`에 신뢰하는 절대 경로를, `--go-sha256`에 검증된 실행 파일 SHA-256을 지정합니다. 기존 자동화에서 `GO_BIN`도 넘긴다면 `--go`의 경로와 일치해야 합니다. `GOMODCACHE`의 다운로드 캐시와 `GOPROXY`의 사내 미러를 사용할 수 있습니다. `GOPROXY=off`는 미리 받은 모듈 아카이브만 사용합니다. 빌드에 필요한 모듈이 캐시와 미러에 없으면 빌드가 중단됩니다.

@@ -1,8 +1,7 @@
-// Package certs inventories X.509 certificates as CycloneDX cryptographic
-// assets (a CBOM). Only certificates are parsed; private key files are never
-// read. Subject and issuer names are omitted because they often carry internal
-// host names or e-mail addresses; a certificate is identified by its path and
-// SHA-256 fingerprint.
+// Package certs inventories public X.509 certificates, JKS entry metadata and
+// declared cryptographic configuration. Private key values are not interpreted
+// or emitted. Certificate subject and issuer names are omitted, and certificates
+// are identified by their source path and SHA-256 fingerprint.
 package certs
 
 import (
@@ -35,7 +34,7 @@ const (
 	expiringWithin = 30 * 24 * time.Hour
 )
 
-var extensions = map[string]bool{".pem": true, ".crt": true, ".cer": true, ".der": true, ".cert": true}
+var extensions = map[string]bool{".pem": true, ".crt": true, ".cer": true, ".der": true, ".cert": true, ".jks": true, ".keystore": true}
 
 // System trust stores hold hundreds of public CA certificates managed by the
 // distribution; they are not the operator's certificates.
@@ -65,7 +64,7 @@ func Collect(ctx context.Context, plan localfs.Plan) ([]model.Asset, []model.Iss
 	}
 	defer r.Close()
 	now := time.Now().UTC()
-	c := collection{algorithms: map[string]bool{}, now: now}
+	c := collection{algorithms: map[string]bool{}, keys: map[string]bool{}, certificates: map[string]bool{}, now: now}
 	files := 0
 	for _, p := range plan.Paths {
 		if ctx.Err() != nil || len(c.assets) >= maxCerts {
@@ -82,6 +81,15 @@ func Collect(ctx context.Context, plan localfs.Plan) ([]model.Asset, []model.Iss
 		if err != nil {
 			continue
 		}
+		if ext := strings.ToLower(path.Ext(p)); ext == ".jks" || ext == ".keystore" {
+			if st.Size() <= maxKeystoreBytes {
+				c.keystore(p, f)
+			} else {
+				c.issues = append(c.issues, model.Issue{Collector: "certificates", Status: "incomplete", Path: p, Message: "keystore exceeds 8 MiB"})
+			}
+			f.Close()
+			continue
+		}
 		data, err := io.ReadAll(io.LimitReader(f, maxFileBytes+1))
 		f.Close()
 		if err != nil || st.Size() > maxFileBytes || len(data) > maxFileBytes {
@@ -89,14 +97,19 @@ func Collect(ctx context.Context, plan localfs.Plan) ([]model.Asset, []model.Iss
 		}
 		c.file(p, data)
 	}
+	c.configurations(ctx, plan, r)
+	c.linkIssuers(ctx)
 	return c.assets, c.issues
 }
 
 type collection struct {
-	assets     []model.Asset
-	issues     []model.Issue
-	algorithms map[string]bool
-	now        time.Time
+	assets       []model.Asset
+	issues       []model.Issue
+	algorithms   map[string]bool
+	keys         map[string]bool
+	parsed       []parsedCertificate
+	certificates map[string]bool
+	now          time.Time
 }
 
 func certificatesIn(data []byte) [][]byte {
@@ -202,18 +215,24 @@ func (c *collection) algorithm(name, primitive, parameter, curve string, classic
 func (c *collection) add(p string, index int, der []byte, cert *x509.Certificate) {
 	sum := sha256.Sum256(der)
 	fingerprint := hex.EncodeToString(sum[:])
+	id := assetID("certificate", p, fingerprint)
+	if c.certificates[id] {
+		return
+	}
+	c.certificates[id] = true
 	key := publicKey(cert)
 	signature := c.algorithm(cert.SignatureAlgorithm.String(), "signature", "", "", 0)
-	c.algorithm(key.name, key.primitive, key.parameter, key.curve, key.classical)
+	keyAlgorithm := c.algorithm(key.name, key.primitive, key.parameter, key.curve, key.classical)
+	keyRef := c.publicKeyAsset(cert, keyAlgorithm)
 	format := "X.509"
 	raw, _ := json.Marshal(map[string]any{"assetType": "certificate", "certificateProperties": map[string]any{
 		"notValidBefore": cert.NotBefore.UTC().Format(time.RFC3339), "notValidAfter": cert.NotAfter.UTC().Format(time.RFC3339),
-		"signatureAlgorithmRef": signature, "certificateFormat": format, "certificateExtension": strings.TrimPrefix(strings.ToLower(path.Ext(p)), "."),
+		"signatureAlgorithmRef": signature, "subjectPublicKeyRef": keyRef, "certificateFormat": format, "certificateExtension": strings.TrimPrefix(strings.ToLower(path.Ext(p)), "."),
 	}})
 	props := map[string]string{
 		"path": p, "notValidAfter": cert.NotAfter.UTC().Format(time.RFC3339), "signatureAlgorithm": cert.SignatureAlgorithm.String(),
 		"publicKey": key.name, "isCA": strconv.FormatBool(cert.IsCA),
-		"selfSigned": strconv.FormatBool(bytes.Equal(cert.RawSubject, cert.RawIssuer)),
+		"selfSigned": strconv.FormatBool(bytes.Equal(cert.RawSubject, cert.RawIssuer) && cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature) == nil),
 	}
 	switch {
 	case c.now.After(cert.NotAfter):
@@ -231,8 +250,9 @@ func (c *collection) add(p string, index int, der []byte, cert *x509.Certificate
 	if index > 0 {
 		props["positionInFile"] = strconv.Itoa(index)
 	}
+	c.parsed = append(c.parsed, parsedCertificate{index: len(c.assets), cert: cert})
 	c.assets = append(c.assets, model.Asset{
-		ID: assetID("certificate", p, fingerprint), Kind: "cryptographic-asset", Name: "X.509 certificate", Source: p,
-		SHA256: fingerprint, ObservedAt: c.now.Format(time.RFC3339), Crypto: raw, Properties: props,
+		ID: id, Kind: "cryptographic-asset", Name: "X.509 certificate", Source: p,
+		SHA256: fingerprint, ObservedAt: c.now.Format(time.RFC3339), Crypto: raw, Properties: props, DependsOn: []string{signature, keyRef},
 	})
 }

@@ -1,28 +1,28 @@
 # 한 파일로 하드웨어와 소프트웨어 수집
 
-대상 OS와 CPU 종류에 맞는 `koda-sbom` 실행 파일 한 개를 사용합니다. Linux에서는 기존 `scan` 명령으로 패키지와 호스트 하드웨어를 함께 수집합니다. Windows와 macOS용 실행 파일의 `platform-inventory`는 운영체제가 제공하는 로컬 인벤토리 도구를 호출합니다.
+대상 OS와 CPU 종류에 맞는 `koda-bom` 실행 파일 한 개를 사용합니다. Linux에서는 기존 `scan` 명령으로 패키지와 호스트 하드웨어를 함께 수집합니다. Windows와 macOS용 실행 파일의 `platform-inventory`는 운영체제가 제공하는 로컬 인벤토리 도구를 호출합니다.
 
 ```sh
 # Linux x86_64 또는 ARM64 호스트
-./koda-sbom scan --output-dir ./reports
+./koda-bom scan --output-dir ./reports
 
 # 운영자가 정한 자산 라벨을 SBOM에 기록
-./koda-sbom scan --output-dir ./reports --asset-tag 'web-01'
+./koda-bom scan --output-dir ./reports --asset-tag 'web-01'
 
 # CycloneDX 1.6과 1.7을 함께 저장
-./koda-sbom scan --output-dir ./reports --cyclonedx-17
+./koda-bom scan --output-dir ./reports --cyclonedx-17
 
 # 호스트와 외부 장비의 증적을 같은 결과에 기록
-./koda-sbom scan --asset-evidence ./bmc.json --asset-evidence ./nic.json --output-dir ./reports
+./koda-bom scan --asset-evidence ./bmc.json --asset-evidence ./nic.json --output-dir ./reports
 
 # BMC·네트워크·OT 장비의 내보낸 증적만 표준 SBOM으로 변환
-./koda-sbom asset-import --asset-evidence ./network-assets.json --output-dir ./reports
+./koda-bom asset-import --asset-evidence ./network-assets.json --output-dir ./reports
 
 # macOS 또는 Windows에서 해당 OS용 바이너리 사용
-./koda-sbom platform-inventory --output-dir ./reports
+./koda-bom platform-inventory --output-dir ./reports
 ```
 
-Windows PowerShell에서 위 마지막 명령은 `.\koda-sbom.exe platform-inventory --output-dir .\reports`입니다. Linux 디렉터리와 이미지 수집은 지정한 범위를 사용합니다. 실행 중인 Linux 하드웨어는 호스트 `/`에서 컨텍스트가 활성화되어 있을 때 관측합니다. OCI/Docker 아카이브 지원 범위는 Linux amd64 이미지입니다. CycloneDX 확인본 한 개를 Tracker에 등록하고, 두 버전의 파일과 체크섬은 동일한 회차에서 보관할 수 있습니다.
+Windows PowerShell에서 위 마지막 명령은 `.\koda-bom.exe platform-inventory --output-dir .\reports`입니다. Linux 디렉터리와 이미지 수집은 지정한 범위를 사용합니다. 실행 중인 Linux 하드웨어는 호스트 `/`에서 컨텍스트가 활성화되어 있을 때 관측합니다. OCI/Docker 아카이브 지원 범위는 Linux amd64 이미지입니다. CycloneDX 확인본 한 개를 Tracker에 등록하고, 두 버전의 파일과 체크섬은 동일한 회차에서 보관할 수 있습니다.
 
 ## 어떤 정보를 남기는가
 
@@ -70,12 +70,45 @@ Windows PowerShell에서 위 마지막 명령은 `.\koda-sbom.exe platform-inven
 
 `parentId`는 같은 파일의 장치 `id`를 가리킵니다. 버전을 확인할 수 없으면 해당 값을 생략해 미확인 상태를 보존합니다. Redfish는 URI 목록에서 한 단계 더 조회한 개별 장비·펌웨어 객체가 필요합니다. devlink의 실행·저장 버전은 각각의 관측값으로 남습니다. 결과에 기록한 원본 파일의 SHA-256은 어떤 파일을 반입했는지 확인하는 근거입니다.
 
+## 암호 자산과 TLS 세션 증적
+
+호스트·디렉터리·컨테이너에서 확인한 X.509 인증서와 공개키, 알고리즘을 CycloneDX `cryptographic-asset`으로 기록합니다. 발급자 후보가 있으면 서명을 확인해 관계를 기록합니다. Nginx·Apache·sshd에서 읽은 허용 지시문은 설정 증거로 표시합니다. JKS v1/v2에서는 공개 인증서 체인과 엔트리 별칭을 읽으며 암호화된 키 내용을 건너뜁니다. 비밀번호 없이 읽은 JKS의 저장소 무결성은 미검증으로 표시합니다.
+
+보호된 PKCS#12·HSM·KMS는 관리자가 공개 가능한 메타데이터를 공통 장비 증적에 기록해 `--asset-evidence`로 반입합니다. 예를 들어 `cryptographic-asset`에 `cryptoProperties.assetType=related-crypto-material`과 `relatedCryptoMaterialProperties`의 키 종류·크기·상태·`algorithmRef`를 지정하고, `properties.storageType`과 `keyAlias`에 저장 방식과 별칭을 둡니다. 소비 애플리케이션의 `dependsOn`은 같은 파일 안의 키 메타데이터 ID를 가리킵니다.
+
+다음은 별도 계측에서 관측한 TLS 협상을 반입하는 형식의 예시입니다. 지문과 주소, 시각은 해당 관측값으로 채웁니다. 같은 증적에 있는 인증서의 SHA-256과 세션에서 제시한 지문이 일치하면 서비스→프로토콜→인증서 관계를 출력합니다.
+
+```json
+{
+  "schema": "koda-assets-1",
+  "observedAt": "2026-11-21T01:00:00Z",
+  "assets": [
+    {
+      "id": "cert", "kind": "cryptographic-asset", "name": "Peer certificate",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "cryptoProperties": {"assetType": "certificate", "certificateProperties": {"certificateFormat": "X.509"}}
+    },
+    {
+      "id": "session", "kind": "cryptographic-asset", "name": "TLS session",
+      "cryptoProperties": {"assetType": "protocol", "protocolProperties": {
+        "type": "tls", "version": "1.3", "cipherSuites": [{"name": "TLS_AES_256_GCM_SHA384"}]
+      }},
+      "properties": {
+        "endpoint": "example.invalid:443", "transport": "tcp",
+        "sessionObservedAt": "2026-11-21T01:00:00Z", "observationState": "negotiated",
+        "certificateSHA256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ]
+}
+```
+
 ## 오프라인 권고 대조
 
 같은 바이너리의 `assess`에 SBOM과 확보한 권고 파일을 지정합니다. 새 권고 파일이 도착하면 기존 결과를 다시 대조할 수 있습니다.
 
 ```sh
-./koda-sbom assess \
+./koda-bom assess \
   --sbom ./reports/COLLECTION/sbom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
@@ -112,3 +145,27 @@ Windows PowerShell에서 위 마지막 명령은 `.\koda-sbom.exe platform-inven
 Linux 배포판 패키지는 릴리스가 포함된 distro 식별자와 정확한 버전을 사용합니다. SBOM의 버전 필드와 PURL 버전 정보가 충돌하면 `review_required`를 기록합니다. RPM의 별도 epoch 표기는 이를 반영해 비교합니다. 한 번의 대조에 정확 버전 항목은 최대 100만 개를 사용하며, 상한을 초과하면 처리를 중단하고 이유를 반환합니다. 명시 규칙의 지원 종료는 `supportEndsAt`에 날짜를 기록하며, 버전 비교는 지원되는 소프트웨어 생태계에 한해 `affectedSemver`를 사용할 수 있습니다. 교체 파일이나 저장 상태가 확인되면 활성화 검토 상태로 나타납니다. 권고에 없는 버전이나 미확인 장비는 검토 대상으로 봅니다.
 
 Linux 물리 서버와 Windows 운영 장비에서는 장비 권고 및 각 제조사 인벤토리를 대조해 범위를 확인해야 합니다. macOS·Windows 네이티브 기능은 OS·하드웨어와 설치 앱 중심이며, 장치가 보고하지 않는 버전이나 앱 내부 의존성은 추가 증적이 필요합니다.
+
+## TCP 접속 관측
+
+`--network-evidence`는 관리자가 이미 측정한 TCP 연결 결과를 현재 호스트 또는 보관본의 OBOM 소켓과 대조합니다. `hostField`에는 `machineIdSha256`, `productUuidSha256` 또는 명시적으로 부여한 `assetTag`를 사용합니다. `scope`는 `host` 또는 전체 64자리 컨테이너 ID입니다. 다음 예시는 지점 한 곳에서 확인한 한 차례의 연결입니다.
+
+```json
+{
+  "schema": "koda-network-observations-1",
+  "hostField": "assetTag",
+  "hostValue": "app-01",
+  "observations": [{
+    "scope": "host",
+    "protocol": "tcp",
+    "bindAddress": "0.0.0.0",
+    "targetAddress": "192.0.2.10",
+    "port": 443,
+    "vantage": "branch-office",
+    "observedAt": "2026-11-21T09:30:00+09:00",
+    "result": "connected"
+  }]
+}
+```
+
+지원하는 결과는 `connected`, `refused`, `timed-out`입니다. 같은 바인딩에 여러 프로세스가 있거나 해당 소켓을 찾지 못하면 어느 서비스에도 귀속하지 않고 미연결 수를 기록합니다. 방화벽·NAT 정책, 다른 지점의 접근성, 이후 시각의 상태는 각각의 관측을 추가해야 합니다. 수집기 자체가 접속 시험을 수행하지 않습니다.

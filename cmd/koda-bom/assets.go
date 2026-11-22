@@ -152,7 +152,7 @@ func exportAssetEvidence(ctx context.Context, inputs []string, output, format st
 	coverage := collect.NewCollectionCoverage(status, origin.Type, len(assets), 0, 0, issues)
 	inventory := &sbom.SBOM{Artifacts: sbom.Artifacts{Packages: pkg.NewCollection()},
 		Source:     source.Description{Name: "local-filesystem", Metadata: source.DirectoryMetadata{Path: "."}},
-		Descriptor: sbom.Descriptor{Name: "koda-sbom", Version: version}}
+		Descriptor: sbom.Descriptor{Name: "koda-bom", Version: version}}
 	if err := collect.WriteSBOMsWithAssets(ctx, dir, format, inventory, status == "partial", &coverage, assets, cyclonedx17); err != nil {
 		return err
 	}

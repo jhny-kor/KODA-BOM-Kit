@@ -32,6 +32,7 @@ func validateScanOptions(args []string) int {
 	flags.DurationVar(&timeout, "timeout", 30*time.Minute, "")
 	flags.Int64Var(&maxFiles, "max-files", localfs.DefaultMaxFiles, "")
 	flags.Bool("cyclonedx-17", false, "")
+	flags.Bool("separate-boms", false, "")
 	flags.Var(&excludes, "exclude", "")
 	flags.Var(&excludedDirs, "exclude-dir", "")
 	invalid := flags.Parse(args) != nil || flags.NArg() != 0 || timeout < 0 || maxFiles < 0
@@ -42,7 +43,7 @@ func validateScanOptions(args []string) int {
 		invalid = invalid || strings.TrimSpace(directory) == "" || strings.ContainsAny(directory, "\x00\r\n\t")
 	}
 	if invalid {
-		fmt.Fprintln(os.Stderr, "invalid scan option value; check --timeout, --max-files, --exclude, --exclude-dir and --cyclonedx-17")
+		fmt.Fprintln(os.Stderr, "invalid scan option value; check --timeout, --max-files, --exclude, --exclude-dir and CycloneDX output flags")
 		return 2
 	}
 	return 0

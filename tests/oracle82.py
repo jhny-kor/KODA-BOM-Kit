@@ -9,7 +9,7 @@ p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True);p
 output=(a.output or Path(tempfile.mkdtemp(prefix='koda-sbom-oracle82-'))).resolve();output.mkdir(parents=True,exist_ok=True)
 image='oraclelinux:8.2';binary=a.binary.resolve()
 assert subprocess.check_output(['docker','image','inspect','--platform','linux/amd64',image,'--format','{{.Architecture}}'],text=True).strip()=='amd64'
-command=['docker','run','--rm','--platform','linux/amd64','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--cpus','2','--memory','1536m','--tmpfs','/tmp:rw,nosuid,nodev,size=512m','--mount',f'type=bind,src={binary},dst=/koda-sbom,readonly','--mount',f'type=bind,src={output},dst=/results',image,'/koda-sbom','scan','--target','/','--no-context','--output-dir','/results']
+command=['docker','run','--rm','--platform','linux/amd64','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--cpus','2','--memory','1536m','--tmpfs','/tmp:rw,nosuid,nodev,size=512m','--mount',f'type=bind,src={binary},dst=/koda-bom,readonly','--mount',f'type=bind,src={output},dst=/results',image,'/koda-bom','scan','--target','/','--no-context','--output-dir','/results']
 before=set(output.glob('koda-sbom-*'));start=time.monotonic();proc=subprocess.run(command,capture_output=True,text=True,timeout=300)
 assert proc.returncode in (0,3),(proc.returncode,proc.stdout,proc.stderr)
 results=list(set(output.glob('koda-sbom-*'))-before);assert len(results)==1,results

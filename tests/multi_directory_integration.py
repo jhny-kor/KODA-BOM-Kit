@@ -155,7 +155,7 @@ print(json.dumps(summaries))
 
 def exercise(stage, tracker_root=None):
     stage = stage.resolve(strict=True)
-    binary = stage / "koda-sbom"
+    binary = stage / "koda-bom"
     assert binary.is_file(), binary
     with tempfile.TemporaryDirectory(prefix="koda-multi-directory-") as temporary:
         work = Path(temporary)
@@ -182,7 +182,7 @@ def exercise(stage, tracker_root=None):
                 "--mount", f"type=bind,src={stage},dst=/release,readonly",
                 "--mount", f"type=bind,src={fixtures},dst=/fixtures,readonly",
                 "--mount", f"type=bind,src={output},dst=/results", *mounts,
-                "debian:bookworm-slim", "/release/koda-sbom", "scan",
+                "debian:bookworm-slim", "/release/koda-bom", "scan",
                 "--output-dir", output_path, *options,
             ]
             process = subprocess.run(command, capture_output=True, text=True, timeout=180)

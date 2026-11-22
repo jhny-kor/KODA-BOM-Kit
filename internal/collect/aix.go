@@ -41,7 +41,7 @@ type oracleInventoryMetadata struct {
 func AIXSBOM(inventory aixevidence.Inventory, version string) (*sbom.SBOM, error) {
 	out := &sbom.SBOM{
 		Source:     source.Description{Name: "IBM AIX evidence", Metadata: source.DirectoryMetadata{Path: "."}},
-		Descriptor: sbom.Descriptor{Name: "koda-sbom", Version: version},
+		Descriptor: sbom.Descriptor{Name: "koda-bom", Version: version},
 		Artifacts:  sbom.Artifacts{Packages: pkg.NewCollection()},
 	}
 	for _, fileset := range inventory.Filesets {

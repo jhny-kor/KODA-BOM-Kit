@@ -147,10 +147,12 @@ func readCycloneDXSupplier(raw []byte) (Supplier, error) {
 }
 
 type spdxSupplierPackage struct {
-	ID       string `json:"SPDXID"`
-	Name     string `json:"name"`
-	Version  string `json:"versionInfo"`
-	Checksum []struct {
+	LicenseDeclared  string `json:"licenseDeclared"`
+	LicenseConcluded string `json:"licenseConcluded"`
+	ID               string `json:"SPDXID"`
+	Name             string `json:"name"`
+	Version          string `json:"versionInfo"`
+	Checksum         []struct {
 		Algorithm string `json:"algorithm"`
 		Value     string `json:"checksumValue"`
 	} `json:"checksums"`

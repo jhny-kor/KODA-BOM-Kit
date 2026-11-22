@@ -68,7 +68,8 @@ func appendRecords[T any](doc map[string]json.RawMessage, field string, values [
 
 func addCycloneDXAssets(doc map[string]json.RawMessage, assets []model.Asset) error {
 	rows := make([]map[string]any, 0, len(assets))
-	drivers := map[string][]string{}
+	dependencies := map[string][]string{}
+	services := map[string]map[string]any{}
 	for _, asset := range assets {
 		values := map[string]string{
 			"source": asset.Source, "observed-at": asset.ObservedAt,
@@ -94,6 +95,9 @@ func addCycloneDXAssets(doc map[string]json.RawMessage, assets []model.Asset) er
 				row[k] = v
 			}
 		}
+		if supplier := asset.Properties["supplier"]; supplier != "" {
+			row["supplier"] = map[string]string{"name": supplier}
+		}
 		if asset.SHA256 != "" {
 			row["hashes"] = []map[string]string{{"alg": "SHA-256", "content": asset.SHA256}}
 		}
@@ -101,19 +105,58 @@ func addCycloneDXAssets(doc map[string]json.RawMessage, assets []model.Asset) er
 			row["cryptoProperties"] = asset.Crypto
 		}
 		rows = append(rows, row)
-		if asset.Kind == "device-driver" && asset.ParentID != "" {
-			drivers[asset.ParentID] = append(drivers[asset.ParentID], asset.ID)
+		if asset.ParentID != "" {
+			dependencies[asset.ParentID] = append(dependencies[asset.ParentID], asset.ID)
+		}
+		dependencies[asset.ID] = append(dependencies[asset.ID], asset.DependsOn...)
+		consumer := asset.Properties["consumer"]
+		if consumer == "" && asset.Properties["endpoint"] != "" {
+			consumer = asset.Name
+		}
+		if consumer != "" {
+			digest := sha256.Sum256([]byte(asset.Source + "\x00" + consumer + "\x00" + asset.Properties["configurationPath"] + "\x00" + asset.Properties["endpoint"] + "\x00" + asset.Properties["sessionObservedAt"]))
+			ref := fmt.Sprintf("koda-crypto-consumer-%x", digest[:12])
+			relationship := "declared-use"
+			if asset.Properties["observationState"] == "negotiated" {
+				relationship = "reported-negotiated-session"
+			}
+			serviceProperties := []assetProperty{{Name: "koda:crypto:relationship", Value: relationship}}
+			for _, key := range []string{"configurationPath", "endpoint", "transport", "sessionObservedAt", "evidenceSHA256", "observationState"} {
+				if value := asset.Properties[key]; value != "" {
+					serviceProperties = append(serviceProperties, assetProperty{Name: "koda:crypto:" + key, Value: value})
+				}
+			}
+			service := map[string]any{"bom-ref": ref, "name": consumer, "properties": serviceProperties}
+			if endpoint := asset.Properties["endpoint"]; endpoint != "" {
+				service["endpoints"] = []string{asset.Properties["transport"] + "://" + endpoint}
+			}
+			services[ref] = service
+			dependencies[ref] = append(dependencies[ref], asset.ID)
 		}
 	}
 	if err := appendRecords(doc, "components", rows); err != nil {
 		return err
 	}
-	var dependencies []map[string]any
-	for _, parent := range slices.Sorted(maps.Keys(drivers)) {
-		dependencies = append(dependencies, map[string]any{"ref": parent, "dependsOn": drivers[parent]})
+	var serviceRecords []map[string]any
+	for _, ref := range slices.Sorted(maps.Keys(services)) {
+		serviceRecords = append(serviceRecords, services[ref])
 	}
-	if len(dependencies) > 0 {
-		return appendRecords(doc, "dependencies", dependencies)
+	if len(serviceRecords) > 0 {
+		if err := appendRecords(doc, "services", serviceRecords); err != nil {
+			return err
+		}
+	}
+	var records []map[string]any
+	for _, parent := range slices.Sorted(maps.Keys(dependencies)) {
+		children := dependencies[parent]
+		if len(children) == 0 {
+			continue
+		}
+		slices.Sort(children)
+		records = append(records, map[string]any{"ref": parent, "dependsOn": slices.Compact(children)})
+	}
+	if len(records) > 0 {
+		return appendRecords(doc, "dependencies", records)
 	}
 	return nil
 }
@@ -179,6 +222,9 @@ func addSPDXAssets(doc map[string]json.RawMessage, assets []model.Asset) error {
 			}
 		}
 		relationships = append(relationships, map[string]string{"spdxElementId": parent, "relationshipType": rel, "relatedSpdxElement": id})
+		for _, dependency := range asset.DependsOn {
+			relationships = append(relationships, map[string]string{"spdxElementId": id, "relationshipType": "DEPENDS_ON", "relatedSpdxElement": assetSPDXID(dependency)})
+		}
 	}
 	if err := appendRecords(doc, "packages", rows); err != nil {
 		return err

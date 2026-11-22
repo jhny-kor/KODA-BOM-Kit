@@ -112,7 +112,7 @@ type RuntimeFile struct {
 	InstalledVersion string `json:"installedVersion,omitempty"`
 }
 
-// Asset is a bounded observation of a device, firmware image or device driver.
+// Asset is a bounded observation of hardware, software or a cryptographic asset.
 // ParentID points to the device that contains or uses the component.
 type Asset struct {
 	ID         string            `json:"id"`
@@ -123,6 +123,7 @@ type Asset struct {
 	Model      string            `json:"model,omitempty"`
 	Revision   string            `json:"revision,omitempty"`
 	ParentID   string            `json:"parentId,omitempty"`
+	DependsOn  []string          `json:"dependsOn,omitempty"`
 	CPE        string            `json:"cpe,omitempty"`
 	PURL       string            `json:"purl,omitempty"`
 	SHA256     string            `json:"sha256,omitempty"`

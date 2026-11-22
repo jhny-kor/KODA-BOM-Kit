@@ -13,9 +13,9 @@ require(arch=='amd64',f'{a.image} is {arch}; use --pull to fetch linux/amd64 fir
 
 def runner(work,args):
  return ['docker','run','--rm','--platform','linux/amd64','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--user','65534:65534','--cpus','2','--memory','1536m','--tmpfs','/tmp:rw,nosuid,nodev,size=512m',
-  '--mount',f'type=bind,src={binary},dst=/koda-sbom,readonly',
+  '--mount',f'type=bind,src={binary},dst=/koda-bom,readonly',
   '--mount',f'type=bind,src={work},dst=/work',
-  '--mount',f'type=bind,src={work/"fixture"},dst=/work/fixture,readonly',a.image,'/koda-sbom',*args]
+  '--mount',f'type=bind,src={work/"fixture"},dst=/work/fixture,readonly',a.image,'/koda-bom',*args]
 print(json.dumps({'passed':True,'binarySHA256':hashlib.sha256(binary.read_bytes()).hexdigest(),
  'image':a.image,'architecture':arch,'network':'none','rootfs':'read-only','user':'65534:65534',
  'results':exercise(binary,runner)},indent=2))

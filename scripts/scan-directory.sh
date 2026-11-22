@@ -4,7 +4,7 @@ set -eu
 umask 077
 
 usage_error() {
-    echo "usage: $0 TARGET_DIRECTORY [RESULT_PARENT_DIRECTORY] [--cyclonedx-17] [--timeout DURATION] [--max-files N] [--exclude GLOB]... [--exclude-dir DIRECTORY]..." >&2
+    echo "usage: $0 TARGET_DIRECTORY [RESULT_PARENT_DIRECTORY] [--cyclonedx-17] [--separate-boms] [--timeout DURATION] [--max-files N] [--exclude GLOB]... [--exclude-dir DIRECTORY]..." >&2
     exit 2
 }
 
@@ -12,7 +12,7 @@ validate_option_names() {
     [ "$#" -le 256 ] || usage_error
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --cyclonedx-17|--cyclonedx-17=*)
+            --cyclonedx-17|--cyclonedx-17=*|--separate-boms|--separate-boms=*)
                 shift
                 continue
                 ;;
@@ -38,9 +38,9 @@ if [ "$#" -gt 0 ]; then
 fi
 validate_option_names "$@"
 helper_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-collector="$helper_dir/koda-sbom"
+collector="$helper_dir/koda-bom"
 if [ ! -x "$collector" ]; then
-    echo "Place this script beside the release koda-sbom executable." >&2
+    echo "Place this script beside the release koda-bom executable." >&2
     exit 2
 fi
 # Use the collector's pure parser for durations, counts and exclusion globs.
@@ -55,7 +55,7 @@ if ! target_directory=$(CDPATH= cd -- "$target_argument" && pwd -P); then
     exit 2
 fi
 if [ "$target_directory" = / ]; then
-    echo "Choose a specific directory below /. For a full host scan, use koda-sbom scan." >&2
+    echo "Choose a specific directory below /. For a full host scan, use koda-bom scan." >&2
     exit 2
 fi
 exec "$collector" scan --target "$target_directory" --no-context \

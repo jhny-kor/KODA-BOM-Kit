@@ -8,7 +8,7 @@ mkdir -p "$3"
 result_dir="$(cd "$3" && pwd)"
 scan_arguments=(scan --target /fixture --no-context --output-dir /results/output)
 if test "${4:-}" = live-host; then
- scan_arguments=(scan --output-dir /results/output --exclude '/fixture/**' --exclude /koda-sbom)
+ scan_arguments=(scan --output-dir /results/output --exclude '/fixture/**' --exclude /koda-bom)
 elif test "$#" -eq 4; then
  echo 'Fourth argument must be live-host' >&2
  exit 2
@@ -17,10 +17,10 @@ set +e
 docker run --rm --platform linux/arm64 --network none --read-only --cap-drop ALL \
  --security-opt no-new-privileges --cpus 2 --memory 1536m \
  --tmpfs /tmp:rw,nosuid,nodev,size=512m \
- --mount "type=bind,src=$binary,dst=/koda-sbom,readonly" \
+ --mount "type=bind,src=$binary,dst=/koda-bom,readonly" \
  --mount "type=bind,src=$fixture,dst=/fixture,readonly" \
  --mount "type=bind,src=$result_dir,dst=/results" \
- local/koda-sbom-qemu-trace:20261029 qemu-x86_64 -strace /koda-sbom \
+ local/koda-sbom-qemu-trace:20261029 qemu-x86_64 -strace /koda-bom \
  "${scan_arguments[@]}" \
  > "$result_dir/stdout.log" 2> "$result_dir/guest-syscalls.log"
 scan_status=$?

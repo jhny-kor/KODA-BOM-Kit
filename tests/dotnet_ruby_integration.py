@@ -431,13 +431,13 @@ def exercise(binary, work, cache, dotnet, compare, tracker=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", required=True, type=Path, help="directory with the Linux amd64 koda-sbom binary")
+    parser.add_argument("--stage", required=True, type=Path, help="directory with the Linux amd64 koda-bom binary")
     parser.add_argument("--cache", required=True, type=Path, help="workspace cache for hash-checked upstream inputs")
     parser.add_argument("--dotnet", default="dotnet", help=".NET 10 SDK executable")
     parser.add_argument("--koda-only", action="store_true", help="run identity and exclusion checks without peer scans")
     parser.add_argument("--tracker-root", type=Path, help="optional local Tracker checkout with an initialized .venv")
     args = parser.parse_args()
-    binary = (args.stage / "koda-sbom").resolve(strict=True)
+    binary = (args.stage / "koda-bom").resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix="koda-dotnet-ruby-") as tmp:
         tracker = args.tracker_root.resolve(strict=True) if args.tracker_root else None
         report = exercise(binary, Path(tmp).resolve(), args.cache.resolve(), args.dotnet, not args.koda_only, tracker)

@@ -39,6 +39,7 @@ func Collect(ctx context.Context, root string) ([]model.Asset, []model.Issue) {
 	c := collector{ctx: ctx, root: r, now: time.Now().UTC().Format(time.RFC3339), nicFirmware: map[string]bool{}}
 	c.detectScope()
 	board := c.dmi()
+	c.serverParts(board)
 	c.uefi(board)
 	c.cpu()
 	if root == "/" {
@@ -139,7 +140,7 @@ func (c *collector) dirs(p string) []os.DirEntry {
 var drmCard = regexp.MustCompile(`^card[0-9]+$`)
 var pciAddress = regexp.MustCompile(`^[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$`)
 
-// nvidia reads the GPU video BIOS version reported by the NVIDIA kernel driver.
+// nvidia reads the product name and video BIOS reported by the NVIDIA kernel driver.
 // The driver version itself comes from the PCI device's driver module.
 func (c *collector) nvidia() {
 	for _, entry := range c.dirs("proc/driver/nvidia/gpus") {
@@ -158,10 +159,20 @@ func (c *collector) nvidia() {
 				version = strings.TrimSpace(v)
 			}
 		}
-		if version == "" || strings.EqualFold(version, "??.??.??.??.??") {
+		parent := "sys/bus/pci/devices/" + entry.Name()
+		if name := props["model"]; name != "" && !identityPlaceholders[strings.ToLower(name)] {
+			for i := range c.assets {
+				device := &c.assets[i]
+				if device.Kind == "device" && device.Source == parent {
+					device.Model, device.Vendor = name, "NVIDIA"
+					device.Properties["modelSource"] = p
+					break
+				}
+			}
+		}
+		if version == "" || strings.Trim(version, "?.") == "" || identityPlaceholders[strings.ToLower(version)] {
 			continue
 		}
-		parent := "sys/bus/pci/devices/" + entry.Name()
 		f := c.asset("firmware", "GPU video BIOS", p, assetID("device", parent), props)
 		f.Version, f.Vendor, f.Model = version, "NVIDIA", props["model"]
 		c.assets = append(c.assets, f)

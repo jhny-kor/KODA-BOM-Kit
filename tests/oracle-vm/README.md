@@ -9,7 +9,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 \
   go build -trimpath -ldflags='-s -w' -o /path/to/init tests/oracle-vm/init.go
 ```
 
-Python·Go·Docker·QEMU는 **빌드 PC의 검증 도구**입니다. 대상 폐쇄망 서버에는 `koda-sbom`
+Python·Go·Docker·QEMU는 **빌드 PC의 검증 도구**입니다. 대상 폐쇄망 서버에는 `koda-bom`
 하나만 전달합니다. 이 harness나 Python 인터프리터를 배포 실행 파일의 의존성으로 포함하지 않습니다.
 
 ## 재현 순서
@@ -24,15 +24,15 @@ docker build --platform linux/arm64 -t local/koda-sbom-oracle-vm:20261029 \
   -f tests/oracle-vm/Dockerfile .
 
 python3 tests/oracle-vm/prepare.py --work-dir /tmp/koda-oracle-vm-check \
-  --binary /path/to/final-release/koda-sbom --go /path/to/go1.26.11/bin/go
+  --binary /path/to/final-release/koda-bom --go /path/to/go1.26.11/bin/go
 python3 tests/oracle-vm/run.py --work-dir /tmp/koda-oracle-vm-check --flavor both --timeout 1200
 
 # run.py가 표시한 실제 경로로 <ID>를 바꿉니다. 기존 검증 보고서는 덮어쓰지 않습니다.
 python3 tests/oracle-vm/validate.py /tmp/koda-oracle-vm-check/runs/rhck-<ID>/results \
-  --expected-kernel 4.18.0-193.el8.x86_64 --binary /path/to/final-release/koda-sbom \
+  --expected-kernel 4.18.0-193.el8.x86_64 --binary /path/to/final-release/koda-bom \
   --report /tmp/koda-oracle-vm-check/runs/rhck-<ID>/validation.json
 python3 tests/oracle-vm/validate.py /tmp/koda-oracle-vm-check/runs/uek-<ID>/results \
-  --expected-kernel 5.4.17-2011.1.2.el8uek.x86_64 --binary /path/to/final-release/koda-sbom \
+  --expected-kernel 5.4.17-2011.1.2.el8uek.x86_64 --binary /path/to/final-release/koda-bom \
   --report /tmp/koda-oracle-vm-check/runs/uek-<ID>/validation.json
 ```
 
@@ -59,7 +59,7 @@ provenance에는 RPM·커널·initramfs·PID 1·collector 해시와 Oracle/QEMU 
 ## 게스트 준비 계약
 
 검증용 initramfs에는 Oracle Linux 8.2 파일시스템, 실제 설치된 두 커널의 RPM DB,
-`/boot` 커널 이미지, `/lib/modules` 두 트리, 검증할 `/koda-sbom`, 이 harness의 `/init`를 넣습니다.
+`/boot` 커널 이미지, `/lib/modules` 두 트리, 검증할 `/koda-bom`, 이 harness의 `/init`를 넣습니다.
 RHCK와 UEK는 **각각 자신의 커널 이미지로 직접 부팅**해야 합니다.
 컨테이너 또는 QEMU user-mode만 실행한 결과는 이 커널 검증의 대체가 아닙니다.
 
@@ -90,8 +90,8 @@ VM 커널 명령줄, collector 체크섬을 기록합니다. 호스트 이름·�
 collector를 한 번 실행합니다.
 
 ```text
-/koda-sbom scan --output-dir /results --timeout 0 --max-files 0 \
-  --exclude /vm-test/** --exclude /init --exclude /koda-sbom
+/koda-bom scan --output-dir /results --timeout 0 --max-files 0 \
+  --exclude /vm-test/** --exclude /init --exclude /koda-bom
 ```
 
 collector가 기본 live-host 모드로 실행되도록 `--target /payload`를 사용하지 않습니다.

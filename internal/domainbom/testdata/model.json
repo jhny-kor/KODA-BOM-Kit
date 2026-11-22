@@ -1,0 +1,28 @@
+{
+  "schema": "koda-model-1",
+  "name": "example-model",
+  "version": "r2",
+  "sha256": "ecc09621349a7d5356a1b98e333aba59cbb42fc550d6c4bd6b148ef5d0dfa05b",
+  "license": "Apache-2.0",
+  "source": "https://models.example.invalid/derived",
+  "task": "classification",
+  "architecture": "transformer",
+  "baseModels": [
+    {
+      "name": "base-model",
+      "version": "r1",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source": "https://models.example.invalid/base",
+      "license": "Apache-2.0"
+    }
+  ],
+  "datasets": [
+    {
+      "name": "training-fixture",
+      "version": "v1",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": "https://data.example.invalid/train",
+      "license": "CC0-1.0"
+    }
+  ]
+}

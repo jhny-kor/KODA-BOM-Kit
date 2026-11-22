@@ -14,7 +14,7 @@ def go(*command):
  return subprocess.check_output([args.go,*command],cwd=root,env=go_environment,text=True)
 
 cache=Path(go('env','GOMODCACHE').strip())
-decoder=json.JSONDecoder();stream=go('list','-mod=readonly','-deps','-json','./cmd/koda-sbom');modules={}
+decoder=json.JSONDecoder();stream=go('list','-mod=readonly','-deps','-json','./cmd/koda-bom');modules={}
 while stream.strip():
  stream=stream.lstrip();obj,end=decoder.raw_decode(stream);stream=stream[end:];module=obj.get('Module')
  if module and not module.get('Main'):

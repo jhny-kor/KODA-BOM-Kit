@@ -126,13 +126,13 @@ def run_scan(collector, tree, output, commands):
         "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--user", "65534:65534", "--cpus", "2", "--memory", "1536m",
         "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m",
-        "--mount", f"type=bind,src={collector},dst=/koda-sbom,readonly",
+        "--mount", f"type=bind,src={collector},dst=/koda-bom,readonly",
         "--mount", f"type=bind,src={tree},dst=/fixture,readonly",
         "--mount", f"type=bind,src={output},dst=/results",
         "--mount", f"type=bind,src={commands},dst=/tool-canaries,readonly",
         "--env", "PATH=/tool-canaries:/usr/bin:/bin",
         "debian:bookworm-slim", "/bin/sh", "-c",
-        '/koda-sbom "$@"; scan_status=$?; '
+        '/koda-bom "$@"; scan_status=$?; '
         'test ! -e /tmp/koda-target-ran && test ! -e /tmp/koda-build-tool-ran || exit 97; '
         'exit "$scan_status"',
         "scan-fixtures", "scan", "--target", "/fixture", "--exclude-dir", "/fixture/excluded",
@@ -249,7 +249,7 @@ print(json.dumps(summaries))
 
 
 def exercise(stage, go, rust_binary, tracker_root=None):
-    collector = (stage / "koda-sbom").resolve(strict=True)
+    collector = (stage / "koda-bom").resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix="koda-go-rust-binary-") as temp:
         work = Path(temp)
         tree, output, commands = work / "fixtures", work / "output", work / "command-canaries"

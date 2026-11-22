@@ -57,7 +57,7 @@ func TestFailureDiagnosticsExposeLimitsWithoutPrivatePaths(t *testing.T) {
 
 func TestPureScanOptionValidation(t *testing.T) {
 	for _, args := range [][]string{
-		{}, {"--timeout", "0", "--max-files", "0"},
+		{}, {"--timeout", "0", "--max-files", "0"}, {"--separate-boms", "--cyclonedx-17"},
 		{"--timeout", "1h30m", "--max-files", "9223372036854775807"},
 		{"--timeout=1.5s", "--exclude", "/data/docker/**"},
 	} {
@@ -69,7 +69,7 @@ func TestPureScanOptionValidation(t *testing.T) {
 		{"--timeout", "not-a-duration"}, {"--timeout", "-1s"},
 		{"--timeout", "999999999999999999999999h"},
 		{"--max-files", "9223372036854775808"}, {"--max-files", "-1"},
-		{"--exclude", "[invalid"}, {"--target", "/"},
+		{"--exclude", "[invalid"}, {"--target", "/"}, {"--separate-boms=maybe"},
 		{"--output-dir", "/must-not-be-created"}, {"extra-positional"},
 	} {
 		if got := validateScanOptions(args); got != 2 {

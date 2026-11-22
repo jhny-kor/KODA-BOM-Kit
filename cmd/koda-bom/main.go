@@ -1,4 +1,4 @@
-// koda-sbom collects local inventory and correlates it with supplied offline evidence.
+// koda-bom collects local inventory and correlates it with supplied offline evidence.
 package main
 
 import (
@@ -21,11 +21,14 @@ import (
 	"koda.local/security-sbom-linux/internal/aixevidence"
 	"koda.local/security-sbom-linux/internal/certs"
 	"koda.local/security-sbom-linux/internal/collect"
+	"koda.local/security-sbom-linux/internal/deployment"
+	"koda.local/security-sbom-linux/internal/domainbom"
 	"koda.local/security-sbom-linux/internal/hardware"
 	"koda.local/security-sbom-linux/internal/hostcontext"
 	"koda.local/security-sbom-linux/internal/imagearchive"
 	"koda.local/security-sbom-linux/internal/localfs"
 	"koda.local/security-sbom-linux/internal/model"
+	"koda.local/security-sbom-linux/internal/obom"
 	"koda.local/security-sbom-linux/internal/products"
 	"koda.local/security-sbom-linux/internal/reconcile"
 	"koda.local/security-sbom-linux/internal/staticjs"
@@ -56,6 +59,8 @@ type collectorResult struct {
 	PackageCount int    `json:"packageCount"`
 }
 type summary struct {
+	Deployment                         *deployment.Evidence     `json:"deployment,omitempty"`
+	RuntimeContainerScope              string                   `json:"runtimeContainerScope,omitempty"`
 	Schema                             string                   `json:"schema"`
 	Status                             string                   `json:"status"`
 	Source                             sourceInfo               `json:"source"`
@@ -107,22 +112,31 @@ func validAssetTag(tag string) bool {
 	return true
 }
 func usage() {
-	fmt.Fprintln(os.Stderr, "koda-sbom: offline standalone inventory collector\n  koda-sbom doctor\n  koda-sbom version\n  koda-sbom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only) [--asset-tag LABEL] [--no-containers] [--no-images]\n  koda-sbom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed.")
-	fmt.Fprintln(os.Stderr, "  koda-sbom aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
-	fmt.Fprintln(os.Stderr, "  koda-sbom reconcile --artifact FILE.war|FILE.ear --supplier-sbom FILE.json --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
-	fmt.Fprintln(os.Stderr, "  koda-sbom scan --target DIRECTORY --target DIRECTORY --output-dir DIR [--exclude-dir ABSOLUTE_DIRECTORY]...")
-	fmt.Fprintln(os.Stderr, "  koda-sbom scan --output-dir DIR [--asset-evidence FILE]...\n  koda-sbom asset-import --asset-evidence FILE [--asset-evidence FILE]... --output-dir DIR\n  koda-sbom assess --sbom FILE --advisories FILE [--context FILE] [--kev FILE] --output FILE")
-	fmt.Fprintln(os.Stderr, "  koda-sbom platform-inventory --output-dir DIR (macOS or Windows)")
+	fmt.Fprintln(os.Stderr, "  koda-bom [scan options]  (default: scan / into ./bom-output, emit individual and merged BOMs)\n  koda-bom ai-bom --model-dir DIR --output-dir DIR [--cyclonedx-17]")
+	fmt.Fprintln(os.Stderr, "  koda-bom scan [--separate-boms] [domain evidence options] --output-dir DIR\n  koda-bom bom-split --collection DIR --output-dir DIR [--cyclonedx-17]\n  koda-bom bom-merge --set DIR --output-dir DIR [--cyclonedx-17]\n  koda-bom domain-bom --output-dir DIR [--saas-evidence FILE] [--model-evidence FILE --model-artifact FILE] [--provenance FILE --provenance-artifact FILE] [--cyclonedx-17]")
+	fmt.Fprintln(os.Stderr, "  koda-bom obom --collection DIR --output-dir DIR [--cyclonedx-17] [--environment LABEL] [--deployment-id ID] [--kubernetes-evidence FILE] [--network-evidence FILE]")
+	fmt.Fprintln(os.Stderr, "  live host scan additionally accepts --environment LABEL --deployment-id ID --kubernetes-evidence FILE\n  scan accepts --build-sbom FILE with --build-artifact FILE")
+	fmt.Fprintln(os.Stderr, "koda-bom: offline inventory collector\n  koda-bom doctor\n  koda-bom version\n  koda-bom scan [--target DIRECTORY | --image-archive image.tar] --output-dir DIR\n    [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0] [--max-files 1000000|0]\n    [--exclude PATH_OR_GLOB] [--exclude-dir DIRECTORY] [--no-context]\n    [--livepatch-evidence FILE] (repeatable, live host only) [--asset-tag LABEL] [--no-containers] [--no-images]\n  koda-bom livepatch-evidence --provider canonical-livepatch|ksplice|uptrack\n    --input FILE --output FILE [--effective-kernel-file FILE]\nZero timeout/max-files removes that scan limit; Ctrl+C still interrupts.\nExit codes: 0 complete, 3 partial, 2 failed.")
+	fmt.Fprintln(os.Stderr, "  koda-bom aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
+	fmt.Fprintln(os.Stderr, "  koda-bom reconcile --artifact FILE.war|FILE.ear --supplier-sbom FILE.json --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
+	fmt.Fprintln(os.Stderr, "  koda-bom scan --target DIRECTORY --target DIRECTORY --output-dir DIR [--exclude-dir ABSOLUTE_DIRECTORY]...")
+	fmt.Fprintln(os.Stderr, "  koda-bom scan --output-dir DIR [--asset-evidence FILE]...\n  koda-bom asset-import --asset-evidence FILE [--asset-evidence FILE]... --output-dir DIR\n  koda-bom assess --sbom FILE --advisories FILE [--context FILE] [--kev FILE] --output FILE")
+	fmt.Fprintln(os.Stderr, "  koda-bom platform-inventory --output-dir DIR (macOS or Windows)")
 }
 func run(args []string) int {
 	if len(args) == 0 {
-		usage()
-		return 2
+		args = []string{"scan"}
+	} else if strings.HasPrefix(args[0], "-") && args[0] != "--help" && args[0] != "-h" && args[0] != "--version" {
+		args = append([]string{"scan"}, args...)
 	}
 	switch args[0] {
 	case "version", "--version":
 		json.NewEncoder(os.Stdout).Encode(toolInfo{version, revision, builtAt, collect.SyftVersion})
 		return 0
+	case "bom-split", "bom-merge", "domain-bom", "ai-bom":
+		return runBOMCommand(args[0], args[1:])
+	case "obom":
+		return replayOBOM(args[1:])
 	case "doctor":
 		return doctor()
 	case "livepatch-evidence":
@@ -167,6 +181,13 @@ type scanCompletion func(dir string, report summary, coverage collect.Collection
 func runScan(parent context.Context, args []string, onComplete scanCompletion) int {
 	flags := flag.NewFlagSet("scan", flag.ContinueOnError)
 	var target, image, output, format, assetTag string
+	separateBOMs := flags.Bool("separate-boms", onComplete == nil, "write individual CycloneDX documents in boms/ and a merged bom.cdx.json")
+	var domain domainFlags
+	domain.bind(flags)
+	var buildEvidence buildEvidenceFlags
+	buildEvidence.bind(flags)
+	var deploymentOptions deploymentFlags
+	deploymentOptions.bind(flags)
 	var timeout time.Duration
 	var maxFiles int64
 	var targets, excludes, excludedDirs stringsFlag
@@ -174,7 +195,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	var noContext, cyclonedx17, noContainers, noImages bool
 	flags.Var(&targets, "target", "local directory (repeatable); default /")
 	flags.StringVar(&image, "image-archive", "", "local single-image Docker/OCI tar")
-	flags.StringVar(&output, "output-dir", "", "parent directory for new results")
+	flags.StringVar(&output, "output-dir", "./bom-output", "parent directory for new results")
 	flags.StringVar(&format, "format", "both", "both, cyclonedx, spdx")
 	flags.BoolVar(&cyclonedx17, "cyclonedx-17", false, cyclonedx17Help)
 	flags.DurationVar(&timeout, "timeout", 30*time.Minute, "maximum total collection time; 0 disables the time limit")
@@ -188,6 +209,25 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	flags.Var(&assetEvidence, "asset-evidence", "local supplementary hardware/software evidence (repeatable)")
 	flags.StringVar(&assetTag, "asset-tag", "", "operator label stored in the SBOM to identify this host (max 128 characters)")
 	if e := flags.Parse(args); e != nil {
+		return 2
+	}
+	if format == "spdx" {
+		explicit := false
+		flags.Visit(func(f *flag.Flag) {
+			if f.Name == "separate-boms" {
+				explicit = true
+			}
+		})
+		if !explicit {
+			*separateBOMs = false
+		}
+	}
+	if format == "spdx" && (*separateBOMs || domain.set()) {
+		fmt.Fprintln(os.Stderr, "separate BOMs and domain evidence require CycloneDX output")
+		return 2
+	}
+	if err := buildEvidence.validate(format); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
 	if !validAssetTag(assetTag) {
@@ -204,6 +244,10 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		return 2
 	}
 	if !validCycloneDXSelection(format, cyclonedx17) {
+		return 2
+	}
+	if deploymentOptions.set() && (multiple || noContext || image != "" || (target != "" && filepath.Clean(target) != "/") || format == "spdx") {
+		fmt.Fprintln(os.Stderr, "deployment metadata requires a live host CycloneDX scan with context")
 		return 2
 	}
 	configuredExcludePatternCount := len(excludes)
@@ -223,6 +267,20 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	runtime.GOMAXPROCS(2)
 	ctx, cancel := scanContext(parent, timeout)
 	defer cancel()
+	domainDocs, err := domain.generate(ctx, cyclonedx17)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "domain evidence:", err)
+		return 2
+	}
+	deploy, err := deploymentOptions.load(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	if err := buildEvidence.load(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
 	assets, assetIssues, err := loadAssetEvidence(ctx, assetEvidence)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -320,6 +378,17 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	if host != (model.HostIdentity{}) {
 		report.Host = &host
 	}
+	report.Deployment = deploy
+	if target == "/" && !noContext && image == "" && !multiple {
+		switch {
+		case noContainers:
+			report.RuntimeContainerScope = "disabled"
+		case noImages:
+			report.RuntimeContainerScope = "running-only"
+		default:
+			report.RuntimeContainerScope = "running-and-stored"
+		}
+	}
 	report.Issues = append(report.Issues, hostIssues...)
 	report.Limits = scanLimits{MaxFiles: maxFiles, Timeout: timeout.String(), TimeoutSeconds: timeout.Seconds()}
 	report.JavaScriptFingerprintCatalogSHA256 = staticjs.FingerprintCatalogSHA256()
@@ -355,9 +424,40 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			fmt.Fprintln(os.Stderr, "collection output failed")
 			return 2
 		}
+		markOutputFailure := func(stage string, cause error) error {
+			fmt.Fprintln(os.Stderr, stage+" output failed:", cause)
+			report.Status = "failed"
+			report.Issues = append(report.Issues, failureIssue(stage, cause, ctx.Err()))
+			if err := collect.WriteJSON(dir, "collection.failed.json", report); err != nil {
+				return err
+			}
+			return os.Rename(filepath.Join(dir, "collection.failed.json"), filepath.Join(dir, "collection.json"))
+		}
+		if code != 2 && format != "spdx" && contextData.Mode == "live-host" && report.RuntimeContainerScope != "" {
+			if err := obom.WriteLive(ctx, dir, dir, cyclonedx17); err != nil {
+				if err := markOutputFailure("obom", err); err != nil {
+					return 2
+				}
+				code = 2
+			}
+		}
 		if e := collect.Checksums(dir); e != nil {
 			fmt.Fprintln(os.Stderr, "checksums failed")
 			return 2
+		}
+		if code != 2 && *separateBOMs {
+			if err := splitScanBOMs(ctx, dir, cyclonedx17); err != nil {
+				if err := markOutputFailure("bom-split", err); err != nil {
+					return 2
+				}
+				if err := os.Remove(filepath.Join(dir, "SHA256SUMS")); err != nil {
+					return 2
+				}
+				if err := collect.Checksums(dir); err != nil {
+					return 2
+				}
+				code = 2
+			}
 		}
 		if multiple {
 			if code != 2 && ctx.Err() != nil {
@@ -433,6 +533,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	}
 	var inventory *sbom.SBOM
 	var observed []reconcile.Component
+	var discoveries []domainbom.ModelDiscovery
 	var combined collect.DirectoryInventory
 	var catalogIssues, javascriptIssues, tempExcluded bool
 	var integrity collect.IntegrityResult
@@ -454,7 +555,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			MaxFiles: maxFiles, FilesAlreadyCounted: report.FilesystemFileCount, ExcludeDirs: scope.excludedDirs,
 		})
 		finishPhase("filesystemPreflight")
-		progress.FilesystemFileCount = int64(len(plan.Paths))
+		progress.FilesystemFileCount = plan.AdmittedFileCount()
 		progress.ExcludedPaths = append([]string{}, plan.Excluded...)
 		sort.Strings(progress.ExcludedPaths)
 		progress.ExcludedDirectories = append([]string{}, plan.ExcludedDirs...)
@@ -472,6 +573,19 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		if err != nil {
 			record("failed")
 			return fail("filesystem", err)
+		}
+		if *separateBOMs {
+			found, discoverErr := domainbom.DiscoverModels(ctx, plan, scope.id)
+			if discoverErr != nil {
+				record("failed")
+				return fail("model-discovery", discoverErr)
+			}
+			issues = append(issues, found.Issues...)
+			discoveries = append(discoveries, found)
+			finishPhase("modelDiscovery")
+		}
+		if image == "" {
+			buildEvidence.admit(plan)
 		}
 		productList, productIssues := products.Collect(ctx, plan)
 		finishPhase("productEvidence")
@@ -491,13 +605,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		certificates, certificateIssues := certs.Collect(ctx, plan)
 		finishPhase("certificates")
 		issues = append(issues, certificateIssues...)
-		for _, a := range certificates {
-			if scope.id != "" && a.Source != "x509" {
-				a.Source = scope.id + "/" + a.Source
-				a.Properties["path"] = a.Source
-			}
-			assets = append(assets, a)
-		}
+		assets = append(assets, certs.ScopeAssets(certificates, scope.id)...)
 		assetScope = assetScope || len(certificates) > 0
 		if err := ctx.Err(); err != nil {
 			record("failed")
@@ -583,6 +691,9 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	if ctx.Err() != nil {
 		return fail("cataloging", ctx.Err())
 	}
+	if err := buildEvidence.write(ctx, dir, image, report.ImageIdentity, cyclonedx17); err != nil {
+		return fail("build-evidence", err)
+	}
 	report.PackageCount = inventory.Artifacts.Packages.PackageCount()
 	report.AssetCount = len(assets)
 	collect.LinkRuntimePackages(&contextData, inventory)
@@ -634,7 +745,11 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	// Runs before scratch removal: Syft's temporary files live there.
 	if !multiple && image == "" && target == "/" && !noContext && !noContainers {
 		var discoveryIssues []model.Issue
-		report.Containers, report.Images, discoveryIssues = scanContainers(ctx, containerOptions{dir: dir, format: format, cyclonedx17: cyclonedx17, maxFiles: maxFiles, host: host, stored: !noImages})
+		options := containerOptions{dir: dir, format: format, cyclonedx17: cyclonedx17, maxFiles: maxFiles, host: host, stored: !noImages}
+		if *separateBOMs {
+			options.modelDiscoveries = &discoveries
+		}
+		report.Containers, report.Images, discoveryIssues = scanContainers(ctx, options)
 		report.Issues = append(report.Issues, discoveryIssues...)
 		for _, c := range append(report.Containers, report.Images...) {
 			if c.Status != "completed" {
@@ -645,6 +760,20 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			report.Status = "partial"
 		}
 		finishPhase("containers")
+	}
+	if *separateBOMs {
+		if domainDocs == nil {
+			domainDocs = map[string][]byte{}
+		}
+		if err := domainbom.AddDiscoveredModels(ctx, domainDocs, discoveries, cyclonedx17); err != nil {
+			return fail("model-discovery", err)
+		}
+		if err := completeDomainProfiles(domainDocs, cyclonedx17); err != nil {
+			return fail("domain-bom", err)
+		}
+	}
+	if err := writeDomainBOMs(dir, domainDocs); err != nil {
+		return fail("domain-bom", err)
 	}
 	sort.Strings(report.ExcludedPaths)
 	os.RemoveAll(scratch)

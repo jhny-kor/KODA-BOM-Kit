@@ -43,11 +43,14 @@ func (e *FileLimitError) Error() string {
 }
 
 type Plan struct {
-	Root         string
-	Paths        []string
-	Excluded     []string
-	ExcludedDirs []string
-	Issues       []model.Issue
+	Root  string
+	Paths []string
+	// ModelHeaderPaths records large weights admitted only for bounded metadata reads.
+	ModelHeaderPaths []string
+	modelHeaders     map[string]string
+	Excluded         []string
+	ExcludedDirs     []string
+	Issues           []model.Issue
 	// RootFilesystem resolves absolute links inside Root (see Options).
 	RootFilesystem bool
 	links          map[string]string
@@ -276,11 +279,22 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 			if err := reserveAuxiliary(); err != nil {
 				return err
 			}
+			if modelHeaderCandidate(rel, p.Root) {
+				files := options.FilesAlreadyCounted + int64(len(p.Paths)+len(p.ModelHeaderPaths))
+				if options.MaxFiles > 0 && files >= options.MaxFiles {
+					return &FileLimitError{Limit: options.MaxFiles, Observed: files + 1}
+				}
+				if p.modelHeaders == nil {
+					p.modelHeaders = map[string]string{}
+				}
+				p.modelHeaders[rel] = rel
+				p.ModelHeaderPaths = append(p.ModelHeaderPaths, rel)
+			}
 			issue(rel, "incomplete", "file exceeds 2 GiB per-file bound")
 			deny(rel)
 			return nil
 		}
-		files := options.FilesAlreadyCounted + int64(len(p.Paths))
+		files := options.FilesAlreadyCounted + int64(len(p.Paths)+len(p.ModelHeaderPaths))
 		if options.MaxFiles > 0 && files >= options.MaxFiles {
 			return &FileLimitError{Limit: options.MaxFiles, Observed: files + 1}
 		}
@@ -296,6 +310,13 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 			links = append(links, name)
 		}
 		sort.Strings(links)
+		headerPlan := p
+		headerPlan.deniedPaths = make(map[string]bool, len(p.deniedPaths))
+		for name, denied := range p.deniedPaths {
+			if p.modelHeaders[name] == "" {
+				headerPlan.deniedPaths[name] = denied
+			}
+		}
 		var denied []string
 		for _, name := range links {
 			if err = ctx.Err(); err != nil {
@@ -304,6 +325,12 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 			_, _, linkErr := p.ResolveIndexedPath(name)
 			if linkErr == nil {
 				continue
+			}
+			if modelHeaderCandidate(name, p.Root) {
+				if canonical, _, err := headerPlan.ResolveIndexedPath(name); err == nil && p.modelHeaders[canonical] != "" {
+					p.modelHeaders[name] = canonical
+					p.ModelHeaderPaths = append(p.ModelHeaderPaths, name)
+				}
 			}
 			message := "unresolved symbolic link"
 			if errors.Is(linkErr, errOutsidePlan) || errors.Is(linkErr, errLinkTraversal) {
@@ -323,5 +350,6 @@ func BuildWithOptions(ctx context.Context, root string, excludes []string, optio
 		return p, fmt.Errorf("scan target with glob special characters cannot safely apply exclusions")
 	}
 
+	sort.Strings(p.ModelHeaderPaths)
 	return p, err
 }

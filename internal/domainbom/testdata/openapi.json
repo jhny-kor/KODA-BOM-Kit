@@ -1,0 +1,39 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Example API",
+    "version": "v1",
+    "description": "PRIVATE-OPENAPI-DESCRIPTION"
+  },
+  "servers": [
+    {
+      "url": "https://api.example.invalid/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "PRIVATE-AUTH-METADATA"
+      }
+    }
+  }
+}

@@ -78,6 +78,9 @@ func Load(ctx context.Context, filename string) ([]model.Asset, []model.Issue, e
 	case doc["Devices"] != nil:
 		format = "fwupd"
 		err = json.Unmarshal(doc["Devices"], &records)
+	case doc["PowerSupplies"] != nil || doc["Fans"] != nil:
+		format = "redfish"
+		records, err = redfishParts(doc)
 	case doc["Members"] != nil:
 		format = "redfish"
 		err = json.Unmarshal(doc["Members"], &records)
@@ -89,6 +92,15 @@ func Load(ctx context.Context, filename string) ([]model.Asset, []model.Issue, e
 	}
 	if err != nil || len(records) == 0 || len(records) > maxAssets {
 		return nil, nil, errors.New("inventory must contain 1 to 4096 objects")
+	}
+	redfishIDs := map[string]bool{}
+	if format == "redfish" {
+		for _, r := range records {
+			typ := str(r, "@odata.type")
+			if id := str(r, "@odata.id"); id != "" && (redfishDevice(typ) || strings.Contains(typ, "ComputerSystem.") || strings.Contains(typ, "Manager.") || strings.Contains(typ, "SoftwareInventory.")) {
+				redfishIDs[id] = true
+			}
+		}
 	}
 	assets := []model.Asset{}
 	issues := []model.Issue{}
@@ -134,7 +146,7 @@ func Load(ctx context.Context, filename string) ([]model.Asset, []model.Issue, e
 					return nil, nil, errors.New("invalid component SHA256")
 				}
 			}
-			if a.Kind != "device" && a.Kind != "firmware" && a.Kind != "device-driver" && a.Kind != "library" && a.Kind != "application" && a.Kind != "operating-system" && a.Kind != "container" {
+			if a.Kind != "device" && a.Kind != "firmware" && a.Kind != "device-driver" && a.Kind != "library" && a.Kind != "application" && a.Kind != "operating-system" && a.Kind != "container" && a.Kind != "cryptographic-asset" {
 				return nil, nil, errors.New("invalid asset kind")
 			}
 			var properties map[string]string
@@ -143,9 +155,39 @@ func Load(ctx context.Context, filename string) ([]model.Asset, []model.Issue, e
 					return nil, nil, errors.New("invalid asset properties")
 				}
 			}
-			for _, key := range []string{"runningVersion", "storedVersion", "versionFormat", "rawVersion", "applicationState", "platform", "productCode", "pciVendor", "pciDevice", "pciSubsystem", "updateState"} {
+			for _, key := range []string{"runningVersion", "storedVersion", "versionFormat", "rawVersion", "applicationState", "platform", "productCode", "pciVendor", "pciDevice", "pciSubsystem", "updateState", "partNumber", "supplier", "supportEndsAt", "manufacturedAt", "location", "deviceType", "capacityMiB", "powerCapacityWatts", "storageType", "keyAlias", "consumer", "consumerPurl", "configurationPath", "observationState", "trustState", "serialSHA256", "sparePartNumber", "endpoint", "transport", "sessionObservedAt", "negotiatedCipherSuite", "certificateSHA256", "keyAliasSHA256", "keystoreIntegrity"} {
 				if val := clean(properties[key]); val != "" {
 					a.Properties[key] = val
+				}
+			}
+			if err := validateCryptoObservation(a.Properties); err != nil {
+				return nil, nil, err
+			}
+			for _, key := range []string{"supportEndsAt", "manufacturedAt"} {
+				if value := a.Properties[key]; value != "" {
+					if _, err := time.Parse("2006-01-02", value); err != nil {
+						return nil, nil, errors.New("invalid hardware lifecycle date")
+					}
+				}
+			}
+			if hash := a.Properties["serialSHA256"]; hash != "" {
+				if bytes, err := hex.DecodeString(hash); err != nil || len(bytes) != 32 {
+					return nil, nil, errors.New("invalid serial digest")
+				}
+			}
+			if r["dependsOn"] != nil && json.Unmarshal(r["dependsOn"], &a.DependsOn) != nil {
+				return nil, nil, errors.New("invalid asset dependencies")
+			}
+			if len(a.DependsOn) > 128 {
+				return nil, nil, errors.New("too many asset dependencies")
+			}
+			if a.Kind == "cryptographic-asset" {
+				a.Crypto, err = importCrypto(r["cryptoProperties"], digest)
+				if err != nil {
+					return nil, nil, err
+				}
+				if err := validateSessionCrypto(a); err != nil {
+					return nil, nil, err
 				}
 			}
 		case "devlink":
@@ -186,14 +228,18 @@ func Load(ctx context.Context, filename string) ([]model.Asset, []model.Issue, e
 			case strings.Contains(typ, "ComputerSystem."):
 				a.Kind = "device"
 				a.Properties["biosVersion"] = str(r, "BiosVersion")
+			case redfishDevice(typ):
+				a.Kind = "device"
 			default:
-				issues = append(issues, model.Issue{Collector: "asset-import", Status: "incomplete", Code: "unexpanded_redfish_member", Message: "Redfish member requires an expanded SoftwareInventory, Manager or ComputerSystem object"})
+				issues = append(issues, model.Issue{Collector: "asset-import", Status: "incomplete", Code: "unexpanded_redfish_member", Message: "Redfish member requires a supported expanded hardware or firmware object"})
 				continue
 			}
 			a.Name = str(r, "Name")
 			a.Vendor = str(r, "Manufacturer")
 			a.Model = str(r, "Model")
 			a.Revision = str(r, "HardwareRevision")
+			redfishProperties(&a, r)
+			a.ParentID = redfishParent(a.ID, r, redfishIDs)
 			a.Properties["applicationState"] = "unknown"
 			if state := str(r, "ImageState"); state != "" {
 				a.Properties["applicationState"] = state
@@ -216,12 +262,26 @@ func Load(ctx context.Context, filename string) ([]model.Asset, []model.Issue, e
 			p := sha256.Sum256([]byte(digest + "\x00" + a.ParentID))
 			a.ParentID = "import-" + hex.EncodeToString(p[:12])
 		}
-		if a.Version == "" && a.Kind != "device" {
+		for j, ref := range a.DependsOn {
+			if clean(ref) == "" {
+				return nil, nil, errors.New("empty asset dependency")
+			}
+			a.DependsOn[j] = importedID(digest, ref)
+		}
+		a.DependsOn = append(a.DependsOn, cryptoReferences(a.Crypto)...)
+		if a.Version == "" && a.Kind != "device" && a.Kind != "cryptographic-asset" {
 			issues = append(issues, model.Issue{Collector: "asset-import", Status: "incomplete", Code: "version_unknown", Message: "Imported component version is unavailable"})
 		}
 		assets = append(assets, a)
 	}
+	linkSessionCertificates(assets)
 	for _, a := range assets {
+		refs := append(append([]string{}, a.DependsOn...), cryptoReferences(a.Crypto)...)
+		for _, ref := range refs {
+			if !seen[ref] || ref == a.ID {
+				return nil, nil, errors.New("invalid asset dependency reference")
+			}
+		}
 		if a.ParentID != "" && (!seen[a.ParentID] || a.ParentID == a.ID) {
 			return nil, nil, errors.New("invalid asset parent reference")
 		}
@@ -238,6 +298,9 @@ func Load(ctx context.Context, filename string) ([]model.Asset, []model.Issue, e
 			}
 			chain[id] = true
 		}
+	}
+	if err := validateCryptoTargets(assets); err != nil {
+		return nil, nil, err
 	}
 	sort.Slice(assets, func(i, j int) bool { return assets[i].ID < assets[j].ID })
 	return assets, issues, nil

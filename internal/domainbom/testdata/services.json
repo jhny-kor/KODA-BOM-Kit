@@ -1,0 +1,33 @@
+{
+  "schema": "koda-services-1",
+  "services": [
+    {
+      "id": "app",
+      "name": "Application",
+      "provider": "Example",
+      "endpoints": [
+        "https://app.example.invalid/api"
+      ],
+      "authenticated": true,
+      "trustBoundary": true,
+      "data": [
+        {
+          "name": "customer-record",
+          "flow": "outbound",
+          "classification": "personal-data"
+        }
+      ],
+      "dependsOn": [
+        "database"
+      ]
+    },
+    {
+      "id": "database",
+      "name": "Database service",
+      "endpoints": [
+        "https://db.example.invalid"
+      ],
+      "authenticated": true
+    }
+  ]
+}

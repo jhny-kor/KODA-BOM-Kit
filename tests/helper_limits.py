@@ -17,7 +17,7 @@ def exercise():
         helper = release / source.name
         shutil.copy2(source, helper)
         helper.chmod(0o755)
-        collector = release / 'koda-sbom'
+        collector = release / 'koda-bom'
         collector.write_text('''#!/usr/bin/env python3
 import json, os, pathlib, sys
 with open(os.environ['QA_CALLS'], 'a') as stream:

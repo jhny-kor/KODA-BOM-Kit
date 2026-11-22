@@ -1,0 +1,42 @@
+{
+  "schema": "koda-manufacturing-1",
+  "observedAt": "2026-11-21T01:00:00Z",
+  "observation": "reported",
+  "product": {
+    "id": "server",
+    "name": "Server",
+    "model": "R1",
+    "partNumber": "SRV-R1",
+    "manufacturer": "Example"
+  },
+  "parts": [
+    {
+      "id": "board",
+      "name": "Mainboard",
+      "partNumber": "MB-1"
+    },
+    {
+      "id": "dimm",
+      "name": "Memory",
+      "partNumber": "DDR5-32"
+    }
+  ],
+  "steps": [
+    {
+      "name": "Install board and memory",
+      "action": "assembly",
+      "inputIds": [
+        "board",
+        "dimm"
+      ]
+    },
+    {
+      "name": "Acceptance test",
+      "action": "test",
+      "inputIds": [
+        "board",
+        "dimm"
+      ]
+    }
+  ]
+}

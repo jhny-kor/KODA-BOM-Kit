@@ -117,14 +117,14 @@ def main():
                 kernel_db.append({k: fields[k] for k in ['Package','Version','Architecture','Source','Status']})
         assert len(kernel_db) == 2
     (work/'rootfs-kernel-dpkg-baseline.json').write_text(json.dumps(kernel_db, indent=2)+'\n')
-    shutil.copy2(a.binary.resolve(), work/'koda-sbom')
+    shutil.copy2(a.binary.resolve(), work/'koda-bom')
     env = dict(os.environ, CGO_ENABLED='0', GOOS='linux', GOARCH='amd64', GOAMD64='v1', GOTOOLCHAIN='local')
     run([a.go,'build','-trimpath','-ldflags','-s -w','-o',str(work/'init'),str(HERE/'init.go')], env=env)
     assembly = r'''set -euo pipefail
 mkdir -p /tmp/rootfs
 tar --no-same-owner --delay-directory-restore --exclude='dev/*' --exclude='proc/*' --exclude='sys/*' -xf /work/ubuntu24041-rootfs.tar -C /tmp/rootfs
 cp /work/init /tmp/rootfs/init
-cp /work/koda-sbom /tmp/rootfs/koda-sbom
+cp /work/koda-bom /tmp/rootfs/koda-bom
 mkdir -p /tmp/rootfs/proc /tmp/rootfs/sys /tmp/rootfs/dev /tmp/rootfs/tmp /tmp/rootfs/results /tmp/rootfs/vm-test/modules/6.8.0-47-generic
 cp /tmp/rootfs/boot/vmlinuz-6.8.0-47-generic /work/vmlinuz-6.8.0-47-generic
 python3 - <<'PYMODULE'
@@ -147,12 +147,12 @@ find . -print0 | LC_ALL=C sort -z | cpio --null --create --format=newc --reprodu
 '''
     run(['docker','run','--rm','--platform','linux/arm64','--network','none','--read-only','--cap-drop','ALL','--cap-add','DAC_OVERRIDE','--cap-add','FOWNER','--security-opt','no-new-privileges','--tmpfs','/tmp:rw,size=2g','--mount',f'type=bind,src={work},dst=/work',TOOL_IMAGE,'/bin/bash','-ec',assembly])
     provenance = {'schema':'koda-sbom-ubuntu-vm-inputs-v1','os':'Ubuntu Base 24.04.1 amd64','kernelRelease':KERNEL,'rootfsSource':BASE_URL+BASE_NAME,'rootfsMirrorSignatureFingerprint':CD_KEY,'kernelSnapshot':SNAPSHOT,'packageRecords':packages,'urls':urls,'files':{},'imageIDs':{},'limitations':['Ubuntu Base plus dpkg-unpacked authentic kernel packages; not a configured full server installation.','Direct custom-initramfs boot; GRUB, UEFI, Secure Boot, systemd and physical-server integration not tested.','No installed proprietary Ksplice or Canonical Livepatch service or livepatch entitlement; no real vendor patch is installed by this harness.']}
-    for file in [inputs/BASE_NAME,inputs/'InRelease',inputs/'Packages.xz',inputs/'ubuntu-archive-keyring.gpg',root_tar,work/'koda-sbom',work/'init',work/('vmlinuz-'+KERNEL),work/'ubuntu24041-initramfs.cpio.gz']:
+    for file in [inputs/BASE_NAME,inputs/'InRelease',inputs/'Packages.xz',inputs/'ubuntu-archive-keyring.gpg',root_tar,work/'koda-bom',work/'init',work/('vmlinuz-'+KERNEL),work/'ubuntu24041-initramfs.cpio.gz']:
         provenance['files'][str(file.relative_to(work))]={'sha256':digest(file),'bytes':file.stat().st_size}
     for name in [TOOL_IMAGE,image]:
         provenance['imageIDs'][name]=subprocess.check_output(['docker','image','inspect','--format','{{.Id}}',name],text=True).strip()
     (work/'input-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
-    print(json.dumps({'workDirectory':str(work),'kernel':KERNEL,'binarySHA256':digest(work/'koda-sbom'),'initramfsBytes':(work/'ubuntu24041-initramfs.cpio.gz').stat().st_size}))
+    print(json.dumps({'workDirectory':str(work),'kernel':KERNEL,'binarySHA256':digest(work/'koda-bom'),'initramfsBytes':(work/'ubuntu24041-initramfs.cpio.gz').stat().st_size}))
 
 if __name__ == '__main__':
     main()

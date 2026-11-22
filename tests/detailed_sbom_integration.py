@@ -401,7 +401,7 @@ print(json.dumps(formats))
 
 def exercise(stage, tracker_root):
     stage = stage.resolve(strict=True)
-    binary = stage / "koda-sbom"
+    binary = stage / "koda-bom"
     assert binary.is_file(), binary
     with tempfile.TemporaryDirectory(prefix="koda-detailed-sbom-") as temporary:
         work = Path(temporary)
@@ -431,7 +431,7 @@ def exercise(stage, tracker_root):
                 "--mount", f"type=bind,src={stage},dst=/release,readonly",
                 "--mount", f"type=bind,src={fixtures},dst=/fixtures,readonly",
                 "--mount", f"type=bind,src={output},dst=/results",
-                "debian:bookworm-slim", "/release/koda-sbom", *arguments, "--output-dir", "/results",
+                "debian:bookworm-slim", "/release/koda-bom", *arguments, "--output-dir", "/results",
             ]
             process = subprocess.run(command, capture_output=True, text=True, timeout=180)
             assert process.returncode == expected, (process.returncode, process.stdout, process.stderr)
@@ -485,7 +485,7 @@ def exercise(stage, tracker_root):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", required=True, type=Path, help="Directory with the Linux amd64 koda-sbom binary")
+    parser.add_argument("--stage", required=True, type=Path, help="Directory with the Linux amd64 koda-bom binary")
     parser.add_argument("--tracker-root", type=Path, help="Optional Tracker checkout with an initialized .venv")
     args = parser.parse_args()
     print(json.dumps(exercise(args.stage, args.tracker_root), indent=2))

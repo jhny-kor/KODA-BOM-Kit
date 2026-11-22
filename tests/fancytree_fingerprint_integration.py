@@ -58,10 +58,10 @@ def exercise(stage, cache, baseline):
                 "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
                 "--user", "65534:65534", "--cpus", "2", "--memory", "1536m",
                 "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m",
-                "--mount", f"type=bind,src={binary.resolve(strict=True)},dst=/koda-sbom,readonly",
+                "--mount", f"type=bind,src={binary.resolve(strict=True)},dst=/koda-bom,readonly",
                 "--mount", f"type=bind,src={fixtures},dst=/fixtures,readonly",
                 "--mount", f"type=bind,src={output},dst=/results",
-                "debian:bookworm-slim", "/koda-sbom", "scan", "--target", "/fixtures",
+                "debian:bookworm-slim", "/koda-bom", "scan", "--target", "/fixtures",
                 "--output-dir", f"/results/{name}", "--no-context",
             ]
             process = subprocess.run(command, capture_output=True, text=True, timeout=180)
@@ -69,7 +69,7 @@ def exercise(stage, cache, baseline):
             result, = (output / name).iterdir()
             return result
 
-        result = invoke(stage / "koda-sbom", "fingerprints")
+        result = invoke(stage / "koda-bom", "fingerprints")
         schemas = validate(result)
         collection = json.loads((result / "collection.json").read_text())
         assert collection["javascriptFingerprintCatalogSha256"] == hashlib.sha256(CATALOG.read_bytes()).hexdigest()

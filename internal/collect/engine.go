@@ -33,14 +33,14 @@ var Catalogers = append(append([]string{}, syftCatalogers...), kernelCollector, 
 type deniedTransport struct{}
 
 func (deniedTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, errors.New("outbound HTTP disabled by koda-sbom")
+	return nil, errors.New("outbound HTTP disabled by koda-bom")
 }
 func DisableHTTP() {
 	http.DefaultTransport = deniedTransport{}
 	http.DefaultClient = &http.Client{Transport: deniedTransport{}}
 }
 func Config(version string) *syft.CreateSBOMConfig {
-	c := syft.DefaultCreateSBOMConfig().WithTool("koda-sbom", version).WithParallelism(2).WithoutFiles()
+	c := syft.DefaultCreateSBOMConfig().WithTool("koda-bom", version).WithParallelism(2).WithoutFiles()
 	// Make WithoutFiles explicit to the task selector too. Otherwise Syft
 	// auto-adds the file tag and emits a warning even for complete scans.
 	c.CatalogerSelection = cataloging.NewSelectionRequest().WithDefaults(syftCatalogers...).WithRemovals("file")

@@ -334,14 +334,14 @@ func main() {
 	b.LoadedModulesBefore = modules()
 	initModule(&b)
 	b.LoadedModulesAfter = modules()
-	if sha, e := digestFile("/koda-sbom"); e == nil {
+	if sha, e := digestFile("/koda-bom"); e == nil {
 		b.BinarySHA256 = sha
 	} else {
 		b.Issues = append(b.Issues, "collector digest failed: "+e.Error())
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/koda-sbom", "scan", "--output-dir", "/results", "--timeout", "0", "--max-files", "0", "--exclude", "/vm-test/**", "--exclude", "/init", "--exclude", "/koda-sbom")
+	cmd := exec.CommandContext(ctx, "/koda-bom", "scan", "--output-dir", "/results", "--timeout", "0", "--max-files", "0", "--exclude", "/vm-test/**", "--exclude", "/init", "--exclude", "/koda-bom")
 	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "HOME=/root", "TMPDIR=/tmp", "LANG=C", "TZ=UTC"}
 	stdout, stderr := &cappedBuffer{limit: 1 << 20}, &cappedBuffer{limit: 1 << 20}
 	cmd.Stdout = stdout

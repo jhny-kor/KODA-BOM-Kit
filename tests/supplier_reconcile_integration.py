@@ -172,7 +172,7 @@ def check_result(result, artifact, supplier, supplier_format, archive_path):
 
 def exercise(stage):
     stage = stage.resolve(strict=True)
-    binary = stage / "koda-sbom"
+    binary = stage / "koda-bom"
     assert binary.is_file(), binary
     with tempfile.TemporaryDirectory(prefix="koda-supplier-reconcile-") as temporary:
         work = Path(temporary)
@@ -213,7 +213,7 @@ def exercise(stage):
                 "--mount", f"type=bind,src={stage},dst=/release,readonly",
                 "--mount", f"type=bind,src={fixtures},dst=/fixtures,readonly",
                 "--mount", f"type=bind,src={output},dst=/results",
-                "debian:bookworm-slim", "/release/koda-sbom", "reconcile",
+                "debian:bookworm-slim", "/release/koda-bom", "reconcile",
                 "--artifact", f"/fixtures/{artifact.relative_to(fixtures).as_posix()}",
                 "--supplier-sbom", f"/fixtures/{supplier.relative_to(fixtures).as_posix()}",
                 "--output-dir", "/results", *options,

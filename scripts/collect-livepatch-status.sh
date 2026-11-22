@@ -5,7 +5,7 @@ set -eu
 umask 077
 
 usage_error() {
-    echo "usage: $0 RESULT_PARENT_DIRECTORY [--cyclonedx-17] [--timeout DURATION] [--max-files N] [--exclude GLOB]..." >&2
+    echo "usage: $0 RESULT_PARENT_DIRECTORY [--cyclonedx-17] [--separate-boms] [--timeout DURATION] [--max-files N] [--exclude GLOB]..." >&2
     exit 2
 }
 
@@ -16,7 +16,7 @@ validate_scan_options() {
     while [ "$#" -gt 0 ]; do
         [ "${#1}" -le 4096 ] || usage_error
         case "$1" in
-            --cyclonedx-17|--cyclonedx-17=*)
+            --cyclonedx-17|--cyclonedx-17=*|--separate-boms|--separate-boms=*)
                 shift
                 continue
                 ;;
@@ -51,10 +51,10 @@ output_argument=$1
 shift
 validate_scan_options "$@"
 helper_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-if [ -x "$helper_dir/koda-sbom" ]; then
-    collector="$helper_dir/koda-sbom"
+if [ -x "$helper_dir/koda-bom" ]; then
+    collector="$helper_dir/koda-bom"
 else
-    echo "Place this helper beside the release koda-sbom executable." >&2
+    echo "Place this helper beside the release koda-bom executable." >&2
     exit 2
 fi
 "$collector" validate-scan-options "$@"

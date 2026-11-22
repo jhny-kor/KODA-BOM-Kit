@@ -249,9 +249,9 @@ def run_combined_scan(root, binary, out, image):
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "65534:65534",
         "--tmpfs", "/tmp:rw,nosuid,nodev,size=256m",
         "--mount", f"type=bind,src={root},dst=/fixture,readonly",
-        "--mount", f"type=bind,src={binary},dst=/koda-sbom,readonly",
+        "--mount", f"type=bind,src={binary},dst=/koda-bom,readonly",
         "--mount", f"type=bind,src={out},dst=/output",
-        image, "/koda-sbom", "scan", "--output-dir", "/output", "--no-context", "--format", "both",
+        image, "/koda-bom", "scan", "--output-dir", "/output", "--no-context", "--format", "both",
         "--target", "/fixture/workspace", "--target", "/fixture/deployed-default",
         "--exclude-dir", "/fixture/workspace/private-cache",
     ]
@@ -316,7 +316,7 @@ def case_result(root, case, binary, out, image, node):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", required=True, type=Path, help="Linux amd64 koda-sbom executable")
+    parser.add_argument("--binary", required=True, type=Path, help="Linux amd64 koda-bom executable")
     parser.add_argument("--fixture-dir", required=True, type=Path)
     parser.add_argument("--prepare-fixture", action="store_true", help="Install and deploy the test workspace with pnpm")
     parser.add_argument("--pnpm", default="pnpm", help=f"pnpm {PNPM_VERSION} executable")

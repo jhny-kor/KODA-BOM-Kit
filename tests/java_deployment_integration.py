@@ -254,9 +254,9 @@ def scan(binary, archive, output, image):
     invocation = [
         "docker", "run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m",
-        "--mount", f"type=bind,src={binary},dst=/koda-sbom,readonly",
+        "--mount", f"type=bind,src={binary},dst=/koda-bom,readonly",
         "--mount", f"type=bind,src={archive},dst=/input/{archive.name},readonly",
-        "--mount", f"type=bind,src={output},dst=/output", image, "/koda-sbom",
+        "--mount", f"type=bind,src={output},dst=/output", image, "/koda-bom",
         "scan", "--target", "/input", "--no-context", "--output-dir", "/output", "--format", "both",
     ]
     proc = subprocess.run(invocation, check=False, text=True, capture_output=True, timeout=150)
@@ -300,7 +300,7 @@ def compare_probe(binary, archive, output, image, jar, *, coordinate, version):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", required=True, type=Path, help="Linux amd64 koda-sbom executable")
+    parser.add_argument("--binary", required=True, type=Path, help="Linux amd64 koda-bom executable")
     parser.add_argument("--fixture-dir", required=True, type=Path,
                         help="directory containing the pinned archive fixtures")
     parser.add_argument("--expected-dir", type=Path,

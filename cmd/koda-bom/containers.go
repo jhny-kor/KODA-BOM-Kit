@@ -13,9 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anchore/syft/syft/sbom"
+
 	"koda.local/security-sbom-linux/internal/certs"
 	"koda.local/security-sbom-linux/internal/collect"
 	"koda.local/security-sbom-linux/internal/containers"
+	"koda.local/security-sbom-linux/internal/domainbom"
 	"koda.local/security-sbom-linux/internal/hostcontext"
 	"koda.local/security-sbom-linux/internal/localfs"
 	"koda.local/security-sbom-linux/internal/model"
@@ -48,6 +51,8 @@ type containerCollection struct {
 	PackageCount        int                      `json:"packageCount"`
 	FilesystemFileCount int64                    `json:"filesystemFileCount"`
 	ListeningSockets    []executableSockets      `json:"listeningSockets,omitempty"`
+	ProcessLinks        []model.ProcessLink      `json:"processLinks,omitempty"`
+	RuntimeObservation  string                   `json:"runtimeObservation,omitempty"`
 	Integrity           *collect.IntegrityResult `json:"integrity,omitempty"`
 	PackageOrigin       *collect.OriginResult    `json:"packageOrigin,omitempty"`
 	Issues              []model.Issue            `json:"issues"`
@@ -67,7 +72,8 @@ type containerOptions struct {
 	maxFiles    int64
 	host        model.HostIdentity
 	// stored adds stopped containers and images no container uses.
-	stored bool
+	stored           bool
+	modelDiscoveries *[]domainbom.ModelDiscovery
 }
 
 // Copy limit for one stopped container or image root filesystem; the copy is
@@ -260,11 +266,20 @@ func scanContainer(ctx context.Context, s *containerSummary, group string, optio
 		}
 	}
 	plan, err := localfs.BuildWithOptions(ctx, s.RootFS, nil, localfs.Options{MaxFiles: options.maxFiles, RootFilesystem: true})
-	report.FilesystemFileCount = int64(len(plan.Paths))
+	report.FilesystemFileCount = plan.AdmittedFileCount()
 	report.Issues = append(report.Issues, plan.Issues...)
 	if err != nil {
 		finish(err)
 		return
+	}
+	if options.modelDiscoveries != nil {
+		found, err := domainbom.DiscoverModels(ctx, plan, rel)
+		if err != nil {
+			finish(err)
+			return
+		}
+		report.Issues = append(report.Issues, found.Issues...)
+		*options.modelDiscoveries = append(*options.modelDiscoveries, found)
 	}
 	productList, productIssues := products.Collect(ctx, plan)
 	javascript, javascriptIssues := staticjs.Collect(ctx, plan)
@@ -294,9 +309,31 @@ func scanContainer(ctx context.Context, s *containerSummary, group string, optio
 		report.PackageOrigin = &origins
 	}
 	report.PackageCount = inventory.Artifacts.Packages.PackageCount()
-	// Read the container's own network namespace through its processes.
-	byExecutable, socketIssues := hostcontext.NamespaceSockets(ctx, s.PIDs)
-	report.Issues = append(report.Issues, socketIssues...)
+	report.RuntimeObservation = "not_running"
+	byExecutable := map[string][]model.Socket{}
+	if s.State == "running" {
+		report.RuntimeObservation = "observed"
+		var runtimeIssues []model.Issue
+		report.ProcessLinks, runtimeIssues = hostcontext.ContainerProcesses(ctx, s.PIDs, s.RootFS, s.ID)
+		if len(report.ProcessLinks) == 0 && len(runtimeIssues) == 0 {
+			runtimeIssues = append(runtimeIssues, model.Issue{Collector: "host-context", Status: "incomplete", Message: "no container processes remained observable"})
+		}
+		report.Issues = append(report.Issues, runtimeIssues...)
+		if len(runtimeIssues) > 0 || len(report.ProcessLinks) == 0 {
+			report.RuntimeObservation = "partial"
+		}
+		linkContainerRuntime(report.ProcessLinks, inventory, s.RootFS)
+		for _, process := range report.ProcessLinks {
+			if process.ExecutableDeleted {
+				continue
+			}
+			for _, socket := range process.ListeningSockets {
+				if !slices.Contains(byExecutable[process.Executable], socket) {
+					byExecutable[process.Executable] = append(byExecutable[process.Executable], socket)
+				}
+			}
+		}
+	}
 	for _, exe := range slices.Sorted(maps.Keys(byExecutable)) {
 		report.ListeningSockets = append(report.ListeningSockets, executableSockets{Executable: exe, Sockets: byExecutable[exe]})
 	}
@@ -313,4 +350,39 @@ func scanContainer(ctx context.Context, s *containerSummary, group string, optio
 		}
 	}
 	finish(err)
+}
+
+// linkContainerRuntime associates mapped files with the package installed in
+// this container. The installed version is evidence about disk ownership only.
+func linkContainerRuntime(processes []model.ProcessLink, inventory *sbom.SBOM, root string) {
+	paths := []string{}
+	for _, process := range processes {
+		if !process.FilesystemComparable {
+			continue
+		}
+		for _, file := range process.RuntimeFiles {
+			paths = append(paths, file.Path)
+		}
+	}
+	purls := collect.ExecutablePURLs(inventory, root, paths)
+	type identity struct{ name, version string }
+	identities := map[string]identity{}
+	for _, p := range inventory.Artifacts.Packages.Sorted() {
+		if p.PURL != "" {
+			identities[p.PURL] = identity{p.Name, p.Version}
+		}
+	}
+	for i := range processes {
+		if !processes[i].FilesystemComparable {
+			continue
+		}
+		for j := range processes[i].RuntimeFiles {
+			file := &processes[i].RuntimeFiles[j]
+			if purl := purls[file.Path]; purl != "" {
+				file.PURL = purl
+				file.Package = identities[purl].name
+				file.InstalledVersion = identities[purl].version
+			}
+		}
+	}
 }

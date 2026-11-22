@@ -1,0 +1,39 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "predicateType": "https://slsa.dev/provenance/v1",
+  "subject": [
+    {
+      "name": "product.bin",
+      "digest": {
+        "sha256": "58f3140d0eabb936e2cd47f5816ae7f740a18a175c65b1a1f530e6b3d33f1017"
+      }
+    }
+  ],
+  "predicate": {
+    "buildDefinition": {
+      "buildType": "https://build.example.invalid/type/v1",
+      "externalParameters": {
+        "token": "PRIVATE-BUILD-TOKEN"
+      },
+      "resolvedDependencies": [
+        {
+          "name": "source",
+          "uri": "https://git.example.invalid/example/repo",
+          "digest": {
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        }
+      ]
+    },
+    "runDetails": {
+      "builder": {
+        "id": "https://ci.example.invalid/builders/default"
+      },
+      "metadata": {
+        "invocationId": "build-42",
+        "startedOn": "2026-11-21T01:00:00Z",
+        "finishedOn": "2026-11-21T01:01:00Z"
+      }
+    }
+  }
+}

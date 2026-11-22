@@ -259,9 +259,9 @@ def run_target_scan(root, binary, out, target, image, excludes, expected_exit):
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "65534:65534",
         "--tmpfs", "/tmp:rw,nosuid,nodev,size=256m",
         "--mount", f"type=bind,src={root},dst=/fixture,readonly",
-        "--mount", f"type=bind,src={binary},dst=/koda-sbom,readonly",
+        "--mount", f"type=bind,src={binary},dst=/koda-bom,readonly",
         "--mount", f"type=bind,src={out},dst=/output",
-        image, "/koda-sbom", "scan", "--target", f"/fixture/{target}", "--output-dir", "/output",
+        image, "/koda-bom", "scan", "--target", f"/fixture/{target}", "--output-dir", "/output",
         "--no-context", "--format", "both",
     ]
     for excluded in excludes:
@@ -318,7 +318,7 @@ def case_result(root, case, binary, out, image, node):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, required=True, help="Linux amd64 koda-sbom executable")
+    parser.add_argument("--binary", type=Path, required=True, help="Linux amd64 koda-bom executable")
     parser.add_argument("--fixture-dir", type=Path, required=True)
     parser.add_argument("--prepare-fixture", action="store_true", help="Install pinned projects and produce an isolated deployment")
     parser.add_argument("--pnpm", default="pnpm", help=f"pnpm {PNPM_VERSION} executable")
