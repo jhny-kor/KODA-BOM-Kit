@@ -141,7 +141,7 @@ if test "$(run_python scripts/source-identity.py)" != "$revision"; then
 fi
 build_flags="-s -w -X main.version=$release_version -X main.revision=$revision -X main.builtAt=$built_at"
 run_go build -mod=readonly -trimpath -buildvcs=false -ldflags "$build_flags" -o "$stage/koda-bom" ./cmd/koda-bom
-cp README.md LICENSE THIRD_PARTY_NOTICES.md "$stage/"
+cp README.md LICENSE NOTICE THIRD_PARTY_NOTICES.md "$stage/"
 cp scripts/collect-livepatch-status.sh "$stage/collect-livepatch-status.sh"
 chmod 0755 "$stage/collect-livepatch-status.sh"
 cp scripts/scan-directory.sh "$stage/scan-directory.sh"

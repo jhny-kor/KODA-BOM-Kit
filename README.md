@@ -1,5 +1,7 @@
 # KODA BOM Linux
 
+원저자 [jhny-kor](https://github.com/jhny-kor) · [KODA-BOM-Kit 공식 저장소](https://github.com/jhny-kor/KODA-BOM-Kit) · [Apache-2.0 라이선스](LICENSE)
+
 KODA BOM은 폐쇄망에서 **실행 파일 하나로 소프트웨어와 하드웨어 인벤토리를 수집**하고 CycloneDX와 SPDX로 저장합니다. Linux 수집은 로컬 파일과 커널 인터페이스를 읽으며 대상 서버에 Python, Go, Java, Node.js, Docker 또는 취약점 DB를 설치할 필요가 없습니다. 선택 명령 `assess`는 운영자가 제공한 로컬 보안 권고와 수집 결과를 대조합니다.
 
 ## 현재 소스에서 실행
