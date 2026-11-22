@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"koda.local/security-sbom-linux/internal/localfs"
 )
 
 // onnxHeader reads the top-level ModelProto fields of an ONNX file: IR
@@ -199,12 +201,5 @@ func artifactHeader(f *os.File, size int64, name string) ([]property, error) {
 // checkpoints and ONNX models. Generic .pkl files are often non-model data and
 // are inspected only when selected with --model-artifact.
 func pickleModelFile(p string) bool {
-	base := strings.ToLower(path.Base(p))
-	switch path.Ext(base) {
-	case ".pt", ".pth", ".ckpt", ".onnx":
-		return true
-	case ".bin":
-		return strings.HasPrefix(base, "pytorch_model") || base == "training_args.bin"
-	}
-	return false
+	return strings.EqualFold(path.Ext(p), ".onnx") || localfs.ModelCheckpointFile(p)
 }

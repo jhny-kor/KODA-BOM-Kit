@@ -41,6 +41,19 @@ type graph struct {
 	edges      map[string]map[string]bool
 	// Host firewall declarations used to annotate non-loopback listening sockets.
 	firewall []model.FirewallDeclaration
+	// Listening sockets and outbound connections, matched by resolveRemotes.
+	listeners []listener
+	pending   []pendingRemote
+}
+
+type listener struct {
+	scope, ref, owner, protocol, address string
+	port                                 int
+}
+
+type pendingRemote struct {
+	scope, owner string
+	conn         model.Connection
 }
 
 func newGraph() *graph {
@@ -122,9 +135,45 @@ func (g *graph) processes(scope string, processes []model.ProcessLink) {
 	}
 }
 
-// remote records an endpoint a process was connected to; processes reaching
-// the same endpoint share one service.
+// remote queues an endpoint a process was connected to; resolveRemotes links
+// it once every listening socket in the scope is known.
 func (g *graph) remote(scope, owner string, c model.Connection) {
+	g.pending = append(g.pending, pendingRemote{scope, owner, c})
+}
+
+// resolveRemotes links a connection to a local listening socket when the
+// endpoint is one this host listens on: the same address, or a loopback or
+// own-address (local-host) peer of an all-interfaces listener. That listener
+// already depends on its owning process, so client and server processes become
+// connected; a process reaching its own listener adds no edge. Other endpoints
+// become shared remote services.
+func (g *graph) resolveRemotes() {
+	for _, p := range g.pending {
+		remote := net.ParseIP(p.conn.RemoteAddress)
+		local := remote != nil && (remote.IsLoopback() || p.conn.RemoteScope == "local-host")
+		matched := false
+		for _, l := range g.listeners {
+			if l.scope != p.scope || l.port != p.conn.RemotePort || !strings.HasPrefix(l.protocol, "tcp") {
+				continue
+			}
+			bind := net.ParseIP(l.address)
+			if remote != nil && bind != nil && (bind.Equal(remote) || bind.IsUnspecified() && local) {
+				matched = true
+				if l.owner != p.owner {
+					g.edge(p.owner, l.ref)
+				}
+			}
+		}
+		if !matched {
+			g.remoteService(p.scope, p.owner, p.conn)
+		}
+	}
+	g.pending = nil
+}
+
+// remoteService records an endpoint with no matching local listener;
+// processes reaching the same endpoint share one service.
+func (g *graph) remoteService(scope, owner string, c model.Connection) {
 	label := net.JoinHostPort(c.RemoteAddress, strconv.Itoa(c.RemotePort))
 	ref := reference(scope, "remote", c.Protocol, label)
 	if _, exists := g.services[ref]; !exists {
@@ -168,6 +217,7 @@ func (g *graph) socket(scope, owner string, s model.Socket) {
 	}
 	g.services[ref] = service{Ref: ref, Name: s.Protocol + " " + label, Endpoints: []string{protocol + "://" + label}, Properties: props}
 	g.edge(scope, ref)
+	g.listeners = append(g.listeners, listener{scope: scope, ref: ref, owner: owner, protocol: s.Protocol, address: s.Address, port: s.Port})
 }
 func (g *graph) units(scope string, units []model.Service) {
 	for _, u := range units {

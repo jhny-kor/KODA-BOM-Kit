@@ -58,7 +58,7 @@ type Connection struct {
 	Protocol      string `json:"protocol"`
 	RemoteAddress string `json:"remoteAddress"`
 	RemotePort    int    `json:"remotePort"`
-	RemoteScope   string `json:"remoteScope"`
+	RemoteScope   string `json:"remoteScope"` // loopback, local-host (this namespace's address), private, link-local or public
 	Count         int    `json:"count"`
 }
 

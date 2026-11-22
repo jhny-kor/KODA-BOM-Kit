@@ -255,6 +255,7 @@ func write(ctx context.Context, collectionDir, outputDir string, include17, veri
 			return err
 		}
 	}
+	g.resolveRemotes()
 	versions := []string{"1.6"}
 	if include17 {
 		versions = append(versions, "1.7")

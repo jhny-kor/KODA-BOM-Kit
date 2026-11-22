@@ -14,7 +14,7 @@ func modelHeaderCandidate(name, root string) bool {
 	if strings.HasPrefix(base, "._") {
 		return false
 	}
-	if strings.HasSuffix(base, ".safetensors") || strings.HasSuffix(base, ".gguf") {
+	if strings.HasSuffix(base, ".safetensors") || strings.HasSuffix(base, ".gguf") || ModelCheckpointFile(name) {
 		return true
 	}
 	if strings.Contains("/"+name, "/models/blobs/sha256-") {
@@ -30,6 +30,20 @@ func modelHeaderCandidate(name, root string) bool {
 			repository = filepath.Base(root)
 		}
 		return strings.HasPrefix(repository, "models--")
+	}
+	return false
+}
+
+// ModelCheckpointFile reports names conventionally used for PyTorch
+// checkpoints. Only their pickle opcodes are read, so files beyond the 2 GiB
+// package-parsing bound are still admitted for that bounded inspection.
+func ModelCheckpointFile(name string) bool {
+	base := strings.ToLower(path.Base(name))
+	switch path.Ext(base) {
+	case ".pt", ".pth", ".ckpt":
+		return true
+	case ".bin":
+		return strings.HasPrefix(base, "pytorch_model") || base == "training_args.bin"
 	}
 	return false
 }

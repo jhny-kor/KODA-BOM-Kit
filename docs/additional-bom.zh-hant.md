@@ -40,7 +40,7 @@
 
 OpenAPI也可以使用YAML。YAML只能包含一個文檔，拒絕重複鍵，數字保留原文（`version: 1.0` 保持為 `1.0`）。
 
-主機採集還會讀取反向代理和負載均衡器配置：nginx `upstream`、`proxy_pass`、`grpc_pass`，Apache `ProxyPass`、`BalancerMember`，以及HAProxy `backend` 中的 `server`。每個後端記錄為帶有 `observation=declared-proxy-backend` 和聲明所在文件、行號的服務。只保留協議、主機和端口，丟棄路徑、查詢和憑據；使用變量的目標報告為未解析。後端是否可達由OBOM的外部連接確認，而非此聲明。Debian的 `*-available` 文件僅通過 `*-enabled` 鏈接生效，CBOM的TLS聲明也適用同一規則。
+主機採集還會讀取反向代理和負載均衡器配置：nginx `upstream`、`proxy_pass`、`grpc_pass`，Apache `ProxyPass`、`BalancerMember`，以及HAProxy `backend` 中的 `server`。每個後端記錄為帶有 `observation=declared-proxy-backend` 和聲明所在文件、行號的服務。只保留協議、主機和端口，丟棄路徑、查詢和憑據；使用變量的目標報告為未解析。後端是否可達由OBOM的外部連接確認，而非此聲明。Debian的 `*-available` 文件僅通過 `*-enabled` 鏈接生效，CBOM的TLS聲明也適用同一規則。目錄掃描無法跟隨這些鏈接時，仍讀取文件，並以問題記錄其啓用狀態未確定。
 
 使用以下格式提供供應者、信任邊界、數據分類和服務依賴。
 
@@ -84,7 +84,7 @@ OpenAPI也可以使用YAML。YAML只能包含一個文檔，拒絕重複鍵，�
 - Ollama清單連接模型層與可讀本地blob頭。模型服務器當前加載狀態需要運行時證據。
 - `config.json` 旁的Hugging Face `README.md` 模型卡提供許可證、`base_model`、`datasets`、`pipeline_tag`、語言和庫。基礎模型和數據集作為聲明的組件與模型關聯。在Hugging Face緩存中，指向該快照的 `refs/main` 等ref記錄為 `cache-ref`。模型卡內容仍是發佈者聲明。
 - ONNX文件提供IR版本、生成工具、模型版本和算子集。`ai.onnx`、`ai.onnx.ml` 以外的算子域需要原生自定義算子庫，因此列為 `onnx:custom-operator-domain`。
-- PyTorch檢查點（`pytorch_model*.bin`、`.pt`、`.pth`、`.ckpt`，zip或舊格式）是加載時會執行其導入函數的pickle。KODA不執行文件，只遍歷pickle操作碼，並將 `pickle:safety` 記錄為 `allowlisted-imports-only`、`unknown-imports` 或 `dangerous-imports`，`os.system` 等危險導入列為 `pickle:dangerous-import`。無法遍歷到末尾的文件記為 `pickle:inspection=incomplete`，絕不判定為僅允許列表，並保留失敗前找到的導入；協議0/1 pickle和舊版 `torch.save` 文件的全部五個流也會檢查。非僅允許列表的文件建議改用safetensors。Hugging Face模型文件夾中的pickle和ONNX文件（如 `pytorch_model.bin`、`training_args.bin`、`optimizer.pt`）關聯到該模型，模型以 `artifact-pickle-safety` 記錄其中最不安全的結果。
+- PyTorch檢查點（`pytorch_model*.bin`、`.pt`、`.pth`、`.ckpt`，zip或舊格式）是加載時會執行其導入函數的pickle。KODA不執行文件，只遍歷pickle操作碼，並將 `pickle:safety` 記錄為 `allowlisted-imports-only`、`unknown-imports` 或 `dangerous-imports`，`os.system` 等危險導入列為 `pickle:dangerous-import`。無法遍歷到末尾的文件記為 `pickle:inspection=incomplete`，絕不判定為僅允許列表，並保留失敗前找到的導入；協議0/1 pickle和舊版 `torch.save` 文件的全部五個流也會檢查。非僅允許列表的文件建議改用safetensors。Hugging Face模型文件夾中的pickle和ONNX文件（如 `pytorch_model.bin`、`training_args.bin`、`optimizer.pt`）關聯到該模型，模型以 `artifact-pickle-safety` 記錄其中最不安全的結果。若有文件無法檢查，模型至少標記為 `unknown-imports`，並記錄 `artifact-inspection=incomplete`。
 - 在運行中的主機上，以模型路徑或倉庫ID啓動的vLLM、TGI、llama.cpp、SGLang、Triton或LMDeploy進程會使匹配的模型記錄 `runtime-state=referenced-by-running-process` 和 `serving-process`，OBOM進程帶有 `model-reference`。這基於啓動參數；按請求選擇模型的Ollama不做匹配。
 
 ### Linux 上的 Qwen 與 NVIDIA GPU

@@ -84,3 +84,73 @@ func TestSSHHostKeysAndSystemCryptoPolicy(t *testing.T) {
 		t.Fatalf("legacy flags %+v %+v", declarations["MinProtocol"], declarations["SSLProtocol"])
 	}
 }
+
+func TestDisabledDebianSiteDeclarationsAreIgnored(t *testing.T) {
+	root := t.TempDir()
+	for p, data := range map[string]string{
+		"etc/apache2/sites-available/old.conf":  "SSLProtocol all\n",
+		"etc/apache2/sites-available/live.conf": "SSLProtocol -all +TLSv1.2 +TLSv1.3\n",
+	} {
+		full := filepath.Join(root, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(data), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "etc/apache2/sites-enabled"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../sites-available/live.conf", filepath.Join(root, "etc/apache2/sites-enabled/live.conf")); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := localfs.Build(context.Background(), root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, _ := Collect(context.Background(), plan)
+	var paths []string
+	for _, a := range assets {
+		if a.Properties["directive"] != "" {
+			paths = append(paths, a.Properties["configurationPath"])
+		}
+	}
+	if len(paths) != 1 || paths[0] != "etc/apache2/sites-enabled/live.conf" {
+		t.Fatalf("declarations %v", paths)
+	}
+}
+
+func TestAbsoluteEnabledLinkInDirectoryScanKeepsDeclarations(t *testing.T) {
+	root := t.TempDir()
+	full := filepath.Join(root, "etc/apache2/sites-available/live.conf")
+	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte("SSLProtocol all -SSLv3\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "etc/apache2/sites-enabled"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/etc/apache2/sites-available/live.conf", filepath.Join(root, "etc/apache2/sites-enabled/live.conf")); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := localfs.Build(context.Background(), root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, issues := Collect(context.Background(), plan)
+	var weak []string
+	for _, a := range assets {
+		if a.Properties["directive"] == "SSLProtocol" {
+			weak = append(weak, a.Properties["weakness"])
+		}
+	}
+	if len(weak) != 1 || weak[0] != "legacy-tls-allowed" {
+		t.Fatalf("declaration lost: %v", weak)
+	}
+	if len(issues) != 1 || !strings.Contains(issues[0].Message, "*-enabled links could not be resolved") {
+		t.Fatalf("issues %+v", issues)
+	}
+}

@@ -112,3 +112,39 @@ func OpenRegularEvidence(root *os.Root, name string) (*os.File, os.FileInfo, err
 	}
 	return file, after, nil
 }
+
+// LinkTargets returns the canonical paths that admitted symbolic links resolve to.
+func (p Plan) LinkTargets() map[string]bool {
+	out := map[string]bool{}
+	for _, link := range p.IndexedLinks() {
+		if target, _, err := p.ResolveIndexedPath(link); err == nil {
+			out[target] = true
+		}
+	}
+	return out
+}
+
+// DebianAvailable classifies a file under a Debian-style *-available
+// directory, which takes effect only through links in the sibling *-enabled
+// directory. read is false when the file should not be read under its own
+// name: an admitted link resolves to it (read the link instead), or every
+// entry of the *-enabled directory was resolved and none enables it.
+// unresolved is true when preflight recorded issues inside the *-enabled
+// directory, such as absolute links a directory scan cannot follow; the file
+// is then read because whether it is enabled is unknown.
+func (p Plan) DebianAvailable(name string, linked map[string]bool) (read, unresolved bool) {
+	i := strings.Index(name, "-available/")
+	if i < 0 {
+		return true, false
+	}
+	if linked[name] {
+		return false, false
+	}
+	enabled := name[:i] + "-enabled/"
+	for _, issue := range p.Issues {
+		if strings.HasPrefix(issue.Path, enabled) {
+			return true, true
+		}
+	}
+	return false, false
+}

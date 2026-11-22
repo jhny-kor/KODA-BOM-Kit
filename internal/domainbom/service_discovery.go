@@ -73,7 +73,8 @@ func DiscoverServices(ctx context.Context, plan localfs.Plan, scope string) (Ser
 	s := proxyScanner{ctx: ctx, plan: plan, scope: scope, backends: map[string]*declaredBackend{}, groups: map[string]map[string]bool{}}
 	candidates := append(append([]string{}, plan.Paths...), plan.IndexedLinks()...)
 	sort.Strings(candidates)
-	files := 0
+	linked := plan.LinkTargets()
+	files, enablementReported := 0, false
 	for _, p := range candidates {
 		if err := ctx.Err(); err != nil {
 			return ServiceDiscovery{}, err
@@ -81,6 +82,15 @@ func DiscoverServices(ctx context.Context, plan localfs.Plan, scope string) (Ser
 		consumer := proxyConsumer(p)
 		if consumer == "" {
 			continue
+		}
+		// Debian *-available files count only through their *-enabled links.
+		read, unresolved := plan.DebianAvailable(p, linked)
+		if !read {
+			continue
+		}
+		if unresolved && !enablementReported {
+			enablementReported = true
+			s.issue(p, "config_enablement_unresolved")
 		}
 		if files++; files > maxProxyFiles {
 			s.issue(p, "proxy_configuration_limit")

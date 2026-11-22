@@ -98,3 +98,68 @@ func TestFirewallAcceptsOrdering(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalConnectionLinksToListener(t *testing.T) {
+	g := newGraph()
+	host := "host"
+	g.processes(host, []model.ProcessLink{
+		{PID: 30, Executable: "usr/bin/redis-server", ListeningSockets: []model.Socket{{Protocol: "tcp", Address: "127.0.0.1", Port: 6379, BindScope: "loopback"}}},
+		{PID: 31, Executable: "usr/bin/postgres", ListeningSockets: []model.Socket{{Protocol: "tcp6", Address: "::", Port: 5432, BindScope: "all-interfaces"}}},
+		{PID: 10, Executable: "usr/bin/app", OutboundConnections: []model.Connection{
+			{Protocol: "tcp", RemoteAddress: "127.0.0.1", RemotePort: 6379, RemoteScope: "loopback", Count: 1},
+			{Protocol: "tcp", RemoteAddress: "127.0.0.1", RemotePort: 5432, RemoteScope: "loopback", Count: 1},
+			{Protocol: "tcp", RemoteAddress: "10.0.0.9", RemotePort: 5432, RemoteScope: "private", Count: 1},
+		}},
+	})
+	g.resolveRemotes()
+	app := reference(host, "process", "10", "usr/bin/app")
+	var outbound []string
+	for _, s := range g.services {
+		for _, p := range s.Properties {
+			if p.Value == "outbound-connection" {
+				outbound = append(outbound, s.Name)
+			}
+		}
+	}
+	if len(outbound) != 1 || outbound[0] != "tcp 10.0.0.9:5432" {
+		t.Fatalf("only the off-host endpoint is a remote service: %v", outbound)
+	}
+	targets := map[string]bool{}
+	for target := range g.edges[app] {
+		targets[g.services[target].Name] = true
+	}
+	if !targets["tcp 127.0.0.1:6379"] || !targets["tcp6 [::]:5432"] || !targets["tcp 10.0.0.9:5432"] || len(targets) != 3 {
+		t.Fatalf("app should depend on both local listeners and the remote endpoint: %v", targets)
+	}
+}
+
+func TestHostAddressAndSelfConnections(t *testing.T) {
+	g := newGraph()
+	host := "host"
+	g.processes(host, []model.ProcessLink{
+		{PID: 31, Executable: "usr/bin/postgres", ListeningSockets: []model.Socket{{Protocol: "tcp", Address: "0.0.0.0", Port: 5432, BindScope: "all-interfaces"}}},
+		{PID: 40, Executable: "usr/bin/prometheus", ListeningSockets: []model.Socket{{Protocol: "tcp6", Address: "::", Port: 9090, BindScope: "all-interfaces"}},
+			OutboundConnections: []model.Connection{{Protocol: "tcp", RemoteAddress: "127.0.0.1", RemotePort: 9090, RemoteScope: "loopback", Count: 1}}},
+		{PID: 10, Executable: "usr/bin/app", OutboundConnections: []model.Connection{{Protocol: "tcp", RemoteAddress: "10.0.0.5", RemotePort: 5432, RemoteScope: "local-host", Count: 1}}},
+	})
+	g.resolveRemotes()
+	prometheus := reference(host, "process", "40", "usr/bin/prometheus")
+	for target := range g.edges[prometheus] {
+		if s, ok := g.services[target]; ok && g.edges[target][prometheus] {
+			t.Fatalf("a process reaching its own listener must not form a cycle via %s", s.Name)
+		}
+	}
+	app := reference(host, "process", "10", "usr/bin/app")
+	for target := range g.edges[app] {
+		if g.services[target].Name != "tcp 0.0.0.0:5432" {
+			t.Fatalf("a connection to this host's own address should reach its listener, got %s", g.services[target].Name)
+		}
+	}
+	for _, s := range g.services {
+		for _, p := range s.Properties {
+			if p.Value == "outbound-connection" {
+				t.Fatalf("no remote service expected: %s", s.Name)
+			}
+		}
+	}
+}

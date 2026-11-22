@@ -321,6 +321,46 @@ func (s *modelScanner) huggingFace(p string) {
 		targets = append(targets, weight["bom-ref"].(string))
 	}
 	props = append(props, prop("weight-bytes-observed", strconv.FormatInt(observedBytes, 10)), prop("weight-files-observed", strconv.Itoa(len(targets))), prop("weight-files-unavailable", strconv.Itoa(unavailable)), prop("weight-files-referenced", strconv.Itoa(len(shards))))
+	// PyTorch weights, training state (training_args.bin, optimizer.pt) and ONNX
+	// exports next to the configuration belong to this model, not to models of
+	// their own. The model reports the least safe pickle among them.
+	var artifacts []string
+	for candidate := range s.admitted {
+		if path.Dir(candidate) == prefix && !s.claimed[candidate] && pickleModelFile(candidate) {
+			artifacts = append(artifacts, candidate)
+		}
+	}
+	sort.Strings(artifacts)
+	worst, failed := "", 0
+	for _, file := range artifacts {
+		s.claimed[file] = true // a failure is reported once here, not again as a standalone model
+		artifact, err := s.weight(file, false)
+		if err != nil {
+			s.issue(file, "model_artifact_unavailable")
+			failed++
+			// An uninspected checkpoint may import anything when loaded.
+			if !strings.EqualFold(path.Ext(file), ".onnx") && pickleSafetyRank[worst] < pickleSafetyRank["unknown-imports"] {
+				worst = "unknown-imports"
+			}
+			continue
+		}
+		s.result.Components = append(s.result.Components, artifact)
+		targets = append(targets, artifact["bom-ref"].(string))
+		for _, item := range artifact["properties"].([]property) {
+			if item.Name == "koda:domain:pickle:safety" && pickleSafetyRank[item.Value] > pickleSafetyRank[worst] {
+				worst = item.Value
+			}
+		}
+	}
+	if len(artifacts) > 0 {
+		props = append(props, prop("artifact-files-observed", strconv.Itoa(len(artifacts)-failed)), prop("artifact-files-unavailable", strconv.Itoa(failed)))
+	}
+	if failed > 0 {
+		props = append(props, prop("artifact-inspection", "incomplete"))
+	}
+	if worst != "" {
+		props = append(props, prop("artifact-pickle-safety", worst))
+	}
 	c["properties"] = props
 	s.result.Components = append(s.result.Components, c)
 	targets = append(targets, cardTargets...)

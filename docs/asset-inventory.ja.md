@@ -49,7 +49,7 @@ Windows PowerShellでは `.\koda-bom.exe platform-inventory --output-dir .\repor
 | 外部資産 | 展開済みRedfish、fwupd、devlink JSONと共通形式。稼働中・保存済みファームウェアを区別し、項目は機種に依存します |
 | 実行状態 | 実行ファイル・共有ライブラリの置換、ファイル識別子、一意に特定した所有パッケージ。置換は `restart_review`。メモリー上の版は追加証拠が必要です |
 | ホスト識別 | ホスト `/` のmachine-id、DMI UUID・製品/基板シリアルの正規化SHA-256。`--no-context` でも取得。machine-id/UUIDは小文字、シリアルは前後空白を除去。共通初期値やゼロUUIDは除外。ハッシュは推測可能な仮名化です。`--asset-tag` は128文字以内の1行ラベル。コンテナーは `container-visible` |
-| ソケット | 同じネットワーク名前空間のTCP LISTENと未接続UDPをプロセスFDから帰属。`bindScope` は `all-interfaces`、`loopback`、`address`。到達性は別証拠が必要。所有者不明は `context.json.unattributedSockets`。ホストのプロセスが確立した外部TCP接続は、プロセスと接続先ごとに `outboundConnections` へ `remoteScope`（`loopback`、`private`、`link-local`、`public`）付きで記録します |
+| ソケット | 同じネットワーク名前空間のTCP LISTENと未接続UDPをプロセスFDから帰属。`bindScope` は `all-interfaces`、`loopback`、`address`。到達性は別証拠が必要。所有者不明は `context.json.unattributedSockets`。ホストのプロセスが確立した外部TCP接続は、プロセスと接続先ごとに `outboundConnections` へ `remoteScope`（`loopback`、`private`、`link-local`、`public`、`local-host`）付きで記録します |
 | 設定・再起動 | SELinux実行/設定モード、AppArmor有効/プロファイル数、lockdown、FIPS、許可された起動引数。認証情報は除外。`kernelConfig` は `/proc/config.gz` または `/boot/config-<running-kernel>` の `y`・`m`。再起動要求、実行カーネルのモジュール欠落、同系統の新カーネルを観測し、信号があれば `reboot.recommended=true`、なければ `not_observed`。系統判定はリリース文字列による推定です |
 | SSH | `sshd_config`・`sshd_config.d/*.conf` のグローバル宣言。`PermitRootLogin`、`PasswordAuthentication`、`PermitEmptyPasswords`、`KbdInteractiveAuthentication`、`LoginGraceTime`、`MaxStartups`、`X11Forwarding`、`AllowTcpForwarding`。`Match` は対象外で、実効値は `Include` 順序に依存します |
 | モジュール・不明プログラム | `kernel.tainted`、`taintedModules` の名前・`O`/`E`/`P`・version/srcversion。同じrootで所有元不明の実行ファイルは `unidentifiedExecutables` にパス/PIDを記録。usr-mergeを考慮します |

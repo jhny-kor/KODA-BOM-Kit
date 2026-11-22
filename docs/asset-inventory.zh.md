@@ -49,7 +49,7 @@ Windows PowerShell使用 `.\koda-bom.exe platform-inventory --output-dir .\repor
 | 外部资产 | 展开的Redfish对象、fwupd、devlink JSON和下方通用格式。运行/存储固件分别保留，字段取决于厂商型号 |
 | 运行状态 | 可执行文件/共享库替换、文件标识和唯一识别的归属包。替换产生 `restart_review`，已安装版本不足以确定内存版本 |
 | 主机身份 | 主机 `/` 上machine-id和DMI UUID/产品/主板序列号的规范化SHA-256，`--no-context` 时也采集。machine-id/UUID转小写，序列号去首尾空格。公共默认值和全零UUID省略。哈希属于可能被猜测的假名化。`--asset-tag` 原样记录最多128字符的单行标签。容器范围为 `container-visible` |
-| 套接字 | 采集器网络命名空间内TCP LISTEN和未连接UDP，通过进程FD归属。`bindScope` 为 `all-interfaces`、`loopback`、`address`。防火墙/路由可达性需另外证据。无归属项写入 `context.json.unattributedSockets`。主机进程已建立的外部TCP连接按进程和远程端点记录在 `outboundConnections`，并带 `remoteScope`（`loopback`、`private`、`link-local`、`public`） |
+| 套接字 | 采集器网络命名空间内TCP LISTEN和未连接UDP，通过进程FD归属。`bindScope` 为 `all-interfaces`、`loopback`、`address`。防火墙/路由可达性需另外证据。无归属项写入 `context.json.unattributedSockets`。主机进程已建立的外部TCP连接按进程和远程端点记录在 `outboundConnections`，并带 `remoteScope`（`loopback`、`private`、`link-local`、`public`、`local-host`） |
 | 安全与重启 | SELinux当前/配置模式、AppArmor启用/配置数量、lockdown、FIPS、允许的启动参数。排除凭据和无关参数。`kernelConfig` 读取 `/proc/config.gz` 或 `/boot/config-<running-kernel>` 的 `y`/`m`。重启请求、运行内核模块缺失、同系列较新内核作为信号，有信号则 `reboot.recommended=true`，否则 `not_observed`。系列匹配基于发行字符串推断 |
 | SSH | `sshd_config` 与 `sshd_config.d/*.conf` 全局声明，包括 `PermitRootLogin`、`PasswordAuthentication`、`PermitEmptyPasswords`、`KbdInteractiveAuthentication`、`LoginGraceTime`、`MaxStartups`、`X11Forwarding`、`AllowTcpForwarding`。排除 `Match`，生效值取决于 `Include` 顺序 |
 | 模块与未知程序 | `kernel.tainted` 和 `taintedModules` 记录名称、`O`/`E`/`P`、version/srcversion。同一root且无包/组件/产品归属的程序写入 `unidentifiedExecutables` 路径/PID。考虑usr-merge路径 |

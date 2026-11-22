@@ -40,7 +40,7 @@ SHA-256、観測範囲、宣言情報か報告情報かを記録します。署�
 
 OpenAPIはYAMLでも指定できます。YAMLは1文書のみで、重複キーは拒否し、数値は記載どおり保持します（`version: 1.0` は `1.0` のまま）。
 
-ホスト収集ではリバースプロキシとロードバランサーの設定も読みます。対象はnginxの `upstream`・`proxy_pass`・`grpc_pass`、Apacheの `ProxyPass`・`BalancerMember`、HAProxyの `backend` 内の `server` です。各バックエンドは `observation=declared-proxy-backend` と、宣言したファイル・行を持つサービスとして記録します。スキーム・ホスト・ポートのみを残し、パス・クエリ・認証情報は破棄し、変数を使う宛先は未解決として報告します。到達できるかどうかは、この宣言ではなくOBOMの外部接続で確認します。Debianの `*-available` ファイルは `*-enabled` のリンク経由でのみ反映し、CBOMのTLS宣言にも同じ規則を適用します。
+ホスト収集ではリバースプロキシとロードバランサーの設定も読みます。対象はnginxの `upstream`・`proxy_pass`・`grpc_pass`、Apacheの `ProxyPass`・`BalancerMember`、HAProxyの `backend` 内の `server` です。各バックエンドは `observation=declared-proxy-backend` と、宣言したファイル・行を持つサービスとして記録します。スキーム・ホスト・ポートのみを残し、パス・クエリ・認証情報は破棄し、変数を使う宛先は未解決として報告します。到達できるかどうかは、この宣言ではなくOBOMの外部接続で確認します。Debianの `*-available` ファイルは `*-enabled` のリンク経由でのみ反映し、CBOMのTLS宣言にも同じ規則を適用します。ディレクトリ収集でそのリンクをたどれない場合はファイルをそのまま読み、有効かどうか未確認である旨をissueに残します。
 
 提供者、信頼境界、データ分類、サービス依存関係には次の形式を使用します。
 
@@ -84,7 +84,7 @@ OpenAPIはYAMLでも指定できます。YAMLは1文書のみで、重複キー�
 - Ollamaマニフェストからモデルレイヤーと読めるローカルblobヘッダーを結びます。現在のロード状態には実行時の証拠が必要です。
 - `config.json` と同じ場所にあるHugging Faceの `README.md` モデルカードから、ライセンス、`base_model`、`datasets`、`pipeline_tag`、言語、ライブラリを読みます。ベースモデルとデータセットは宣言された構成要素としてモデルに結びます。Hugging Faceキャッシュでは、スナップショットを指す `refs/main` などのrefを `cache-ref` として記録します。モデルカードの値は公開者の宣言です。
 - ONNXファイルからIRバージョン、生成ツール、モデルバージョン、演算子セットを読みます。`ai.onnx`・`ai.onnx.ml` 以外の演算子ドメインはネイティブのカスタム演算子ライブラリが必要なため、`onnx:custom-operator-domain` として示します。
-- PyTorchチェックポイント（`pytorch_model*.bin`、`.pt`、`.pth`、`.ckpt`、zip形式または旧形式）は、読み込み時にimportした関数を実行するpickleです。KODAは実行せずにpickleのopcodeだけを走査し、`pickle:safety` を `allowlisted-imports-only`、`unknown-imports`、`dangerous-imports` のいずれかで記録し、`os.system` などの危険なimportを `pickle:dangerous-import` として列挙します。最後まで走査できないファイルは `pickle:inspection=incomplete` とし、許可リストのみとは判定せず、それまでに見つけたimportは保持します。プロトコル0/1のpickleと旧形式 `torch.save` の5ストリームもすべて検査します。許可リストのみでないファイルにはsafetensorsを推奨します。Hugging Faceのモデルフォルダー内のpickle・ONNXファイル（`pytorch_model.bin`、`training_args.bin`、`optimizer.pt` など）はそのモデルに結び、最も危険な結果をモデルの `artifact-pickle-safety` として記録します。
+- PyTorchチェックポイント（`pytorch_model*.bin`、`.pt`、`.pth`、`.ckpt`、zip形式または旧形式）は、読み込み時にimportした関数を実行するpickleです。KODAは実行せずにpickleのopcodeだけを走査し、`pickle:safety` を `allowlisted-imports-only`、`unknown-imports`、`dangerous-imports` のいずれかで記録し、`os.system` などの危険なimportを `pickle:dangerous-import` として列挙します。最後まで走査できないファイルは `pickle:inspection=incomplete` とし、許可リストのみとは判定せず、それまでに見つけたimportは保持します。プロトコル0/1のpickleと旧形式 `torch.save` の5ストリームもすべて検査します。許可リストのみでないファイルにはsafetensorsを推奨します。Hugging Faceのモデルフォルダー内のpickle・ONNXファイル（`pytorch_model.bin`、`training_args.bin`、`optimizer.pt` など）はそのモデルに結び、最も危険な結果をモデルの `artifact-pickle-safety` として記録します。検査できないファイルがあれば、モデルを少なくとも `unknown-imports` とし、`artifact-inspection=incomplete` を記録します。
 - 稼働中のホストで、vLLM・TGI・llama.cpp・SGLang・Triton・LMDeployのプロセスがモデルパスまたはリポジトリIDを指定して起動されていれば、一致するモデルに `runtime-state=referenced-by-running-process` と `serving-process` を記録し、OBOMのプロセスに `model-reference` を残します。起動引数に基づく判定で、リクエストごとにモデルを選ぶOllamaは対象外です。
 
 ### NVIDIA GPUを搭載したLinuxのQwen

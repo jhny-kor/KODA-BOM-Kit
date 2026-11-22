@@ -192,3 +192,33 @@ func ephemeralRange(data string) [2]int {
 	}
 	return [2]int{32768, 60999}
 }
+
+// parseFibTrieLocal adds the namespace's IPv4 addresses: /proc/net/fib_trie
+// lists each as a "|-- ADDRESS" leaf followed by "/32 host LOCAL".
+func parseFibTrieLocal(r io.Reader, out map[string]bool) {
+	scanner := bufio.NewScanner(r)
+	current := ""
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if leaf, ok := strings.CutPrefix(line, "|-- "); ok {
+			current = leaf
+		} else if strings.HasPrefix(line, "/32 host LOCAL") {
+			if ip := net.ParseIP(current); ip != nil {
+				out[ip.String()] = true
+			}
+		}
+	}
+}
+
+// parseIfInet6 adds the namespace's IPv6 addresses from /proc/net/if_inet6.
+func parseIfInet6(data string, out map[string]bool) {
+	for _, line := range strings.Split(data, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || len(fields[0]) != 32 {
+			continue
+		}
+		if b, err := hex.DecodeString(fields[0]); err == nil {
+			out[net.IP(b).String()] = true
+		}
+	}
+}

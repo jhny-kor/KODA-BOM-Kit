@@ -23,7 +23,8 @@ const (
 	maxPickleOps     = 4 << 20
 	maxPickleImports = 256
 	maxPickleStreams = 8
-	maxZipEntries    = 4096
+	maxZipEntries    = 1 << 16
+	maxZipDirectory  = 16 << 20 // central directory bytes; archive/zip keeps every record in memory
 	maxPickleMemo    = 1 << 16
 	maxPickleString  = 4096 // longer strings cannot be module or attribute names here
 )
@@ -49,6 +50,8 @@ var allowedImports = map[string]bool{
 	"numpy._core.multiarray.scalar": true, "numpy.ndarray": true, "numpy.dtype": true, "_codecs.encode": true, "builtins.set": true, "builtins.frozenset": true,
 	"builtins.slice": true, "builtins.complex": true, "builtins.bytearray": true, "__builtin__.set": true,
 }
+
+var pickleSafetyRank = map[string]int{"allowlisted-imports-only": 1, "unknown-imports": 2, "dangerous-imports": 3}
 
 func pickleImportClass(imp string) string {
 	module, name, _ := strings.Cut(imp, ".")
@@ -396,12 +399,19 @@ func pickleHeader(f *os.File) ([]property, error) {
 // torchZipHeader inspects every *.pkl member of a PyTorch zip checkpoint or
 // TorchScript archive. Tensor storages are not read.
 func torchZipHeader(f *os.File, size int64) ([]property, error) {
-	z, err := zip.NewReader(f, size)
+	entries, directory, err := zipDirectory(f, size)
 	if err != nil {
 		return nil, err
 	}
-	if len(z.File) > maxZipEntries {
-		return nil, fmt.Errorf("archive entry limit exceeded")
+	if entries > maxZipEntries || directory > maxZipDirectory {
+		// torch.load would still run such an archive's pickles; report it as
+		// uninspected rather than loading an unbounded directory.
+		scan := pickleScan{imports: map[string]bool{}, incomplete: true}
+		return append(scan.properties("pytorch-zip"), prop("archive-entries", strconv.FormatUint(entries, 10))), nil
+	}
+	z, err := zip.NewReader(f, size)
+	if err != nil {
+		return nil, err
 	}
 	scan := pickleScan{imports: map[string]bool{}}
 	budget := int64(maxPickleBytes)
@@ -436,4 +446,43 @@ func torchZipHeader(f *os.File, size int64) ([]property, error) {
 		format = "torchscript"
 	}
 	return append(scan.properties(format), prop("archive-entries", strconv.Itoa(len(z.File)))), nil
+}
+
+// zipDirectory returns the entry count and size of a zip's central directory
+// from its end records (zip64 included) without reading the directory itself.
+func zipDirectory(f *os.File, size int64) (entries, directory uint64, err error) {
+	const endLen = 22
+	tail := min(size, endLen+0xffff)
+	buf := make([]byte, tail)
+	if _, err := f.ReadAt(buf, size-tail); err != nil && err != io.EOF {
+		return 0, 0, err
+	}
+	le := binary.LittleEndian
+	end := -1
+	for i := len(buf) - endLen; i >= 0; i-- {
+		if string(buf[i:i+4]) == "PK\x05\x06" && i+endLen+int(le.Uint16(buf[i+20:])) == len(buf) {
+			end = i
+			break
+		}
+	}
+	if end < 0 {
+		return 0, 0, fmt.Errorf("zip end record not found")
+	}
+	entries, directory = uint64(le.Uint16(buf[end+10:])), uint64(le.Uint32(buf[end+12:]))
+	if entries != 0xffff && directory != 0xffffffff && le.Uint32(buf[end+16:]) != 0xffffffff {
+		return entries, directory, nil
+	}
+	// zip64: a 20-byte locator precedes the end record and points at the zip64 end record.
+	if end < 20 || string(buf[end-20:end-16]) != "PK\x06\x07" {
+		return 0, 0, fmt.Errorf("zip64 locator not found")
+	}
+	offset := le.Uint64(buf[end-12:])
+	var record [56]byte
+	if offset > uint64(size-56) {
+		return 0, 0, fmt.Errorf("zip64 end record out of range")
+	}
+	if _, err := f.ReadAt(record[:], int64(offset)); err != nil || string(record[:4]) != "PK\x06\x06" {
+		return 0, 0, fmt.Errorf("zip64 end record not found")
+	}
+	return le.Uint64(record[32:]), le.Uint64(record[40:]), nil
 }

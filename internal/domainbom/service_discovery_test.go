@@ -3,6 +3,8 @@ package domainbom
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -87,5 +89,46 @@ func TestDiscoveredProxyBackends(t *testing.T) {
 	}
 	if len(docs["saasbom.cdx.json"]) == 0 || len(docs["saasbom.cdx-1.7.json"]) == 0 || !strings.Contains(string(docs["saasbom.cdx.json"]), `"koda:domain:kind"`) {
 		t.Fatalf("documents %v", docs)
+	}
+}
+
+func TestDisabledDebianConfigIsIgnored(t *testing.T) {
+	root := t.TempDir()
+	modelFixture(t, root, "etc/apache2/sites-available/old.conf", "ProxyPass /old http://old.internal:8080/\n")
+	modelFixture(t, root, "etc/apache2/sites-available/live.conf", "ProxyPass /live http://live.internal:8080/\n")
+	if err := os.MkdirAll(filepath.Join(root, "etc/apache2/sites-enabled"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../sites-available/live.conf", filepath.Join(root, "etc/apache2/sites-enabled/live.conf")); err != nil {
+		t.Fatal(err)
+	}
+	found, err := DiscoverServices(context.Background(), testPlan(t, root, nil), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found.Services) != 1 || found.Services[0]["name"] != "live.internal:8080" {
+		t.Fatalf("only enabled sites count: %+v", found.Services)
+	}
+}
+
+func TestAbsoluteEnabledLinkInDirectoryScanKeepsConfig(t *testing.T) {
+	root := t.TempDir()
+	modelFixture(t, root, "etc/nginx/sites-available/app.conf", "server { location / { proxy_pass http://10.0.0.5:8080; } }\n")
+	if err := os.MkdirAll(filepath.Join(root, "etc/nginx/sites-enabled"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// ln -s /etc/nginx/sites-available/app.conf: a directory scan cannot follow it.
+	if err := os.Symlink("/etc/nginx/sites-available/app.conf", filepath.Join(root, "etc/nginx/sites-enabled/app.conf")); err != nil {
+		t.Fatal(err)
+	}
+	found, err := DiscoverServices(context.Background(), testPlan(t, root, nil), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found.Services) != 1 || found.Services[0]["name"] != "10.0.0.5:8080" {
+		t.Fatalf("enablement unknown: the configuration must still be read: %+v", found.Services)
+	}
+	if len(found.Issues) != 1 || found.Issues[0].Code != "config_enablement_unresolved" {
+		t.Fatalf("issues %+v", found.Issues)
 	}
 }

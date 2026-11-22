@@ -71,6 +71,8 @@ func (c *collection) configurations(ctx context.Context, plan localfs.Plan, root
 		return certificates[name]
 	}
 	files := 0
+	linked := plan.LinkTargets()
+	enablementReported := false
 	for _, p := range append(slices.Clip(plan.Paths), plan.IndexedLinks()...) {
 		if ctx.Err() != nil {
 			return
@@ -78,6 +80,15 @@ func (c *collection) configurations(ctx context.Context, plan localfs.Plan, root
 		consumer := configConsumer(p)
 		if consumer == "" {
 			continue
+		}
+		// Debian *-available files count only through their *-enabled links.
+		read, unresolved := plan.DebianAvailable(p, linked)
+		if !read {
+			continue
+		}
+		if unresolved && !enablementReported {
+			enablementReported = true
+			c.issues = append(c.issues, model.Issue{Collector: "crypto-configuration", Status: "incomplete", Path: p, Message: "*-available configuration read because its *-enabled links could not be resolved; its declarations may be disabled"})
 		}
 		files++
 		if files > 1000 {

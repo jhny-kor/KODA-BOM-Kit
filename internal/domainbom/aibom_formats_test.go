@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -194,6 +195,119 @@ func TestYAMLAliasExpansionIsBoundedByBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(found.Issues) != 1 || found.Issues[0].Code != "model_card_unavailable" {
+		t.Fatalf("issues %+v", found.Issues)
+	}
+}
+
+func TestHuggingFaceCheckpointPicklesBelongToTheModel(t *testing.T) {
+	root := t.TempDir()
+	modelFixture(t, root, "ckpt/config.json", `{"model_type":"bert","architectures":["BertModel"]}`)
+	modelFixture(t, root, "ckpt/pytorch_model.bin", "\x80\x02cos\nsystem\nq\x00X\x02\x00\x00\x00idq\x01\x85q\x02Rq\x03.")
+	modelFixture(t, root, "ckpt/training_args.bin", "\x80\x02ccollections\nOrderedDict\nq\x00)Rq\x01.")
+	modelFixture(t, root, "ckpt/sub/other.pt", "\x80\x02ccollections\nOrderedDict\nq\x00)Rq\x01.")
+	found, err := DiscoverModels(context.Background(), testPlan(t, root, nil), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	types := map[string]string{}
+	var model object
+	for _, c := range found.Components {
+		types[c["name"].(string)] = c["type"].(string)
+		if c["type"] == "machine-learning-model" && c["name"] == "ckpt" {
+			model = c
+		}
+	}
+	if model == nil || types["pytorch_model.bin"] != "file" || types["training_args.bin"] != "file" || types["other.pt"] != "machine-learning-model" {
+		t.Fatalf("components %+v", types)
+	}
+	if got := observationProperties(t, model)["koda:domain:artifact-pickle-safety"]; len(got) != 1 || got[0] != "dangerous-imports" {
+		t.Fatalf("model must carry the worst pickle safety of its files: %v", got)
+	}
+	if len(found.Dependencies) != 1 || len(found.Dependencies[0]["dependsOn"].([]string)) != 2 {
+		t.Fatalf("dependencies %+v", found.Dependencies)
+	}
+}
+
+func TestLargePyTorchShardIsInspected(t *testing.T) {
+	root := t.TempDir()
+	modelFixture(t, root, "llama/config.json", `{"model_type":"llama","architectures":["LlamaForCausalLM"]}`)
+	name := filepath.Join(root, "llama/pytorch_model-00001-of-00002.bin")
+	if err := os.WriteFile(name, []byte("\x80\x02cos\nsystem\nq\x00X\x02\x00\x00\x00idq\x01\x85q\x02Rq\x03."), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(name, 3<<30); err != nil { // sparse: shards of real models exceed 2 GiB
+		t.Fatal(err)
+	}
+	found, err := DiscoverModels(context.Background(), testPlan(t, root, nil), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range found.Components {
+		if c["name"] == "llama" {
+			if got := observationProperties(t, c)["koda:domain:artifact-pickle-safety"]; len(got) == 1 && got[0] == "dangerous-imports" {
+				return
+			}
+		}
+	}
+	t.Fatalf("large shard not inspected: %+v", found.Components)
+}
+
+// zip64Claiming builds a zip whose end records claim n central directory entries.
+func zip64Claiming(n uint64) []byte {
+	le := binary.LittleEndian
+	b := append([]byte("PK\x03\x04"), make([]byte, 26)...)
+	rec := len(b)
+	b = append(b, "PK\x06\x06"...)
+	b = le.AppendUint64(b, 44)
+	b = append(b, 45, 0, 45, 0)
+	b = le.AppendUint32(b, 0)
+	b = le.AppendUint32(b, 0)
+	b = le.AppendUint64(b, n)
+	b = le.AppendUint64(b, n)
+	b = le.AppendUint64(b, 1000)
+	b = le.AppendUint64(b, 0)
+	b = append(b, "PK\x06\x07"...)
+	b = le.AppendUint32(b, 0)
+	b = le.AppendUint64(b, uint64(rec))
+	b = le.AppendUint32(b, 1)
+	b = append(b, "PK\x05\x06"...)
+	b = append(b, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff)
+	b = le.AppendUint32(b, 0xffffffff)
+	b = le.AppendUint32(b, 0xffffffff)
+	return append(b, 0, 0)
+}
+
+func TestOversizedZipDirectoryFailsClosedWithoutLoading(t *testing.T) {
+	got := headerOf(t, "model.pt", zip64Claiming(10_000_000))
+	if got["koda:domain:pickle:safety"][0] != "unknown-imports" || got["koda:domain:pickle:inspection"][0] != "incomplete" ||
+		got["koda:domain:archive-entries"][0] != "10000000" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestUninspectableModelArtifactRaisesModelSafety(t *testing.T) {
+	root := t.TempDir()
+	modelFixture(t, root, "ckpt/config.json", `{"model_type":"bert","architectures":["BertModel"]}`)
+	modelFixture(t, root, "ckpt/pytorch_model.bin", "PK\x03\x04not a complete archive")
+	modelFixture(t, root, "ckpt/training_args.bin", "\x80\x02ccollections\nOrderedDict\nq\x00)Rq\x01.")
+	found, err := DiscoverModels(context.Background(), testPlan(t, root, nil), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var props map[string][]string
+	for _, c := range found.Components {
+		if c["name"] == "pytorch_model.bin" {
+			t.Fatalf("a failed artifact must not reappear as a standalone model: %+v", c)
+		}
+		if c["name"] == "ckpt" {
+			props = observationProperties(t, c)
+		}
+	}
+	if props["koda:domain:artifact-pickle-safety"][0] != "unknown-imports" || props["koda:domain:artifact-inspection"][0] != "incomplete" ||
+		props["koda:domain:artifact-files-observed"][0] != "1" || props["koda:domain:artifact-files-unavailable"][0] != "1" {
+		t.Fatalf("model properties %+v", props)
+	}
+	if len(found.Issues) != 1 || found.Issues[0].Code != "model_artifact_unavailable" {
 		t.Fatalf("issues %+v", found.Issues)
 	}
 }

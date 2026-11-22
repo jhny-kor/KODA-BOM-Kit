@@ -83,3 +83,35 @@ func TestOutboundConnectionsExcludeAcceptedSockets(t *testing.T) {
 		t.Fatalf("aggregate %+v", got)
 	}
 }
+
+func TestLocalAddressesFromProcNet(t *testing.T) {
+	const fibTrie = `Main:
+  +-- 0.0.0.0/0 3 0 5
+     |-- 0.0.0.0
+        /0 universe UNICAST
+     +-- 10.0.0.0/24 2 0 2
+        |-- 10.0.0.0
+           /24 link UNICAST
+        |-- 10.0.0.5
+           /32 host LOCAL
+        |-- 10.0.0.255
+           /32 link BROADCAST
+Local:
+  +-- 127.0.0.0/8 2 0 2
+     |-- 127.0.0.1
+        /32 host LOCAL
+`
+	const ifInet6 = "00000000000000000000000000000001 01 80 10 80       lo\nfd000000000000000000000000000005 02 40 00 80     eth0\n"
+	got := map[string]bool{}
+	parseFibTrieLocal(strings.NewReader(fibTrie), got)
+	parseIfInet6(ifInet6, got)
+	want := map[string]bool{"10.0.0.5": true, "127.0.0.1": true, "::1": true, "fd00::5": true}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for a := range want {
+		if !got[a] {
+			t.Fatalf("missing %s in %v", a, got)
+		}
+	}
+}

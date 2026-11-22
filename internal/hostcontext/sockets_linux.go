@@ -44,8 +44,23 @@ func listeningSockets(root *os.Root, out *model.Context, pid int, connections ma
 	if len(established) >= maxEstablished {
 		issue(out, "incomplete", base+"tcp", "established connection limit reached; outbound relationships are incomplete")
 	}
+	if connections == nil {
+		return sockets
+	}
+	// Peers at one of this namespace's own addresses are local, not off-host.
+	local := map[string]bool{}
+	if f, err := openNoFollow(root, base+"fib_trie"); err == nil {
+		parseFibTrieLocal(io.LimitReader(f, 16<<20), local)
+		f.Close()
+	}
+	if data, err := readBounded(root, base+"if_inet6"); err == nil {
+		parseIfInet6(string(data), local)
+	}
 	rangeData, _ := readBounded(root, "proc/sys/net/ipv4/ip_local_port_range")
 	for inode, c := range outbound(sockets, established, ephemeralRange(string(rangeData))) {
+		if local[c.RemoteAddress] && c.RemoteScope != "loopback" {
+			c.RemoteScope = "local-host"
+		}
 		connections[inode] = c
 	}
 	return sockets
