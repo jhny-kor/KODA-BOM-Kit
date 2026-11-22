@@ -5,9 +5,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
+	"hash/crc32"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -277,10 +280,48 @@ func zip64Claiming(n uint64) []byte {
 	return append(b, 0, 0)
 }
 
-func TestOversizedZipDirectoryFailsClosedWithoutLoading(t *testing.T) {
-	got := headerOf(t, "model.pt", zip64Claiming(10_000_000))
-	if got["koda:domain:pickle:safety"][0] != "unknown-imports" || got["koda:domain:pickle:inspection"][0] != "incomplete" ||
-		got["koda:domain:archive-entries"][0] != "10000000" {
+func TestZipThatCannotBeReadFailsClosed(t *testing.T) {
+	for name, data := range map[string][]byte{
+		"claims ten million entries": zip64Claiming(10_000_000),
+		"truncated":                  []byte("PK\x03\x04not a complete archive"),
+	} {
+		got := headerOf(t, "model.pt", data)
+		if got["koda:domain:pickle:safety"][0] != "unknown-imports" || got["koda:domain:pickle:inspection"][0] != "incomplete" {
+			t.Fatalf("%s: %+v", name, got)
+		}
+	}
+}
+
+func TestZipWithTrailingBytesIsStillInspected(t *testing.T) {
+	// archive/zip, Python zipfile and PyTorch's reader accept data after the end record.
+	data := append(torchZip(t, []byte("\x80\x02cos\nsystem\nq\x00X\x02\x00\x00\x00idq\x01\x85q\x02Rq\x03."), false), 0)
+	got := headerOf(t, "model.pt", data)
+	if got["koda:domain:pickle:safety"][0] != "dangerous-imports" || got["koda:domain:pickle:dangerous-import"][0] != "os.system" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestZipDirectoryReadIsBoundedByBytes(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for i := 0; i < 200; i++ { // a directory larger than the lowered budget below
+		f, _ := w.Create(fmt.Sprintf("archive/data/%d", i))
+		f.Write([]byte{0})
+	}
+	f, _ := w.Create("archive/data.pkl")
+	f.Write([]byte("\x80\x02cos\nsystem\nq\x00X\x02\x00\x00\x00idq\x01\x85q\x02Rq\x03."))
+	w.Close()
+	// Understate the entry count: archive/zip reads records until an invalid
+	// header, so only the byte budget bounds what it loads.
+	data := buf.Bytes()
+	end := bytes.LastIndex(data, []byte("PK\x05\x06"))
+	binary.LittleEndian.PutUint16(data[end+8:], 1)
+	binary.LittleEndian.PutUint16(data[end+10:], 1)
+	saved := zipDirectoryBudget
+	zipDirectoryBudget = 4096 // the end record fits; the directory does not
+	defer func() { zipDirectoryBudget = saved }()
+	got := headerOf(t, "model.pt", data)
+	if got["koda:domain:pickle:safety"][0] != "unknown-imports" || got["koda:domain:pickle:inspection"][0] != "incomplete" {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -288,7 +329,8 @@ func TestOversizedZipDirectoryFailsClosedWithoutLoading(t *testing.T) {
 func TestUninspectableModelArtifactRaisesModelSafety(t *testing.T) {
 	root := t.TempDir()
 	modelFixture(t, root, "ckpt/config.json", `{"model_type":"bert","architectures":["BertModel"]}`)
-	modelFixture(t, root, "ckpt/pytorch_model.bin", "PK\x03\x04not a complete archive")
+	modelFixture(t, root, "ckpt/pytorch_model.bin", "\xff not a pickle or weight header")
+	modelFixture(t, root, "ckpt/optimizer.pt", "PK\x03\x04not a complete archive")
 	modelFixture(t, root, "ckpt/training_args.bin", "\x80\x02ccollections\nOrderedDict\nq\x00)Rq\x01.")
 	found, err := DiscoverModels(context.Background(), testPlan(t, root, nil), "")
 	if err != nil {
@@ -303,11 +345,176 @@ func TestUninspectableModelArtifactRaisesModelSafety(t *testing.T) {
 			props = observationProperties(t, c)
 		}
 	}
-	if props["koda:domain:artifact-pickle-safety"][0] != "unknown-imports" || props["koda:domain:artifact-inspection"][0] != "incomplete" ||
-		props["koda:domain:artifact-files-observed"][0] != "1" || props["koda:domain:artifact-files-unavailable"][0] != "1" {
+	if props["koda:domain:artifact-pickle-safety"][0] != "unknown-imports" || props["koda:domain:artifact-inspection-status"][0] != "incomplete" ||
+		props["koda:domain:artifact-files-observed"][0] != "2" || props["koda:domain:artifact-files-unavailable"][0] != "1" ||
+		len(props["koda:domain:artifact-inspection"]) != 0 {
 		t.Fatalf("model properties %+v", props)
 	}
 	if len(found.Issues) != 1 || found.Issues[0].Code != "model_artifact_unavailable" {
 		t.Fatalf("issues %+v", found.Issues)
+	}
+}
+
+func TestSparseZipOverstatingEntriesIsRefusedBeforeAllocation(t *testing.T) {
+	// One real directory record behind a 3 GiB sparse hole; the zip64 end
+	// record declares as many entries as archive/zip would preallocate for.
+	le := binary.LittleEndian
+	name := "archive/data.pkl"
+	payload := []byte("\x80\x02ccollections\nOrderedDict\nq\x00)Rq\x01.")
+	local := append([]byte("PK\x03\x04"), make([]byte, 26)...)
+	le.PutUint16(local[4:], 20)
+	le.PutUint32(local[18:], uint32(len(payload)))
+	le.PutUint32(local[22:], uint32(len(payload)))
+	le.PutUint16(local[26:], uint16(len(name)))
+	local = append(append(local, name...), payload...)
+	directory := append([]byte("PK\x01\x02"), make([]byte, 42)...)
+	le.PutUint16(directory[4:], 20)
+	le.PutUint16(directory[6:], 20)
+	le.PutUint32(directory[20:], uint32(len(payload)))
+	le.PutUint32(directory[24:], uint32(len(payload)))
+	le.PutUint16(directory[28:], uint16(len(name)))
+	directory = append(directory, name...)
+	const hole = 3 << 30
+	size := int64(hole + len(directory) + 56 + 20 + 22)
+	declared := uint64(size-int64(len(directory))) / 30
+	tail := append([]byte{}, directory...)
+	tail = append(tail, "PK\x06\x06"...)
+	tail = le.AppendUint64(tail, 44)
+	tail = append(tail, 45, 0, 45, 0)
+	tail = le.AppendUint32(tail, 0)
+	tail = le.AppendUint32(tail, 0)
+	tail = le.AppendUint64(tail, declared)
+	tail = le.AppendUint64(tail, declared)
+	tail = le.AppendUint64(tail, uint64(len(directory)))
+	tail = le.AppendUint64(tail, hole)
+	tail = append(tail, "PK\x06\x07"...)
+	tail = le.AppendUint32(tail, 0)
+	tail = le.AppendUint64(tail, uint64(hole+len(directory)))
+	tail = le.AppendUint32(tail, 1)
+	tail = append(tail, "PK\x05\x06"...)
+	tail = append(tail, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff)
+	tail = le.AppendUint32(tail, 0xffffffff)
+	tail = le.AppendUint32(tail, 0xffffffff)
+	tail = append(tail, 0, 0)
+	p := filepath.Join(t.TempDir(), "model.pt")
+	f, err := os.Create(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.Write(local); err == nil {
+		_, err = f.WriteAt(tail, hole)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	props, err := artifactHeader(f, size, p)
+	runtime.ReadMemStats(&after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if grown := after.TotalAlloc - before.TotalAlloc; grown > 64<<20 {
+		t.Fatalf("allocated %d MiB for a declared directory of %d entries", grown>>20, declared)
+	}
+	got := observationProperties(t, object{"properties": props})
+	if got["koda:domain:pickle:safety"][0] != "unknown-imports" || got["koda:domain:pickle:inspection"][0] != "incomplete" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestZipEndRecordsAreParsedAsChecked(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for _, name := range []string{"archive/data.pkl", "archive/data/0", "archive/version"} {
+		f, _ := w.Create(name)
+		f.Write([]byte{0})
+	}
+	w.Close()
+	data := buf.Bytes()
+	declared, spans, err := zipDeclaredEntries(bytes.NewReader(data), int64(len(data)))
+	if err != nil || declared != 3 {
+		t.Fatalf("declared %d, %v", declared, err)
+	}
+	// A concurrent writer changes the declared count after the check.
+	end := bytes.LastIndex(data, []byte("PK\x05\x06"))
+	binary.LittleEndian.PutUint16(data[end+8:], 2)
+	binary.LittleEndian.PutUint16(data[end+10:], 2)
+	z, err := zip.NewReader(&budgetReaderAt{r: bytes.NewReader(data), budget: zipDirectoryBudget, spans: spans}, int64(len(data)))
+	if err != nil || len(z.File) != 3 {
+		t.Fatalf("archive/zip must parse the checked end record: %v", err)
+	}
+}
+
+// zip64Archive is a one-entry archive whose zip64 end record declares entries.
+func zip64Archive(entries uint64) (data []byte, countOffset int) {
+	le := binary.LittleEndian
+	name, payload := "archive/data.pkl", []byte("\x80\x02ccollections\nOrderedDict\nq\x00)Rq\x01.")
+	local := append([]byte("PK\x03\x04"), make([]byte, 26)...)
+	le.PutUint16(local[4:], 20)
+	le.PutUint32(local[14:], crc32.ChecksumIEEE(payload))
+	le.PutUint32(local[18:], uint32(len(payload)))
+	le.PutUint32(local[22:], uint32(len(payload)))
+	le.PutUint16(local[26:], uint16(len(name)))
+	local = append(append(local, name...), payload...)
+	directory := append([]byte("PK\x01\x02"), make([]byte, 42)...)
+	le.PutUint16(directory[4:], 20)
+	le.PutUint16(directory[6:], 20)
+	le.PutUint32(directory[16:], crc32.ChecksumIEEE(payload))
+	le.PutUint32(directory[20:], uint32(len(payload)))
+	le.PutUint32(directory[24:], uint32(len(payload)))
+	le.PutUint16(directory[28:], uint16(len(name)))
+	directory = append(directory, name...)
+	data = append(local, directory...)
+	record := len(data)
+	data = append(data, "PK\x06\x06"...)
+	data = le.AppendUint64(data, 44)
+	data = append(data, 45, 0, 45, 0)
+	data = le.AppendUint32(data, 0)
+	data = le.AppendUint32(data, 0)
+	data = le.AppendUint64(data, entries)
+	countOffset = len(data)
+	data = le.AppendUint64(data, entries)
+	data = le.AppendUint64(data, uint64(len(directory)))
+	data = le.AppendUint64(data, uint64(len(local)))
+	data = append(data, "PK\x06\x07"...)
+	data = le.AppendUint32(data, 0)
+	data = le.AppendUint64(data, uint64(record))
+	data = le.AppendUint32(data, 1)
+	data = append(data, "PK\x05\x06"...)
+	data = append(data, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff)
+	data = le.AppendUint32(data, 0xffffffff)
+	data = le.AppendUint32(data, 0xffffffff)
+	return append(data, 0, 0), countOffset
+}
+
+// changingReader lets a writer change the file after its first read.
+type changingReader struct {
+	data   []byte
+	reads  int
+	change func([]byte)
+}
+
+func (c *changingReader) ReadAt(p []byte, off int64) (int, error) {
+	if c.reads++; c.reads == 2 {
+		c.change(c.data)
+	}
+	return bytes.NewReader(c.data).ReadAt(p, off)
+}
+
+func TestZip64CountChangedAfterFirstReadIsParsedAsChecked(t *testing.T) {
+	data, countOffset := zip64Archive(1)
+	if z, err := zip.NewReader(bytes.NewReader(data), int64(len(data))); err != nil || len(z.File) != 1 {
+		t.Fatalf("fixture is not a valid zip64 archive: %v", err)
+	}
+	r := &changingReader{data: data, change: func(d []byte) { binary.LittleEndian.PutUint64(d[countOffset:], 1<<40) }}
+	declared, spans, err := zipDeclaredEntries(r, int64(len(data)))
+	if err != nil || declared != 1 {
+		t.Fatalf("the check must parse the bytes it first read: declared %d, %v", declared, err)
+	}
+	z, err := zip.NewReader(&budgetReaderAt{r: r, budget: zipDirectoryBudget, spans: spans}, int64(len(data)))
+	if err != nil || len(z.File) != 1 {
+		t.Fatalf("archive/zip must parse the same end records: %v", err)
 	}
 }

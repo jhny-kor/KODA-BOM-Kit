@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"os"
 	"path"
@@ -23,8 +24,6 @@ const (
 	maxPickleOps     = 4 << 20
 	maxPickleImports = 256
 	maxPickleStreams = 8
-	maxZipEntries    = 1 << 16
-	maxZipDirectory  = 16 << 20 // central directory bytes; archive/zip keeps every record in memory
 	maxPickleMemo    = 1 << 16
 	maxPickleString  = 4096 // longer strings cannot be module or attribute names here
 )
@@ -399,20 +398,29 @@ func pickleHeader(f *os.File) ([]property, error) {
 // torchZipHeader inspects every *.pkl member of a PyTorch zip checkpoint or
 // TorchScript archive. Tensor storages are not read.
 func torchZipHeader(f *os.File, size int64) ([]property, error) {
-	entries, directory, err := zipDirectory(f, size)
-	if err != nil {
-		return nil, err
-	}
-	if entries > maxZipEntries || directory > maxZipDirectory {
-		// torch.load would still run such an archive's pickles; report it as
-		// uninspected rather than loading an unbounded directory.
+	// An archive this reader refuses or cannot afford may still load in
+	// torch.load: report it uninspected rather than hide it.
+	uninspected := func() ([]property, error) {
 		scan := pickleScan{imports: map[string]bool{}, incomplete: true}
-		return append(scan.properties("pytorch-zip"), prop("archive-entries", strconv.FormatUint(entries, 10))), nil
+		return scan.properties("pytorch-zip"), nil
 	}
-	z, err := zip.NewReader(f, size)
+	// archive/zip preallocates a slot per declared entry before reading the
+	// directory; refuse counts the byte budget could not hold, since a
+	// central directory header is at least 46 bytes.
+	declared, checked, err := zipDeclaredEntries(f, size)
+	if err != nil || declared > uint64(zipDirectoryBudget/46) {
+		return uninspected()
+	}
+	// It then keeps a record for every directory entry it reads, whatever the
+	// end record declares, so the bytes it may read bound the rest. The checked
+	// end records are served from memory, so a writer cannot change them in
+	// between.
+	reader := &budgetReaderAt{r: f, budget: zipDirectoryBudget, spans: checked}
+	z, err := zip.NewReader(reader, size)
 	if err != nil {
-		return nil, err
+		return uninspected()
 	}
+	reader.budget = math.MaxInt64 // member reads are bounded by the pickle budget
 	scan := pickleScan{imports: map[string]bool{}}
 	budget := int64(maxPickleBytes)
 	torchscript := false
@@ -448,41 +456,129 @@ func torchZipHeader(f *os.File, size int64) ([]property, error) {
 	return append(scan.properties(format), prop("archive-entries", strconv.Itoa(len(z.File)))), nil
 }
 
-// zipDirectory returns the entry count and size of a zip's central directory
-// from its end records (zip64 included) without reading the directory itself.
-func zipDirectory(f *os.File, size int64) (entries, directory uint64, err error) {
-	const endLen = 22
-	tail := min(size, endLen+0xffff)
-	buf := make([]byte, tail)
-	if _, err := f.ReadAt(buf, size-tail); err != nil && err != io.EOF {
-		return 0, 0, err
+// zipDirectoryBudget bounds the bytes zip.NewReader may read for a checkpoint's
+// central directory (about 65,000 typical torch.save entries) plus the 64 KiB
+// end-record search.
+var zipDirectoryBudget int64 = 8<<20 + 128<<10
+
+// span is file content read once at off.
+type span struct {
+	off int64
+	b   []byte
+}
+
+// budgetReaderAt serves spans in place of the file's current content and fails
+// other reads once its byte budget is spent.
+type budgetReaderAt struct {
+	r      io.ReaderAt
+	budget int64
+	spans  []span
+}
+
+func (b *budgetReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if held, ok := spanned(b.spans, off, int64(len(p))); ok {
+		return copy(p, held), nil
 	}
-	le := binary.LittleEndian
-	end := -1
-	for i := len(buf) - endLen; i >= 0; i-- {
-		if string(buf[i:i+4]) == "PK\x05\x06" && i+endLen+int(le.Uint16(buf[i+20:])) == len(buf) {
-			end = i
-			break
+	if int64(len(p)) > b.budget {
+		return 0, fmt.Errorf("zip read budget exceeded")
+	}
+	b.budget -= int64(len(p))
+	n, err := b.r.ReadAt(p, off)
+	overlay(b.spans, p, off)
+	return n, err
+}
+
+// spanned returns [off, off+n) from the first span holding all of it.
+func spanned(spans []span, off, n int64) ([]byte, bool) {
+	for _, s := range spans {
+		if off >= s.off && off+n <= s.off+int64(len(s.b)) {
+			return s.b[off-s.off : off-s.off+n], true
 		}
 	}
-	if end < 0 {
-		return 0, 0, fmt.Errorf("zip end record not found")
+	return nil, false
+}
+
+// overlay replaces bytes of p (read at off) that spans already hold, so every
+// span agrees with the earlier ones and each byte has one checked value.
+func overlay(spans []span, p []byte, off int64) {
+	end := off + int64(len(p))
+	for i := len(spans) - 1; i >= 0; i-- { // the earliest span wins
+		s := spans[i]
+		if lo, hi := max(off, s.off), min(end, s.off+int64(len(s.b))); lo < hi {
+			copy(p[lo-off:hi-off], s.b[lo-s.off:hi-s.off])
+		}
 	}
-	entries, directory = uint64(le.Uint16(buf[end+10:])), uint64(le.Uint32(buf[end+12:]))
-	if entries != 0xffff && directory != 0xffffffff && le.Uint32(buf[end+16:]) != 0xffffffff {
-		return entries, directory, nil
+}
+
+// zipDeclaredEntries returns the entry count a zip's end record declares,
+// located exactly as archive/zip locates it: the last end-record signature in
+// the final 1 KiB, else the final 65 KiB, provided its comment fits, then the
+// zip64 end record when a valid locator precedes the end record. It returns
+// the spans it read; archive/zip given them through budgetReaderAt parses the
+// same bytes, because both take each range from the same span lookup.
+func zipDeclaredEntries(r io.ReaderAt, size int64) (uint64, []span, error) {
+	le := binary.LittleEndian
+	var spans []span
+	read := func(n, off int64) ([]byte, error) {
+		if held, ok := spanned(spans, off, n); ok {
+			return held, nil
+		}
+		buf := make([]byte, n)
+		if _, err := r.ReadAt(buf, off); err != nil && err != io.EOF {
+			return nil, err
+		}
+		overlay(spans, buf, off)
+		spans = append(spans, span{off, buf})
+		return buf, nil
 	}
-	// zip64: a 20-byte locator precedes the end record and points at the zip64 end record.
-	if end < 20 || string(buf[end-20:end-16]) != "PK\x06\x07" {
-		return 0, 0, fmt.Errorf("zip64 locator not found")
+	var end []byte
+	endOffset := int64(0)
+	for i, n := range []int64{1024, 65 * 1024} {
+		n = min(n, size)
+		buf, err := read(n, size-n)
+		if err != nil {
+			return 0, nil, err
+		}
+		if p := zipEndSignature(buf); p >= 0 {
+			end, endOffset = buf[p:], size-n+int64(p)
+			break
+		}
+		if i == 1 || n == size {
+			return 0, nil, fmt.Errorf("zip end record not found")
+		}
 	}
-	offset := le.Uint64(buf[end-12:])
-	var record [56]byte
-	if offset > uint64(size-56) {
-		return 0, 0, fmt.Errorf("zip64 end record out of range")
+	entries := uint64(le.Uint16(end[10:]))
+	if entries != 0xffff && le.Uint32(end[12:]) != 0xffff && le.Uint32(end[16:]) != 0xffffffff || endOffset < 20 {
+		return entries, spans, nil
 	}
-	if _, err := f.ReadAt(record[:], int64(offset)); err != nil || string(record[:4]) != "PK\x06\x06" {
-		return 0, 0, fmt.Errorf("zip64 end record not found")
+	locator, err := read(20, endOffset-20)
+	if err != nil {
+		return 0, nil, err
 	}
-	return le.Uint64(record[32:]), le.Uint64(record[40:]), nil
+	offset := int64(le.Uint64(locator[8:]))
+	if string(locator[:4]) != "PK\x06\x07" || le.Uint32(locator[4:]) != 0 || le.Uint32(locator[16:]) != 1 || offset < 0 {
+		return entries, spans, nil // archive/zip then keeps the 32-bit values
+	}
+	record, err := read(56, offset)
+	if err != nil {
+		return 0, nil, err
+	}
+	if string(record[:4]) != "PK\x06\x06" {
+		return 0, nil, fmt.Errorf("zip64 end record not found")
+	}
+	return le.Uint64(record[32:]), spans, nil
+}
+
+// zipEndSignature mirrors archive/zip: the first end-record signature from the
+// end of b, or -1 when none is found or its comment would run past b.
+func zipEndSignature(b []byte) int {
+	for i := len(b) - 22; i >= 0; i-- {
+		if string(b[i:i+4]) == "PK\x05\x06" {
+			if i+22+int(binary.LittleEndian.Uint16(b[i+20:])) > len(b) {
+				return -1
+			}
+			return i
+		}
+	}
+	return -1
 }

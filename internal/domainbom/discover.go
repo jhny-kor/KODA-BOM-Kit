@@ -331,7 +331,7 @@ func (s *modelScanner) huggingFace(p string) {
 		}
 	}
 	sort.Strings(artifacts)
-	worst, failed := "", 0
+	worst, failed, partial := "", 0, false
 	for _, file := range artifacts {
 		s.claimed[file] = true // a failure is reported once here, not again as a standalone model
 		artifact, err := s.weight(file, false)
@@ -347,16 +347,20 @@ func (s *modelScanner) huggingFace(p string) {
 		s.result.Components = append(s.result.Components, artifact)
 		targets = append(targets, artifact["bom-ref"].(string))
 		for _, item := range artifact["properties"].([]property) {
-			if item.Name == "koda:domain:pickle:safety" && pickleSafetyRank[item.Value] > pickleSafetyRank[worst] {
+			switch {
+			case item.Name == "koda:domain:pickle:safety" && pickleSafetyRank[item.Value] > pickleSafetyRank[worst]:
 				worst = item.Value
+			case item.Name == "koda:domain:pickle:inspection" && item.Value == "incomplete":
+				partial = true
 			}
 		}
 	}
 	if len(artifacts) > 0 {
 		props = append(props, prop("artifact-files-observed", strconv.Itoa(len(artifacts)-failed)), prop("artifact-files-unavailable", strconv.Itoa(failed)))
 	}
-	if failed > 0 {
-		props = append(props, prop("artifact-inspection", "incomplete"))
+	// artifact-inspection names a method on file components; this is a status.
+	if failed > 0 || partial {
+		props = append(props, prop("artifact-inspection-status", "incomplete"))
 	}
 	if worst != "" {
 		props = append(props, prop("artifact-pickle-safety", worst))
