@@ -28,6 +28,10 @@ func configConsumer(p string) string {
 		return "apache"
 	case p == "etc/ssh/sshd_config" || strings.HasPrefix(p, "etc/ssh/sshd_config.d/") && strings.HasSuffix(p, ".conf"):
 		return "sshd"
+	case p == "etc/ssl/openssl.cnf" || p == "etc/pki/tls/openssl.cnf" || p == "etc/crypto-policies/back-ends/opensslcnf.config":
+		return "openssl"
+	case p == "etc/crypto-policies/config" || p == "etc/crypto-policies/state/current":
+		return "crypto-policies"
 	}
 	return ""
 }
@@ -67,7 +71,7 @@ func (c *collection) configurations(ctx context.Context, plan localfs.Plan, root
 		return certificates[name]
 	}
 	files := 0
-	for _, p := range plan.Paths {
+	for _, p := range append(slices.Clip(plan.Paths), plan.IndexedLinks()...) {
 		if ctx.Err() != nil {
 			return
 		}
@@ -99,7 +103,17 @@ func (c *collection) configFile(filename, consumer string, r io.Reader, resolveC
 	line := 0
 	for scanner.Scan() {
 		line++
-		fields := cryptoDirectiveFields(scanner.Text(), consumer == "nginx")
+		var fields []string
+		switch consumer {
+		case "openssl":
+			fields = opensslDirectiveFields(scanner.Text())
+		case "crypto-policies":
+			if f := cryptoDirectiveFields(scanner.Text(), false); len(f) == 1 {
+				fields = []string{"policy", f[0]}
+			}
+		default:
+			fields = cryptoDirectiveFields(scanner.Text(), consumer == "nginx")
+		}
 		if len(fields) < 2 {
 			continue
 		}
@@ -114,6 +128,14 @@ func (c *collection) configFile(filename, consumer string, r io.Reader, resolveC
 		case "sshd":
 			protocol = "ssh"
 			allowed = directive == "ciphers" || directive == "kexalgorithms" || directive == "macs" || directive == "hostkeyalgorithms" || directive == "pubkeyacceptedalgorithms"
+		case "openssl":
+			// TLS.MinProtocol and DTLS.MinProtocol scope a key to one protocol family.
+			directive = strings.TrimPrefix(strings.TrimPrefix(directive, "dtls."), "tls.")
+			allowed = slices.Contains([]string{"minprotocol", "maxprotocol", "cipherstring", "ciphersuites", "groups", "signaturealgorithms"}, directive)
+		case "crypto-policies":
+			// The system-wide policy governs TLS, SSH, IPsec and Kerberos back-ends together.
+			protocol = "other"
+			allowed = directive == "policy"
 		}
 		if !allowed {
 			continue
@@ -142,7 +164,14 @@ func (c *collection) configFile(filename, consumer string, r io.Reader, resolveC
 			proto["cryptoRefArray"] = refs
 		}
 		raw, _ := json.Marshal(map[string]any{"assetType": "protocol", "protocolProperties": proto})
-		c.assets = append(c.assets, model.Asset{ID: assetID("configuration", filename, strconv.Itoa(line), directive), Kind: "cryptographic-asset", Name: fmt.Sprintf("%s %s declaration", consumer, strings.ToUpper(protocol)), Source: filename, ObservedAt: c.now.Format(time.RFC3339), Crypto: raw, Properties: properties, DependsOn: refs})
+		if weak := legacyProtocol(directive, fields[1:]); weak != "" {
+			properties["weakness"] = weak
+		}
+		name := fmt.Sprintf("%s %s declaration", consumer, strings.ToUpper(protocol))
+		if consumer == "crypto-policies" {
+			name = "system crypto policy declaration"
+		}
+		c.assets = append(c.assets, model.Asset{ID: assetID("configuration", filename, strconv.Itoa(line), directive), Kind: "cryptographic-asset", Name: name, Source: filename, ObservedAt: c.now.Format(time.RFC3339), Crypto: raw, Properties: properties, DependsOn: refs})
 		if len(c.assets) >= maxCerts {
 			c.issues = append(c.issues, model.Issue{Collector: "crypto-configuration", Status: "incomplete", Message: "cryptographic asset limit reached"})
 			return
@@ -211,6 +240,25 @@ func safeCryptoValue(directive string, fields []string) bool {
 	if strings.Contains(directive, "certificate") {
 		return len(fields) == 1 && len(value) <= 512 && !strings.ContainsAny(value, ":$%{};\\") && !strings.Contains(value, "-----")
 	}
+	if directive == "policy" {
+		// RHEL/Fedora policy[:subpolicy...], e.g. DEFAULT:SHA1 or FUTURE.
+		for _, part := range strings.Split(value, ":") {
+			if part == "" || len(part) > 64 || strings.IndexFunc(part, func(r rune) bool { return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_') }) >= 0 {
+				return false
+			}
+		}
+		return len(fields) == 1
+	}
+	if directive == "groups" || directive == "signaturealgorithms" {
+		// Named groups (including hybrid post-quantum groups such as X25519MLKEM768)
+		// and signature schemes; the vocabulary grows with each OpenSSL release.
+		return len(fields) == 1 && strings.IndexFunc(fields[0], func(r rune) bool {
+			return !(r < 128 && (unicode.IsLetter(r) || unicode.IsDigit(r)) || strings.ContainsRune("-_+*:?./", r))
+		}) < 0
+	}
+	if directive == "minprotocol" || directive == "maxprotocol" {
+		return len(fields) == 1 && slices.Contains([]string{"None", "SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3", "DTLSv1", "DTLSv1.2"}, fields[0])
+	}
 	if directive == "ssl_protocols" || directive == "sslprotocol" {
 		for _, field := range fields {
 			if !slices.Contains([]string{"all", "TLSv1", "TLSv1.0", "TLSv1.1", "TLSv1.2", "TLSv1.3", "SSLv2", "SSLv3"}, strings.TrimLeft(field, "+-")) {
@@ -219,7 +267,7 @@ func safeCryptoValue(directive string, fields []string) bool {
 		}
 		return true
 	}
-	if directive == "ssl_ciphers" || directive == "sslciphersuite" {
+	if directive == "ssl_ciphers" || directive == "sslciphersuite" || directive == "cipherstring" || directive == "ciphersuites" {
 		if len(fields) == 2 && slices.Contains([]string{"TLSv1.3", "SSL"}, fields[0]) {
 			fields = fields[1:]
 		}
@@ -228,7 +276,7 @@ func safeCryptoValue(directive string, fields []string) bool {
 		}
 		for _, selector := range strings.Split(fields[0], ":") {
 			selector = strings.TrimLeft(selector, "!+-")
-			if strings.HasPrefix(selector, "@SECLEVEL=") && len(selector) == 11 && selector[10] >= '0' && selector[10] <= '5' {
+			if strings.HasPrefix(selector, "@SECLEVEL=") && len(selector) == 11 && selector[10] >= '0' && selector[10] <= '5' || selector == "PROFILE=SYSTEM" || selector == "@STRENGTH" {
 				continue
 			}
 			for _, part := range strings.Split(selector, "+") {
@@ -251,7 +299,7 @@ func safeCryptoValue(directive string, fields []string) bool {
 }
 
 func knownTLSCipher(name string) bool {
-	if slices.Contains([]string{"ALL", "DEFAULT", "COMPLEMENTOFDEFAULT", "COMPLEMENTOFALL", "HIGH", "MEDIUM", "LOW", "aNULL", "eNULL", "kRSA", "aRSA", "RSA", "kECDHE", "kDHE", "ECDHE", "DHE", "ECDH", "DH", "ECDSA", "aECDSA", "PSK", "SRP", "AES", "AES128", "AES256", "AESGCM", "AESCCM", "CHACHA20", "SHA", "SHA1", "SHA256", "SHA384", "MD5", "3DES", "DES", "RC4", "TLSv1", "TLSv1.0", "TLSv1.1", "TLSv1.2", "SSLv3", "SSLv2"}, name) {
+	if slices.Contains([]string{"ALL", "DEFAULT", "COMPLEMENTOFDEFAULT", "kEECDH", "kEDH", "EECDH", "EDH", "kPSK", "kDHEPSK", "kECDHEPSK", "kRSAPSK", "aDSS", "DSS", "aPSK", "aECDH", "aDH", "kDH", "kECDH", "RC2", "IDEA", "SEED", "CAMELLIA", "ARIA", "AESCCM8", "CHACHA20-POLY1305", "SUITEB128", "SUITEB192", "COMPLEMENTOFALL", "HIGH", "MEDIUM", "LOW", "aNULL", "eNULL", "kRSA", "aRSA", "RSA", "kECDHE", "kDHE", "ECDHE", "DHE", "ECDH", "DH", "ECDSA", "aECDSA", "PSK", "SRP", "AES", "AES128", "AES256", "AESGCM", "AESCCM", "CHACHA20", "SHA", "SHA1", "SHA256", "SHA384", "MD5", "3DES", "DES", "RC4", "TLSv1", "TLSv1.0", "TLSv1.1", "TLSv1.2", "SSLv3", "SSLv2"}, name) {
 		return true
 	}
 	if strings.HasPrefix(name, "TLS_") {
@@ -259,7 +307,7 @@ func knownTLSCipher(name string) bool {
 		name = strings.ReplaceAll(name, "_", "-")
 	}
 	for _, token := range strings.Split(name, "-") {
-		if !slices.Contains([]string{"ECDHE", "ECDH", "DHE", "DH", "RSA", "ECDSA", "DSS", "PSK", "SRP", "AES", "AES128", "AES256", "128", "256", "CHACHA20", "POLY1305", "GCM", "CCM", "CCM8", "CBC", "SHA", "SHA1", "SHA256", "SHA384", "SHA512", "DES", "EDE3", "3DES", "RC4", "MD5", "NULL", "WITH", "CAMELLIA128", "CAMELLIA256", "ARIA128", "ARIA256"}, token) {
+		if !slices.Contains([]string{"ECDHE", "ECDH", "DHE", "DH", "RSA", "ECDSA", "DSS", "PSK", "SRP", "AES", "AES128", "AES256", "128", "256", "CHACHA20", "POLY1305", "GCM", "CCM", "CCM8", "CBC", "SHA", "SHA1", "SHA256", "SHA384", "SHA512", "8", "DES", "EDE3", "3DES", "RC4", "MD5", "NULL", "WITH", "CAMELLIA128", "CAMELLIA256", "ARIA128", "ARIA256"}, token) {
 			return false
 		}
 	}
@@ -280,4 +328,58 @@ func knownSSHAlgorithm(name string) bool {
 		return knownSSHAlgorithm(strings.TrimSuffix(name, "-cert-v01"))
 	}
 	return false
+}
+
+// opensslDirectiveFields reads one "Key = Value" line of an OpenSSL
+// configuration. Section headers and .include lines are skipped; the section a
+// key belongs to and whether it is activated by openssl_conf are not resolved.
+func opensslDirectiveFields(line string) []string {
+	line, _, _ = strings.Cut(line, "#")
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "[") || strings.HasPrefix(line, ".") || strings.ContainsAny(line, "\\$\x00") {
+		return nil
+	}
+	key, value, ok := strings.Cut(line, "=")
+	key, value = strings.TrimSpace(key), strings.Trim(strings.TrimSpace(value), `"'`)
+	if !ok || key == "" || value == "" || strings.ContainsAny(key, " \t") {
+		return nil
+	}
+	return append([]string{key}, strings.Fields(value)...)
+}
+
+// legacyProtocol flags declarations that allow protocols below TLS 1.2 or the LEGACY policy.
+func legacyProtocol(directive string, fields []string) string {
+	switch directive {
+	case "minprotocol":
+		if slices.Contains([]string{"None", "SSLv3", "TLSv1", "TLSv1.1", "DTLSv1"}, fields[0]) {
+			return "legacy-tls-allowed"
+		}
+	case "ssl_protocols", "sslprotocol":
+		// Apache applies +/- modifiers in order; "all" enables every protocol.
+		legacy := []string{"SSLv2", "SSLv3", "TLSv1", "TLSv1.1"}
+		enabled := map[string]bool{}
+		for _, f := range fields {
+			name := strings.TrimLeft(f, "+-")
+			if name == "TLSv1.0" {
+				name = "TLSv1"
+			}
+			targets := []string{name}
+			if name == "all" {
+				targets = []string{"SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3"}
+			}
+			for _, t := range targets {
+				enabled[t] = !strings.HasPrefix(f, "-")
+			}
+		}
+		for _, l := range legacy {
+			if enabled[l] {
+				return "legacy-tls-allowed"
+			}
+		}
+	case "policy":
+		if strings.HasPrefix(strings.ToUpper(fields[0]), "LEGACY") {
+			return "legacy-crypto-policy"
+		}
+	}
+	return ""
 }

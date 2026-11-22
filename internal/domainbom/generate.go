@@ -148,6 +148,18 @@ func Generate(ctx context.Context, opts Options) (map[string][]byte, error) {
 }
 
 func readEvidence(ctx context.Context, path string) ([]byte, string, error) {
+	raw, sum, err := readEvidenceBytes(ctx, path)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := uniqueJSON(raw); err != nil {
+		return nil, "", err
+	}
+	return raw, sum, nil
+}
+
+// readEvidenceBytes reads a bounded regular file without interpreting it.
+func readEvidenceBytes(ctx context.Context, path string) ([]byte, string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
@@ -170,9 +182,6 @@ func readEvidence(ctx context.Context, path string) ([]byte, string, error) {
 	}
 	if len(raw) > maxEvidenceBytes {
 		return nil, "", fmt.Errorf("evidence exceeds 16 MiB")
-	}
-	if err := uniqueJSON(raw); err != nil {
-		return nil, "", err
 	}
 	sum := sha256.Sum256(raw)
 	return raw, hex.EncodeToString(sum[:]), nil

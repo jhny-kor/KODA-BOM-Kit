@@ -67,7 +67,7 @@ func loadModel(ctx context.Context, input ModelInput, d *document) error {
 		return err
 	}
 	defer f.Close()
-	observed, err := modelHeader(f, stat.Size())
+	observed, err := artifactHeader(f, stat.Size(), input.Artifact)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func loadModel(ctx context.Context, input ModelInput, d *document) error {
 		return fmt.Errorf("model artifact changed during metadata inspection")
 	}
 	if input.Evidence == "" && len(observed) == 0 {
-		return fmt.Errorf("standalone model artifact must have a safetensors or GGUF header")
+		return fmt.Errorf("standalone model artifact must be safetensors, GGUF, ONNX, PyTorch or pickle")
 	}
 	if source == "" {
 		source = sum

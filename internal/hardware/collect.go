@@ -39,7 +39,7 @@ func Collect(ctx context.Context, root string) ([]model.Asset, []model.Issue) {
 	c := collector{ctx: ctx, root: r, now: time.Now().UTC().Format(time.RFC3339), nicFirmware: map[string]bool{}}
 	c.detectScope()
 	board := c.dmi()
-	c.serverParts(board)
+	c.serverParts(board, c.smbios(board))
 	c.uefi(board)
 	c.cpu()
 	if root == "/" {

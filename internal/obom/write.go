@@ -168,7 +168,7 @@ func write(ctx context.Context, collectionDir, outputDir string, include17, veri
 	for _, entry := range []struct {
 		name  string
 		value any
-	}{{"distribution", source.Distribution}, {"running-kernel", hostContext.RunningKernel}, {"kernel-flavor", hostContext.KernelFlavor}, {"loaded-modules", hostContext.LoadedModules}, {"settings", hostContext.Settings}, {"livepatch", hostContext.Livepatch}} {
+	}{{"distribution", source.Distribution}, {"running-kernel", hostContext.RunningKernel}, {"kernel-flavor", hostContext.KernelFlavor}, {"loaded-modules", hostContext.LoadedModules}, {"settings", hostContext.Settings}, {"livepatch", hostContext.Livepatch}, {"firewall-declarations", hostContext.Firewall}} {
 		raw, marshalErr := json.Marshal(entry.value)
 		if marshalErr != nil {
 			return marshalErr
@@ -181,12 +181,14 @@ func write(ctx context.Context, collectionDir, outputDir string, include17, veri
 		}
 	}
 	g.components[host] = hostRecord
+	g.firewall = hostContext.Firewall
 	g.processes(host, hostContext.ProcessLinks)
 	g.units(host, hostContext.EnabledServices)
+	g.jobs(host, hostContext.ScheduledJobs)
 	for _, s := range hostContext.UnattributedSockets {
 		g.socket(host, "", s)
 	}
-	properties := []property{prop("source-status", source.Status), prop("context-status", hostContext.Status), prop("coverage", "observed runtime relationships; missing observations remain unknown"), prop("package-version-semantics", "installed owner version; loaded memory version is unverified"), prop("network-semantics", "local binds; firewall reachability is unverified")}
+	properties := []property{prop("source-status", source.Status), prop("context-status", hostContext.Status), prop("coverage", "observed runtime relationships; missing observations remain unknown"), prop("package-version-semantics", "installed owner version; loaded memory version is unverified"), prop("network-semantics", "local binds and established outbound TCP at collection time; firewall values are file declarations, the loaded ruleset is unverified")}
 	scope := source.RuntimeContainerScope
 	if scope == "" {
 		scope = "legacy-unspecified"

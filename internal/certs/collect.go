@@ -70,7 +70,8 @@ func Collect(ctx context.Context, plan localfs.Plan) ([]model.Asset, []model.Iss
 		if ctx.Err() != nil || len(c.assets) >= maxCerts {
 			break
 		}
-		if !candidate(p) {
+		hostKey := sshHostKeyPath(p)
+		if !hostKey && !candidate(p) {
 			continue
 		}
 		if files++; files > maxFiles {
@@ -93,6 +94,10 @@ func Collect(ctx context.Context, plan localfs.Plan) ([]model.Asset, []model.Iss
 		data, err := io.ReadAll(io.LimitReader(f, maxFileBytes+1))
 		f.Close()
 		if err != nil || st.Size() > maxFileBytes || len(data) > maxFileBytes {
+			continue
+		}
+		if hostKey {
+			c.sshHostKey(p, data)
 			continue
 		}
 		c.file(p, data)
@@ -150,7 +155,11 @@ type keyInfo struct {
 }
 
 func publicKey(cert *x509.Certificate) keyInfo {
-	switch key := cert.PublicKey.(type) {
+	return keyInfoOf(cert.PublicKey, cert.PublicKeyAlgorithm.String())
+}
+
+func keyInfoOf(public any, fallback string) keyInfo {
+	switch key := public.(type) {
 	case *rsa.PublicKey:
 		bits := key.N.BitLen()
 		level := map[int]int{1024: 80, 2048: 112, 3072: 128, 4096: 152, 7680: 192, 15360: 256}[bits]
@@ -162,7 +171,7 @@ func publicKey(cert *x509.Certificate) keyInfo {
 	case ed25519.PublicKey:
 		return keyInfo{name: "Ed25519", primitive: "signature", curve: "Ed25519", classical: 128}
 	}
-	return keyInfo{name: cert.PublicKeyAlgorithm.String(), primitive: "unknown"}
+	return keyInfo{name: fallback, primitive: "unknown"}
 }
 
 // weakness lists reasons a certificate should be replaced.
@@ -174,7 +183,7 @@ func weakness(cert *x509.Certificate, key keyInfo) []string {
 	case x509.SHA1WithRSA, x509.DSAWithSHA1, x509.ECDSAWithSHA1:
 		reasons = append(reasons, "sha1-signature")
 	}
-	if strings.HasPrefix(key.name, "RSA-") && key.classical > 0 && key.classical < 112 {
+	if bits, err := strconv.Atoi(key.parameter); strings.HasPrefix(key.name, "RSA-") && err == nil && bits < 2048 {
 		reasons = append(reasons, "rsa-key-below-2048")
 	}
 	if cert.PublicKeyAlgorithm == x509.DSA {

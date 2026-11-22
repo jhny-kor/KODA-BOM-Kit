@@ -27,10 +27,11 @@ func TestListeningSocketIsAttributedToOwningProcess(t *testing.T) {
 	}
 	defer root.Close()
 	out := &model.Context{}
-	owners := socketOwner{ctx: context.Background(), root: root, out: out, sockets: listeningSockets(root, out, os.Getpid()), owned: map[uint64]bool{}, budget: maxSocketFDs}
+	owners := socketOwner{ctx: context.Background(), root: root, out: out, sockets: listeningSockets(root, out, os.Getpid(), nil), owned: map[uint64]bool{}, budget: maxSocketFDs}
 	want := model.Socket{Protocol: "tcp", Address: "127.0.0.1", Port: port, BindScope: "loopback"}
 	found := false
-	for _, socket := range owners.process("proc/" + strconv.Itoa(os.Getpid())) {
+	listening, _ := owners.process("proc/" + strconv.Itoa(os.Getpid()))
+	for _, socket := range listening {
 		found = found || socket == want
 	}
 	if !found {

@@ -30,11 +30,11 @@
 | 종류 | 현재 Linux 수집과 출력 | 범위를 넓히는 데 필요한 자료 |
 |---|---|---|
 | SBOM · 소프트웨어 | OS·언어 패키지, 버전·PURL, 수집 가능한 라이선스·의존관계, JAR·내장 모듈, 컨테이너별 인벤토리 | 최종 파일에서 식별하기 어려운 정적 링크·빌드 전용 의존성은 공급사 또는 CI의 CycloneDX/SPDX와 대상 산출물 SHA-256을 대조해 `build-sbom.cdx.json`으로 보강 |
-| HBOM · 하드웨어 | 커널이 보고하는 CPU·보드·장치·드라이버·펌웨어, EDAC DIMM과 전원·팬 센서 | 호스트에서 보이지 않는 물리 부품·부품번호·공급사·수명주기는 Redfish 등 장비 관리자 내보내기나 자산대장 필요 |
-| CBOM · 암호 자산 | 공개 인증서·공개키·알고리즘·확인된 발급 관계, 지원하는 TLS/SSH 설정의 사용처, JKS 공개 인증서와 엔트리 메타데이터 | 실제 협상된 TLS 버전·암호군은 관측 기록, HSM/KMS·보호된 키 저장소는 관리자가 내보낸 공개 메타데이터 필요 |
-| OBOM · 운영 구성 | 호스트·컨테이너·프로세스·실행 파일·소유 패키지·수신 소켓, systemd 활성화 설정. 패키지를 확인할 수 있는 포트만 소유 패키지에 연결 | 전체 Pod·워크로드·Service·Ingress 관계는 같은 클러스터의 Kubernetes JSON 내보내기, 배포 식별은 운영 측 라벨 필요. 접속 여부는 호스트 식별자가 일치하는 지점별 TCP 접속 관측을 `--network-evidence`로 반입 |
-| SaaSBOM · 서비스 | 서비스 명세나 OpenAPI JSON에서 서비스·엔드포인트를 `saasbom.cdx.json`으로 출력. 운영 측 로컬 소켓은 별도 OBOM에서 조회 | 서비스 카탈로그·API 명세, 제공자·외부 서비스 의존성, 인증·신뢰 경계, 데이터 흐름의 방향·분류 필요 |
-| AI-BOM · 모델·데이터 | 승인된 로컬 경로에서 모델 설정, 양자화·컨텍스트, 가중치 인덱스, GGUF·safetensors 헤더·크기 및 Ollama 모델 레이어를 관측. 명시한 산출물의 전체 SHA-256 및 일치하는 선언의 모델·데이터 계보를 `aibom.cdx.json`으로 출력. 프레임워크 패키지는 SBOM에서도 조회 | 가중치·모델 식별자·리비전·해시, 기반 모델과 파생 관계, 모델 카드·라이선스, 학습·평가 데이터 출처 필요 |
+| HBOM · 하드웨어 | 커널이 보고하는 CPU·보드·장치·드라이버·펌웨어, SMBIOS 메모리 모듈(제조사·부품번호·속도)·전원공급장치·슬롯, EDAC DIMM과 전원·팬 센서 | 호스트에서 보이지 않는 물리 부품·부품번호·공급사·수명주기는 Redfish 등 장비 관리자 내보내기나 자산대장 필요 |
+| CBOM · 암호 자산 | 공개 인증서·공개키·알고리즘·확인된 발급 관계, 지원하는 TLS/SSH 설정의 사용처, SSH 호스트 공개키, 시스템 암호 정책과 OpenSSL 프로토콜·암호군·그룹 선언, JKS 공개 인증서와 엔트리 메타데이터 | 실제 협상된 TLS 버전·암호군은 관측 기록, HSM/KMS·보호된 키 저장소는 관리자가 내보낸 공개 메타데이터 필요 |
+| OBOM · 운영 구성 | 호스트·컨테이너·프로세스·실행 파일·소유 패키지·수신 소켓, 프로세스별 외부 TCP 연결 대상, systemd 서비스·타이머, cron 작업, 방화벽 설정 선언. 패키지를 확인할 수 있는 포트만 소유 패키지에 연결 | 전체 Pod·워크로드·Service·Ingress 관계는 같은 클러스터의 Kubernetes JSON 내보내기, 배포 식별은 운영 측 라벨 필요. 접속 여부는 호스트 식별자가 일치하는 지점별 TCP 접속 관측을 `--network-evidence`로 반입 |
+| SaaSBOM · 서비스 | 서비스 명세나 OpenAPI JSON·YAML, nginx·Apache·HAProxy 설정에 선언된 백엔드에서 서비스·엔드포인트를 `saasbom.cdx.json`으로 출력. 운영 측 로컬 소켓은 별도 OBOM에서 조회 | 서비스 카탈로그·API 명세, 제공자·외부 서비스 의존성, 인증·신뢰 경계, 데이터 흐름의 방향·분류 필요 |
+| AI-BOM · 모델·데이터 | 승인된 로컬 경로에서 모델 설정, 양자화·컨텍스트, 가중치 인덱스, GGUF·safetensors·ONNX 헤더·크기, PyTorch pickle import 안전성, Hugging Face 모델 카드·캐시 ref, Ollama 모델 레이어, 모델 서버가 시작 시 지정한 모델을 관측. 명시한 산출물의 전체 SHA-256 및 일치하는 선언의 모델·데이터 계보를 `aibom.cdx.json`으로 출력. 프레임워크 패키지는 SBOM에서도 조회 | 가중치·모델 식별자·리비전·해시, 기반 모델과 파생 관계, 모델 카드·라이선스, 학습·평가 데이터 출처 필요 |
 | MBOM · 제조·빌드 공정 | 산출물과 SHA-256이 일치하는 SLSA 빌드 기록 또는 제공된 물리 조립·검사 단계를 CycloneDX `formulation`으로 변환해 `mbom.cdx.json`에 기록 | 소프트웨어는 CI 작업 단계·도구·입출력·빌드 실행 기록, 하드웨어는 제조사의 조립·공정·검사 이력 필요 |
 
 ## 계층별 수집 근거
@@ -48,15 +48,18 @@
 | 실행 중 소프트웨어 | 실행 파일 및 메모리 매핑의 경로·파일 식별 정보, 경로를 식별한 설치 패키지 | 프로세스와 수집기의 파일시스템 범위가 같은 경우에만 설치 패키지를 연결합니다. 교체가 확인되면 재시작 검토 근거를 남깁니다. |
 | 호스트 식별 | machine-id, DMI product UUID·제품/보드 시리얼의 SHA-256, 운영자 `--asset-tag` | 호스트 `/` 수집만 해당. DMI 시리얼은 root 권한 필요. 공용 기본값은 기록하지 않음. 해시는 가명화이며 익명화가 아님 |
 | 수신 대기 소켓 | 수집기 네트워크 네임스페이스의 `/proc/<pid>/net` LISTEN TCP·바인딩 UDP와 `/proc/<pid>/fd` 소유 프로세스 | 바인딩 주소만 확인하며 방화벽 노출은 확인하지 않음. 다른 네임스페이스의 소켓 미관측. 소유자 미확인 소켓은 `unattributedSockets` |
+| 외부 연결 | 로컬 포트가 수신 포트가 아닌 ESTABLISHED TCP를 프로세스·원격 주소별로 집계. 최대 16,384개 | 고정 로컬 포트에서 상대의 임시 포트로 가는 연결은 수락된 연결로 봄. 수집 시점에 열려 있던 연결만 보임. 호스트 프로세스만 대상 |
+| 예약 작업 | `/etc/crontab`, `/etc/cron.d`, 사용자 crontab, `cron.{hourly,daily,weekly,monthly}` 스크립트, 활성화된 systemd 타이머의 `On*` 일정 | 실행 파일의 절대 경로만 기록하고 인자는 버림 |
+| 방화벽 | iptables-save 파일(RHEL·Debian·ufw), firewalld 기본 zone과 서비스 정의, nftables input hook 체인과 리터럴 include | 파일에 선언된 내용이며 커널에 적재된 규칙은 읽지 않음. policy가 없는 base chain은 허용으로 보고, `ENABLED=no`인 ufw는 `disabled`로 기록. loopback 전용·연결 상태·부정 규칙은 열린 포트로 보지 않음. loopback이 아닌 수신 소켓에 `firewall-declared`를 `accept-declared`, `accept-declared-restricted`, `policy-accept-declared`, `no-accept-declared`, `undetermined` 중 하나로 표시 |
 | 보안 설정·재부팅 | SELinux 실행·설정 모드, AppArmor 활성화·프로필 모드 수, lockdown, FIPS, 허용 목록의 부팅 옵션, 커널 빌드 설정(`y`·`m` 옵션), `/run/reboot-required`, 실행 커널 모듈 트리 존재, 같은 계열의 더 새 설치 커널 | 관측값이며 준수 판정이 아닙니다. 재부팅 신호가 없다는 것은 재부팅 불필요의 증명이 아닙니다. 커널 계열 구분은 릴리스 문자열 기반 추정입니다. |
 | SSH 서버 설정 | `sshd_config`·`sshd_config.d/*.conf`의 전역 구역 선언값 | 파일별 선언 관측이며 `Include` 순서에 따른 실제 적용값을 계산하지 않음. `Match` 구역 제외 |
 | 커널 taint·모듈 | `kernel.tainted`, `/proc/modules`의 taint 플래그와 `/sys/module/<이름>/version`·`srcversion` | 모듈이 버전을 제공하지 않으면 이름과 플래그만 기록 |
 | 식별되지 않은 실행 파일 | 수집기와 같은 root의 프로세스 중 패키지 소유·구성요소 위치·제품 설치 경로 어디에도 해당하지 않는 실행 파일 | 다른 mount namespace(컨테이너)의 프로세스는 제외. 목록에 있다는 것이 악성이라는 뜻은 아님 |
 | 패키지 출처 | apt `Packages` 목록(평문·gz·lz4), dnf 이력 DB, yum `yumdb` | apt는 이름 기준이며 목록이 삭제됐으면 분류하지 않음. dnf5·apk는 미지원. 저장소 주소·파일 경로 미기록 |
-| 부팅 시작 서비스 | systemd `*.wants`·`*.requires` 링크, 단위 파일·drop-in, cgroup v2·v1 실행 여부 | 첫 `ExecStart`만 사용. 상대 경로 실행 파일은 패키지와 연결하지 않음. 다른 slice의 서비스는 `stopped`로 보일 수 있음. SysV init 스크립트 미지원 |
+| 부팅 시작 서비스 | systemd `*.wants`·`*.requires` 링크(서비스·소켓·타이머), 단위 파일·drop-in, cgroup v2·v1 실행 여부 | 첫 `ExecStart`만 사용. 상대 경로 실행 파일은 패키지와 연결하지 않음. 다른 slice의 서비스는 `stopped`로 보일 수 있음. SysV init 스크립트 미지원 |
 | 하드웨어 CPE | Intel Xeon·Core, AMD EPYC·Ryzen, Dell PowerEdge(장치·BIOS), Lenovo ThinkSystem(장치) | NVD 사전 명명을 따른 형식. 사전에 없는 모델은 일치하지 않을 수 있음. HPE·BMC는 미생성 |
 | 패키지 파일 무결성 | RPM·dpkg·apk DB에 해시가 있는 실행 파일·공유 라이브러리와 실제 파일의 비교 | 설정·ghost 파일 제외. 해시 예산(호스트 8 GiB, 컨테이너 1 GiB) 초과 시 부분 확인. prelink 바이너리는 오탐 가능. 불일치 원인은 별도 판단 |
-| 인증서·CBOM | 수집 범위의 PEM·DER X.509 인증서, 서명·공개키 알고리즘 | 주체·발급자 이름 미기록. JKS v1/v2의 공개 인증서와 엔트리 메타데이터를 읽고 별칭은 SHA-256으로 기록합니다. 암호화된 키 내용은 건너뛰며 저장소 무결성은 미검증으로 표시합니다. 개인키·PKCS#12 내용은 수집하지 않음. 배포판 신뢰 저장소와 20개 초과 번들 제외 |
+| 인증서·CBOM | 수집 범위의 PEM·DER X.509 인증서, SSH 호스트 공개키, 서명·공개키 알고리즘. `crypto-policies`와 `openssl.cnf`의 MinProtocol·CipherString·Ciphersuites·Groups 선언 | 주체·발급자 이름 미기록. JKS v1/v2의 공개 인증서와 엔트리 메타데이터를 읽고 별칭은 SHA-256으로 기록합니다. 암호화된 키 내용은 건너뛰며 저장소 무결성은 미검증으로 표시합니다. 개인키·PKCS#12 내용은 수집하지 않음. 배포판 신뢰 저장소와 20개 초과 번들 제외 |
 | 커널 | 현재 uname, 설치 커널 이미지·모듈, vermagic, RPM 버전 | 설치된 옛 커널과 실제 부팅 커널 구분. 모듈 미관측은 내장 기능 부재를 뜻하지 않음 |
 | 라이브패치 | Linux livepatch sysfs, Oracle raw Ksplice stage, 선택 실행 helper의 Ksplice·Uptrack·Canonical 상태 보고 | 관측과 클라이언트 보고 구분. 부팅·커널·시간이 다른 증거는 적용 상태로 사용하지 않음. CVE 취약성 자동판정 없음 |
 | Java | JDK/JRE release, JAR/WAR/EAR manifest·Maven 메타데이터 | 식별정보 제거·수정된 shaded archive는 부분 식별 가능 |

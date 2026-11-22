@@ -96,11 +96,11 @@ func containerProcesses(ctx context.Context, procRoot, diskRoot *os.Root, pids [
 		}
 		sockets, cached := socketTables[namespaceKey]
 		if !cached {
-			sockets = listeningSockets(procRoot, out, pid)
+			sockets = listeningSockets(procRoot, out, pid, nil)
 			socketTables[namespaceKey] = sockets
 		}
 		owners := socketOwner{ctx: ctx, root: procRoot, out: out, sockets: sockets, owned: map[uint64]bool{}, budget: remainingFDs}
-		link.ListeningSockets = owners.process(prefix)
+		link.ListeningSockets, _ = owners.process(prefix)
 		remainingFDs = owners.budget
 		networkAfter, _ := procRoot.Readlink(prefix + "/ns/net")
 		if networkAfter != networkNamespace {

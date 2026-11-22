@@ -45,6 +45,9 @@ func TestEnabledServices(t *testing.T) {
 	link("/usr/lib/systemd/system/dbus-broker.service", "etc/systemd/system/dbus.service")
 	write("usr/lib/systemd/system/dbus.socket", "[Socket]\nListenStream=/run/dbus/system_bus_socket\n")
 	link("../dbus.socket", "usr/lib/systemd/system/sockets.target.wants/dbus.socket")
+	write("usr/lib/systemd/system/logrotate.timer", "[Timer]\nOnCalendar=daily\nAccuracySec=1h\nPersistent=true\n")
+	write("usr/lib/systemd/system/logrotate.service", "[Service]\nType=oneshot\nExecStart=/usr/sbin/logrotate /etc/logrotate.conf\n")
+	link("/usr/lib/systemd/system/logrotate.timer", "etc/systemd/system/timers.target.wants/logrotate.timer")
 	write("sys/fs/cgroup/system.slice/nginx.service/cgroup.procs", "123\n")
 	write("sys/fs/cgroup/system.slice/system-getty.slice/getty@tty1.service/cgroup.procs", "456\n")
 	write("sys/fs/cgroup/system.slice/ssh.service/cgroup.procs", "")
@@ -58,6 +61,7 @@ func TestEnabledServices(t *testing.T) {
 	want := []model.Service{
 		{Unit: "dbus.socket", UnitFile: "usr/lib/systemd/system/dbus.socket", WantedBy: []string{"sockets.target"}, Executable: "usr/bin/dbus-broker-launch", Activates: "dbus.service", Listen: []string{"ListenStream=/run/dbus/system_bus_socket"}, State: "stopped"},
 		{Unit: "getty@tty1.service", UnitFile: "usr/lib/systemd/system/getty@.service", WantedBy: []string{"getty.target"}, Executable: "sbin/agetty", State: "running"},
+		{Unit: "logrotate.timer", UnitFile: "usr/lib/systemd/system/logrotate.timer", WantedBy: []string{"timers.target"}, Executable: "usr/sbin/logrotate", Activates: "logrotate.service", Schedule: []string{"OnCalendar=daily"}, State: "stopped"},
 		{Unit: "nginx.service", UnitFile: "usr/lib/systemd/system/nginx.service", WantedBy: []string{"multi-user.target"}, Executable: "opt/nginx/sbin/nginx", State: "running"},
 		{Unit: "ssh.socket", UnitFile: "usr/lib/systemd/system/ssh.socket", WantedBy: []string{"sockets.target"}, Executable: "usr/sbin/sshd", Activates: "ssh.service", Listen: []string{"ListenStream=22", "ListenStream=/run/ssh.sock"}, State: "stopped"},
 	}

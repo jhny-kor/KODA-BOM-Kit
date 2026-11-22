@@ -20,6 +20,7 @@ import (
 
 // ModelDiscovery contains metadata observed only inside one admitted scan plan.
 type ModelDiscovery struct {
+	Scope        string // "" for the scanned root itself
 	Components   []map[string]any
 	Dependencies []map[string]any
 	Issues       []model.Issue
@@ -33,6 +34,7 @@ type modelScanner struct {
 	claimed  map[string]bool
 	result   ModelDiscovery
 	reads    int
+	refs     map[string][]string // Hugging Face cache repository dir -> ref files
 }
 
 const maxModelReads = 2048
@@ -45,7 +47,7 @@ func DiscoverModels(ctx context.Context, plan localfs.Plan, scope string) (Model
 		return ModelDiscovery{}, err
 	}
 	defer root.Close()
-	s := modelScanner{ctx: ctx, plan: plan, root: root, scope: scope, admitted: map[string]bool{}, claimed: map[string]bool{}}
+	s := modelScanner{ctx: ctx, plan: plan, root: root, scope: scope, admitted: map[string]bool{}, claimed: map[string]bool{}, result: ModelDiscovery{Scope: scope}}
 	candidates := append(append([]string{}, plan.Paths...), plan.IndexedLinks()...)
 	candidates = append(candidates, plan.ModelHeaderPaths...)
 	sort.Strings(candidates)
@@ -74,7 +76,7 @@ func DiscoverModels(ctx context.Context, plan localfs.Plan, scope string) (Model
 		if err := ctx.Err(); err != nil {
 			return s.result, err
 		}
-		if !s.admitted[p] || s.claimed[p] || (!strings.HasSuffix(strings.ToLower(p), ".gguf") && !strings.HasSuffix(strings.ToLower(p), ".safetensors")) {
+		if !s.admitted[p] || s.claimed[p] || (!strings.HasSuffix(strings.ToLower(p), ".gguf") && !strings.HasSuffix(strings.ToLower(p), ".safetensors") && !pickleModelFile(p)) {
 			continue
 		}
 		c, err := s.weight(p, true)
@@ -226,22 +228,40 @@ func (s *modelScanner) huggingFace(p string) {
 	}
 	// Repository names are recorded only when explicitly encoded in the cache path.
 	parts := strings.Split(p, "/")
+	repoDir, revision := "", ""
 	for i, part := range parts {
 		if strings.HasPrefix(part, "models--") {
 			repo := strings.ReplaceAll(strings.TrimPrefix(part, "models--"), "--", "/")
 			if textOK(repo, true) {
 				props = append(props, prop("cache-repository", repo))
 				name = repo
+				repoDir = strings.Join(parts[:i+1], "/")
 			}
 		}
 		if part == "snapshots" && i+1 < len(parts)-1 && len(parts[i+1]) == 40 {
 			if _, err := hex.DecodeString(parts[i+1]); err == nil {
 				props = append(props, prop("cache-revision", parts[i+1]))
+				revision = parts[i+1]
 			}
+		}
+	}
+	if repoDir != "" && revision != "" {
+		for _, refName := range s.cacheRefs(repoDir, revision) {
+			props = append(props, prop("cache-ref", refName))
 		}
 	}
 	id := ref("discovered-model", s.scope, s.plan.Root, p)
 	c := object{"type": "machine-learning-model", "bom-ref": id, "name": name, "properties": props, "modelCard": object{"properties": []property{prop("coverage", "local configuration; publisher, model lineage, training and evaluation data require evidence")}}}
+	var cardTargets []string
+	if readme := path.Join(path.Dir(p), "README.md"); s.admitted[readme] {
+		card, err := s.readModelCard(readme)
+		switch {
+		case err != nil:
+			s.issue(readme, "model_card_unavailable")
+		case card != nil:
+			props, cardTargets = card.apply(s, c, id, readme, props)
+		}
+	}
 	shards := map[string]bool{}
 	prefix := path.Dir(p)
 	index := path.Join(prefix, "model.safetensors.index.json")
@@ -303,6 +323,7 @@ func (s *modelScanner) huggingFace(p string) {
 	props = append(props, prop("weight-bytes-observed", strconv.FormatInt(observedBytes, 10)), prop("weight-files-observed", strconv.Itoa(len(targets))), prop("weight-files-unavailable", strconv.Itoa(unavailable)), prop("weight-files-referenced", strconv.Itoa(len(shards))))
 	c["properties"] = props
 	s.result.Components = append(s.result.Components, c)
+	targets = append(targets, cardTargets...)
 	if len(targets) > 0 {
 		s.result.Dependencies = append(s.result.Dependencies, object{"ref": id, "dependsOn": targets})
 	}
@@ -313,7 +334,7 @@ func (s *modelScanner) weight(p string, standalone bool) (object, error) {
 		return nil, err
 	}
 	defer f.Close()
-	observed, err := modelHeader(f, st.Size())
+	observed, err := artifactHeader(f, st.Size(), p)
 	if err != nil || len(observed) == 0 {
 		return nil, fmt.Errorf("model header unreadable")
 	}
@@ -393,24 +414,45 @@ func (s *modelScanner) ollama(p string) {
 // the same IDs and source distinction in both CycloneDX versions.
 func AddDiscoveredModels(ctx context.Context, documents map[string][]byte, discoveries []ModelDiscovery, include17 bool) error {
 	var components, dependencies []object
-	issueCounts := map[string]int{}
-	issueCount := 0
+	var issues []model.Issue
 	for _, d := range discoveries {
-		for _, issue := range d.Issues {
-			issueCount++
-			issueCounts[issue.Code]++
-		}
+		issues = append(issues, d.Issues...)
 		components = append(components, d.Components...)
 		dependencies = append(dependencies, d.Dependencies...)
 	}
-	if len(components) == 0 && issueCount == 0 {
+	return mergeDiscovered(ctx, documents, "aibom", "admitted local model metadata; weight contents and runtime state unverified",
+		[]property{prop("discovery", "admitted-local-files"), prop("discovery-weight-digest", "not-collected"), prop("discovery-runtime-state", "not-observed")},
+		map[string][]object{"components": components, "dependencies": dependencies}, issues, include17)
+}
+
+// AddDiscoveredServices adds backends declared by local proxies to the SaaSBOM.
+func AddDiscoveredServices(ctx context.Context, documents map[string][]byte, discoveries []ServiceDiscovery, include17 bool) error {
+	var services []object
+	var issues []model.Issue
+	for _, d := range discoveries {
+		issues = append(issues, d.Issues...)
+		services = append(services, d.Services...)
+	}
+	return mergeDiscovered(ctx, documents, "saasbom", "backends declared in local proxy configuration; reachability and use unverified",
+		[]property{prop("discovery", "admitted-proxy-configuration"), prop("discovery-runtime-state", "not-observed")},
+		map[string][]object{"services": services}, issues, include17)
+}
+
+// mergeDiscovered appends discovered items to kind's document, creating it when
+// absent, and rewrites both CycloneDX versions.
+func mergeDiscovered(ctx context.Context, documents map[string][]byte, kind, coverage string, discoveryProps []property, items map[string][]object, issues []model.Issue, include17 bool) error {
+	count := 0
+	for _, list := range items {
+		count += len(list)
+	}
+	if count == 0 && len(issues) == 0 {
 		return ctx.Err()
 	}
 	if documents == nil {
-		return fmt.Errorf("model document destination is nil")
+		return fmt.Errorf("%s document destination is nil", kind)
 	}
-	doc := object{"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1, "metadata": object{"properties": []property{prop("kind", "aibom"), prop("coverage", "admitted local model metadata; weight contents and runtime state unverified")}}, "compositions": []object{{"aggregate": "incomplete"}}}
-	if raw := documents["aibom.cdx.json"]; len(raw) > 0 {
+	doc := object{"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1, "metadata": object{"properties": []property{prop("kind", kind), prop("coverage", coverage)}}, "compositions": []object{{"aggregate": "incomplete"}}}
+	if raw := documents[kind+".cdx.json"]; len(raw) > 0 {
 		decoder := json.NewDecoder(strings.NewReader(string(raw)))
 		decoder.UseNumber()
 		if err := decoder.Decode(&doc); err != nil {
@@ -425,12 +467,16 @@ func AddDiscoveredModels(ctx context.Context, documents map[string][]byte, disco
 	var properties []property
 	encoded, _ := json.Marshal(metadata["properties"])
 	_ = json.Unmarshal(encoded, &properties)
-	properties = append(properties, prop("discovery", "admitted-local-files"), prop("discovery-weight-digest", "not-collected"), prop("discovery-runtime-state", "not-observed"))
+	properties = append(properties, discoveryProps...)
+	issueCounts := map[string]int{}
+	for _, issue := range issues {
+		issueCounts[issue.Code]++
+	}
 	status := "metadata-observed"
-	if issueCount > 0 {
+	if len(issues) > 0 {
 		status = "incomplete"
 	}
-	properties = append(properties, prop("discovery-status", status), prop("discovery-issue-count", fmt.Sprint(issueCount)))
+	properties = append(properties, prop("discovery-status", status), prop("discovery-issue-count", fmt.Sprint(len(issues))))
 	codes := make([]string, 0, len(issueCounts))
 	for code := range issueCounts {
 		codes = append(codes, code)
@@ -440,7 +486,12 @@ func AddDiscoveredModels(ctx context.Context, documents map[string][]byte, disco
 		properties = append(properties, prop("discovery-issue:"+code, fmt.Sprint(issueCounts[code])))
 	}
 	metadata["properties"] = properties
-	for key, items := range map[string][]object{"components": components, "dependencies": dependencies} {
+	keys := make([]string, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
 		existing := []any{}
 		if v, ok := doc[key].([]any); ok {
 			existing = v
@@ -457,7 +508,7 @@ func AddDiscoveredModels(ctx context.Context, documents map[string][]byte, disco
 				}
 			}
 		}
-		for _, v := range items {
+		for _, v := range items[key] {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -485,11 +536,57 @@ func AddDiscoveredModels(ctx context.Context, documents map[string][]byte, disco
 		if err != nil {
 			return err
 		}
-		name := "aibom.cdx.json"
+		name := kind + ".cdx.json"
 		if v == "1.7" {
-			name = "aibom.cdx-1.7.json"
+			name = kind + ".cdx-1.7.json"
 		}
 		documents[name] = append(b, '\n')
 	}
 	return nil
+}
+
+// MarkServingModels annotates host-scope discovered models that a running model
+// server was started with: its path equals or contains the server's model
+// path, or its cache repository equals the server's repository ID. The process
+// reference shows intent at start-up; the server may since have loaded another model.
+func MarkServingModels(discoveries []ModelDiscovery, links []model.ProcessLink) {
+	for _, d := range discoveries {
+		if d.Scope != "" {
+			continue // container and multi-target paths are not host paths
+		}
+		for _, c := range d.Components {
+			props, _ := c["properties"].([]property)
+			if c["type"] != "machine-learning-model" || props == nil {
+				continue
+			}
+			location, repo := "", ""
+			for _, p := range props {
+				switch p.Name {
+				case "koda:domain:path":
+					location = p.Value
+				case "koda:domain:cache-repository":
+					repo = p.Value
+				}
+			}
+			matched := false
+			for _, l := range links {
+				for _, r := range l.ModelReferences {
+					if r == repo || location == r || strings.HasPrefix(location, r+"/") {
+						props = append(props, prop("serving-process", fmt.Sprintf("pid %d %s", l.PID, l.Executable)))
+						matched = true
+						break
+					}
+				}
+			}
+			if !matched {
+				continue
+			}
+			for i := range props {
+				if props[i].Name == "koda:domain:runtime-state" {
+					props[i].Value = "referenced-by-running-process"
+				}
+			}
+			c["properties"] = props
+		}
+	}
 }

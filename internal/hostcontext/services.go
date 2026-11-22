@@ -18,7 +18,8 @@ const maxServices = 2000
 // and is read only on a live host.
 var unitDirs = []string{"etc/systemd/system", "run/systemd/system", "usr/lib/systemd/system", "lib/systemd/system"}
 
-var unitName = regexp.MustCompile(`^[A-Za-z0-9:_.@\\-]{1,200}\.(service|socket)$`)
+var unitName = regexp.MustCompile(`^[A-Za-z0-9:_.@\\-]{1,200}\.(service|socket|timer)$`)
+var scheduleValue = regexp.MustCompile(`^[A-Za-z0-9 _.:,*/~+-]{1,128}$`)
 var listenValue = regexp.MustCompile(`^[A-Za-z0-9_.:\[\]/@%-]{1,128}$`)
 
 // collectServices records services and sockets enabled to start at boot
@@ -92,6 +93,21 @@ func collectServices(root *os.Root, out *model.Context, live bool, allowed map[s
 				activated = strings.TrimSuffix(unit, ".socket") + "@.service"
 			}
 			if values := keys["Service"]; len(values) > 0 && unitName.MatchString(values[len(values)-1]) {
+				activated = values[len(values)-1]
+			}
+			service.Activates = activated
+			_, keys, _ = readUnit(root, dirs, activated, allowed)
+		}
+		if strings.HasSuffix(unit, ".timer") {
+			for _, k := range []string{"OnCalendar", "OnBootSec", "OnStartupSec", "OnActiveSec", "OnUnitActiveSec", "OnUnitInactiveSec"} {
+				for _, v := range keys[k] {
+					if scheduleValue.MatchString(v) {
+						service.Schedule = append(service.Schedule, k+"="+v)
+					}
+				}
+			}
+			activated := strings.TrimSuffix(unit, ".timer") + ".service"
+			if values := keys["Unit"]; len(values) > 0 && unitName.MatchString(values[len(values)-1]) {
 				activated = values[len(values)-1]
 			}
 			service.Activates = activated
@@ -172,7 +188,7 @@ func readUnit(root *os.Root, dirs []string, unit string, allowed map[string]bool
 				section = line
 				continue
 			}
-			if section != "[Service]" && section != "[Socket]" {
+			if section != "[Service]" && section != "[Socket]" && section != "[Timer]" {
 				continue
 			}
 			k, v, ok := strings.Cut(line, "=")

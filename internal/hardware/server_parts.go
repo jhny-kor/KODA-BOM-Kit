@@ -8,9 +8,13 @@ import (
 
 // serverParts reads component identity where a Linux driver exposes it.
 // EDAC rank entries and fan tachometer channels are not physical FRU counts.
-func (c *collector) serverParts(board string) {
+// EDAC DIMMs are skipped when SMBIOS already identified the installed modules.
+func (c *collector) serverParts(board string, smbiosMemory bool) {
 	const edac = "sys/devices/system/edac/mc"
 	for _, controller := range c.dirs(edac) {
+		if smbiosMemory {
+			break
+		}
 		if !numbered(controller.Name(), "mc") {
 			continue
 		}

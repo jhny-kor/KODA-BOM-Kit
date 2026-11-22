@@ -16,9 +16,14 @@ import (
 
 const maxSocketFDs = 1 << 18
 
-// listeningSockets reads the network namespace that pid belongs to.
-func listeningSockets(root *os.Root, out *model.Context, pid int) map[uint64]model.Socket {
+// listeningSockets reads the network namespace that pid belongs to. When
+// connections is not nil it also receives the namespace's outbound TCP connections.
+func listeningSockets(root *os.Root, out *model.Context, pid int, connections map[uint64]model.Connection) map[uint64]model.Socket {
 	sockets := map[uint64]model.Socket{}
+	var established map[uint64]establishedSocket
+	if connections != nil {
+		established = map[uint64]establishedSocket{}
+	}
 	base := "proc/" + strconv.Itoa(pid) + "/net/"
 	for _, protocol := range []string{"tcp", "tcp6", "udp", "udp6"} {
 		f, err := openNoFollow(root, base+protocol)
@@ -29,30 +34,39 @@ func listeningSockets(root *os.Root, out *model.Context, pid int) map[uint64]mod
 			issue(out, statusFor(err), base+protocol, "socket table unavailable")
 			continue
 		}
-		complete := parseSocketTable(protocol, io.LimitReader(f, 256<<20), sockets)
+		complete := parseSocketTable(protocol, io.LimitReader(f, 256<<20), sockets, established)
 		f.Close()
 		if !complete {
 			issue(out, "incomplete", base+protocol, "listening socket limit reached")
 			break
 		}
 	}
+	if len(established) >= maxEstablished {
+		issue(out, "incomplete", base+"tcp", "established connection limit reached; outbound relationships are incomplete")
+	}
+	rangeData, _ := readBounded(root, "proc/sys/net/ipv4/ip_local_port_range")
+	for inode, c := range outbound(sockets, established, ephemeralRange(string(rangeData))) {
+		connections[inode] = c
+	}
 	return sockets
 }
 
 // socketOwner maps each listening inode to the processes holding it.
 type socketOwner struct {
-	ctx      context.Context
-	root     *os.Root
-	out      *model.Context
-	sockets  map[uint64]model.Socket
-	owned    map[uint64]bool
-	budget   int
-	reported bool
+	ctx     context.Context
+	root    *os.Root
+	out     *model.Context
+	sockets map[uint64]model.Socket
+	// Outbound connections in the namespace; nil when not collected.
+	connections map[uint64]model.Connection
+	owned       map[uint64]bool
+	budget      int
+	reported    bool
 }
 
-func (s *socketOwner) process(prefix string) []model.Socket {
-	if len(s.sockets) == 0 || s.budget <= 0 || s.ctx.Err() != nil {
-		return nil
+func (s *socketOwner) process(prefix string) ([]model.Socket, []model.Connection) {
+	if len(s.sockets) == 0 && len(s.connections) == 0 || s.budget <= 0 || s.ctx.Err() != nil {
+		return nil, nil
 	}
 	dir, err := s.root.Open(prefix + "/fd")
 	if err != nil {
@@ -60,12 +74,12 @@ func (s *socketOwner) process(prefix string) []model.Socket {
 			s.reported = true
 			issue(s.out, "permission_denied", prefix+"/fd", "process descriptors unreadable; some listening sockets remain unattributed")
 		}
-		return nil
+		return nil, nil
 	}
 	names, err := dir.Readdirnames(s.budget + 1)
 	dir.Close()
 	if err != nil && err != io.EOF {
-		return nil
+		return nil, nil
 	}
 	if len(names) > s.budget {
 		names = names[:s.budget]
@@ -74,6 +88,7 @@ func (s *socketOwner) process(prefix string) []model.Socket {
 	s.budget -= len(names)
 	seen := map[uint64]bool{}
 	var found []model.Socket
+	var connections []model.Connection
 	for _, name := range names {
 		target, err := s.root.Readlink(prefix + "/fd/" + name)
 		if err != nil {
@@ -87,10 +102,13 @@ func (s *socketOwner) process(prefix string) []model.Socket {
 			seen[inode] = true
 			s.owned[inode] = true
 			found = append(found, socket)
+		} else if c, ok := s.connections[inode]; ok {
+			seen[inode] = true
+			connections = append(connections, c)
 		}
 	}
 	sortSockets(found)
-	return found
+	return found, aggregateConnections(connections)
 }
 
 func (s *socketOwner) unattributed() []model.Socket {
@@ -119,7 +137,9 @@ func NamespaceSockets(ctx context.Context, pids []int) (map[string][]model.Socke
 		return nil, nil
 	}
 	defer root.Close()
-	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out, pids[0]), owned: map[uint64]bool{}, budget: maxSocketFDs}
+	// ponytail: container collections keep listening sockets only; outbound
+	// connections are recorded for host processes.
+	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out, pids[0], nil), owned: map[uint64]bool{}, budget: maxSocketFDs}
 	byExecutable := map[string][]model.Socket{}
 	for _, pid := range pids {
 		prefix := "proc/" + strconv.Itoa(pid)
@@ -130,7 +150,8 @@ func NamespaceSockets(ctx context.Context, pids []int) (map[string][]model.Socke
 		if exe = safeRuntimePath(exe); exe == "" {
 			continue
 		}
-		for _, socket := range owners.process(prefix) {
+		listening, _ := owners.process(prefix)
+		for _, socket := range listening {
 			if !slices.Contains(byExecutable[exe], socket) {
 				byExecutable[exe] = append(byExecutable[exe], socket)
 			}

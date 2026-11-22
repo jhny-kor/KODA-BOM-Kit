@@ -45,6 +45,45 @@ type ProcessLink struct {
 	FilesystemComparable bool          `json:"filesystemComparable,omitempty"`
 	RuntimeFiles         []RuntimeFile `json:"runtimeFiles,omitempty"`
 	ListeningSockets     []Socket      `json:"listeningSockets,omitempty"`
+	// Established outbound TCP connections, aggregated per remote endpoint.
+	OutboundConnections []Connection `json:"outboundConnections,omitempty"`
+	// Model paths (root-relative) or repository IDs a model server was started with.
+	ModelReferences []string `json:"modelReferences,omitempty"`
+}
+
+// Connection is an established TCP connection whose local port is not a
+// listening port in the same namespace. Count is the number of sockets the
+// process held to this endpoint when observed; ephemeral local ports are dropped.
+type Connection struct {
+	Protocol      string `json:"protocol"`
+	RemoteAddress string `json:"remoteAddress"`
+	RemotePort    int    `json:"remotePort"`
+	RemoteScope   string `json:"remoteScope"`
+	Count         int    `json:"count"`
+}
+
+// ScheduledJob is a declared cron entry or cron directory script. Only the
+// absolute program path is kept; arguments may hold credentials.
+type ScheduledJob struct {
+	Source     string `json:"source"`
+	Line       int    `json:"line,omitempty"`
+	Schedule   string `json:"schedule"`
+	User       string `json:"user,omitempty"`
+	Executable string `json:"executable,omitempty"`
+}
+
+// FirewallDeclaration summarizes one firewall configuration file. It is a
+// declaration: whether the ruleset is loaded, and rule order, interfaces and
+// source restrictions, are not resolved.
+type FirewallDeclaration struct {
+	Framework          string   `json:"framework"`
+	Path               string   `json:"path"`
+	DefaultInputPolicy string   `json:"defaultInputPolicy,omitempty"`
+	AllowedInbound     []string `json:"allowedInbound,omitempty"` // "tcp/22", "udp/53", "all"; " restricted" when limited by source or interface
+	// State is "disabled" when the framework's own configuration turns it off.
+	State string `json:"state,omitempty"`
+	// UnresolvedRules counts accept rules too complex to summarize (negation, sets, variables).
+	UnresolvedRules int `json:"unresolvedRules,omitempty"`
 }
 
 // Socket is a listening TCP or unconnected bound UDP socket in the collector's
@@ -73,6 +112,7 @@ type Service struct {
 	Executable string   `json:"executable,omitempty"`
 	Activates  string   `json:"activates,omitempty"` // service started by a socket unit
 	Listen     []string `json:"listen,omitempty"`
+	Schedule   []string `json:"schedule,omitempty"` // [Timer] On* declarations of a timer unit
 	State      string   `json:"state,omitempty"`
 	PURL       string   `json:"purl,omitempty"`
 }
@@ -176,6 +216,10 @@ type Context struct {
 	UnattributedSockets []Socket `json:"unattributedSockets,omitempty"`
 	// systemd services and sockets enabled to start at boot.
 	EnabledServices []Service `json:"enabledServices,omitempty"`
+	// Cron entries and cron directory scripts.
+	ScheduledJobs []ScheduledJob `json:"scheduledJobs,omitempty"`
+	// Firewall configuration files and the inbound ports they accept.
+	Firewall []FirewallDeclaration `json:"firewall,omitempty"`
 	// Built-in and module options of the running kernel's build configuration.
 	KernelConfig *KernelConfig `json:"kernelConfig,omitempty"`
 	Settings     []Setting     `json:"settings"`

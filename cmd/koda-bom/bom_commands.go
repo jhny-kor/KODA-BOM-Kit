@@ -263,7 +263,7 @@ func splitArchivedBOMs(ctx context.Context, input, staging string, dual bool) er
 func completeDomainProfiles(docs map[string][]byte, dual bool) error {
 	for _, p := range []struct{ kind, reason string }{
 		{"aibom", "no model identified in admitted scan paths or supplied evidence"},
-		{"saasbom", "no service inventory or OpenAPI evidence supplied"},
+		{"saasbom", "no service inventory, OpenAPI evidence or proxy backend declaration found"},
 		{"mbom", "no manufacturing or build provenance supplied"},
 	} {
 		if _, exists := docs[p.kind+".cdx.json"]; !exists {

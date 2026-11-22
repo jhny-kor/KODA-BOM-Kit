@@ -39,10 +39,12 @@ type graph struct {
 	components map[string]component
 	services   map[string]service
 	edges      map[string]map[string]bool
+	// Host firewall declarations used to annotate non-loopback listening sockets.
+	firewall []model.FirewallDeclaration
 }
 
 func newGraph() *graph {
-	return &graph{map[string]component{}, map[string]service{}, map[string]map[string]bool{}}
+	return &graph{components: map[string]component{}, services: map[string]service{}, edges: map[string]map[string]bool{}}
 }
 func reference(parts ...string) string {
 	h := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
@@ -87,6 +89,9 @@ func (g *graph) processes(scope string, processes []model.ProcessLink) {
 		if p.ExecutableDeleted {
 			props = append(props, prop("executable-deleted", "true"))
 		}
+		for _, m := range p.ModelReferences {
+			props = append(props, prop("model-reference", m))
+		}
 		g.components[ref] = component{Type: "application", Ref: ref, Name: "process " + strconv.Itoa(p.PID), Properties: props}
 		g.edge(scope, ref)
 		owner := ""
@@ -111,6 +116,41 @@ func (g *graph) processes(scope string, processes []model.ProcessLink) {
 		for _, s := range p.ListeningSockets {
 			g.socket(scope, ref, s)
 		}
+		for _, c := range p.OutboundConnections {
+			g.remote(scope, ref, c)
+		}
+	}
+}
+
+// remote records an endpoint a process was connected to; processes reaching
+// the same endpoint share one service.
+func (g *graph) remote(scope, owner string, c model.Connection) {
+	label := net.JoinHostPort(c.RemoteAddress, strconv.Itoa(c.RemotePort))
+	ref := reference(scope, "remote", c.Protocol, label)
+	if _, exists := g.services[ref]; !exists {
+		props := []property{prop("scope", scope), prop("observation", "outbound-connection"), prop("remote-address", c.RemoteAddress), prop("remote-port", strconv.Itoa(c.RemotePort)), prop("remote-scope", c.RemoteScope)}
+		g.services[ref] = service{Ref: ref, Name: c.Protocol + " " + label, Endpoints: []string{c.Protocol + "://" + label}, Properties: props}
+	}
+	g.edge(owner, ref)
+}
+
+// jobs records declared cron entries and cron directory scripts.
+func (g *graph) jobs(scope string, jobs []model.ScheduledJob) {
+	for _, j := range jobs {
+		at := j.Source
+		if j.Line > 0 {
+			at += ":" + strconv.Itoa(j.Line)
+		}
+		ref := reference(scope, "scheduled-job", at)
+		props := []property{prop("scope", scope), prop("observation", "scheduled-job"), prop("schedule", j.Schedule), prop("declared-at", at)}
+		if j.User != "" {
+			props = append(props, prop("user", j.User))
+		}
+		if j.Executable != "" {
+			props = append(props, prop("executable", j.Executable))
+		}
+		g.services[ref] = service{Ref: ref, Name: "cron " + at, Properties: props}
+		g.edge(scope, ref)
 	}
 }
 func (g *graph) socket(scope, owner string, s model.Socket) {
@@ -118,6 +158,9 @@ func (g *graph) socket(scope, owner string, s model.Socket) {
 	ref := reference(scope, "socket", owner, s.Protocol, label)
 	protocol := strings.TrimSuffix(s.Protocol, "6")
 	props := []property{prop("scope", scope), prop("protocol", s.Protocol), prop("bind-address", s.Address), prop("port", strconv.Itoa(s.Port)), prop("bind-scope", s.BindScope), prop("observation", "listening-socket")}
+	if declared := firewallAccepts(g.firewall, s.Protocol, s.Port); declared != "" && s.BindScope != "loopback" {
+		props = append(props, prop("firewall-declared", declared))
+	}
 	if owner == "" {
 		props = append(props, prop("owner", "unknown"))
 	} else {
@@ -132,6 +175,9 @@ func (g *graph) units(scope string, units []model.Service) {
 		props := []property{prop("scope", scope), prop("observation", "enabled-systemd-unit"), prop("state", u.State), prop("executable", u.Executable)}
 		for _, listen := range u.Listen {
 			props = append(props, prop("declared-listen", listen))
+		}
+		for _, schedule := range u.Schedule {
+			props = append(props, prop("declared-schedule", schedule))
 		}
 		g.services[ref] = service{Ref: ref, Name: u.Unit, Properties: props}
 		g.edge(scope, ref)
@@ -188,4 +234,49 @@ func parseSocketLabel(label string) (model.Socket, error) {
 		return model.Socket{}, fmt.Errorf("invalid socket port")
 	}
 	return model.Socket{Protocol: protocol, Address: host, Port: n, BindScope: strings.TrimSuffix(scope, ")")}, nil
+}
+
+// firewallAccepts summarizes how active declarations treat an inbound port:
+// "accept-declared", "accept-declared-restricted", "policy-accept-declared",
+// "no-accept-declared", or "undetermined" when a policy or rule could not be
+// resolved. It returns "" when no active firewall declaration exists.
+func firewallAccepts(declarations []model.FirewallDeclaration, protocol string, port int) string {
+	protocol = strings.TrimSuffix(protocol, "6")
+	active, restricted, policyAccept, unknown := false, false, false, false
+	for _, d := range declarations {
+		if d.State == "disabled" {
+			continue
+		}
+		active = true
+		policyAccept = policyAccept || d.DefaultInputPolicy == "ACCEPT"
+		unknown = unknown || d.DefaultInputPolicy == "" || d.UnresolvedRules > 0
+		for _, entry := range d.AllowedInbound {
+			spec, qualifier, _ := strings.Cut(entry, " ")
+			match := spec == "all"
+			if proto, ports, ok := strings.Cut(spec, "/"); ok && proto == protocol {
+				low, high, isRange := strings.Cut(ports, "-")
+				if !isRange {
+					high = low
+				}
+				lo, errL := strconv.Atoi(low)
+				hi, errH := strconv.Atoi(high)
+				match = ports == "all" || errL == nil && errH == nil && lo <= port && port <= hi
+			}
+			if match && qualifier == "" {
+				return "accept-declared"
+			}
+			restricted = restricted || match
+		}
+	}
+	switch {
+	case !active:
+		return ""
+	case policyAccept:
+		return "policy-accept-declared"
+	case restricted:
+		return "accept-declared-restricted"
+	case unknown:
+		return "undetermined"
+	}
+	return "no-accept-declared"
 }

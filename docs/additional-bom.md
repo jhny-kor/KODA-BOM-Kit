@@ -36,7 +36,9 @@ A command accepts up to 12 inputs across these three domains. Each JSON evidence
 
 ## SaaSBOM
 
-`--saas-evidence` accepts OpenAPI 3.x JSON or `koda-services-1`. OpenAPI supplies title, version, explicit absolute servers at root/path/operation level and operation authentication declarations. Relative default servers have an unknown deployment location. Explicit anonymous operations set `authenticated=false`. If all inspected operations require authentication, the value is `true`. Insufficient declarations leave it absent. Body examples, security scheme contents, descriptions and secrets are omitted. [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
+`--saas-evidence` accepts OpenAPI 3.x JSON or YAML, or `koda-services-1`. YAML must be one document; duplicate keys are rejected and numbers keep their literal text, so `version: 1.0` stays `1.0`. OpenAPI supplies title, version, explicit absolute servers at root/path/operation level and operation authentication declarations. Relative default servers have an unknown deployment location. Explicit anonymous operations set `authenticated=false`. If all inspected operations require authentication, the value is `true`. Insufficient declarations leave it absent. Body examples, security scheme contents, descriptions and secrets are omitted. [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html)
+
+A host scan also reads reverse proxy and load balancer configuration: nginx `upstream`, `proxy_pass` and `grpc_pass`, Apache `ProxyPass` and `BalancerMember`, and HAProxy `backend` servers. Each backend becomes a service with `observation=declared-proxy-backend` and the file and line that declared it. Only scheme, host and port are kept; paths, queries and credentials are dropped, and targets that use variables are reported as unresolved. Whether a backend is reachable is shown by OBOM outbound connections, not by this declaration.
 
 Use this schema for providers, trust boundaries, data classification and service dependencies.
 
@@ -78,6 +80,10 @@ Inspect a model directory on the target server. Host collection applies the same
 - Hugging Face `config.json` supplies architecture, text-model layers and attention heads, maximum context and quantization. Weight indexes supply declared tensor counts and shard lists.
 - safetensors and GGUF headers supply format, tensor counts and available metadata. Model and weight file components are linked through dependencies. Discovery reads bounded headers even for large weights. Configuration, index and header hashes are identified separately from full-file hashes.
 - Ollama manifests link model layers to readable local blob headers. Confirming the model server's current loading state requires runtime evidence.
+- A Hugging Face `README.md` model card next to `config.json` supplies license, `base_model`, `datasets`, `pipeline_tag`, language and library. Base models and datasets become declared components linked to the model. In a Hugging Face cache, `refs/main` and other refs that point at the snapshot are recorded as `cache-ref`. Model card fields remain publisher declarations.
+- ONNX files report IR version, producer, model version and operator sets. Operator domains outside `ai.onnx` and `ai.onnx.ml` are listed as `onnx:custom-operator-domain`, because they need a native custom operator library.
+- PyTorch checkpoints (`pytorch_model*.bin`, `.pt`, `.pth`, `.ckpt`, zip or legacy) are pickles that run the callables they import when loaded. KODA walks the pickle opcodes without executing them and records `pickle:safety`: `allowlisted-imports-only`, `unknown-imports` or `dangerous-imports` with each `pickle:dangerous-import` such as `os.system`. A file the scanner cannot walk to the end, including protocol 0/1 pickles and every stream of a legacy `torch.save` file, is reported with `pickle:inspection=incomplete` and never as allowlisted-only; imports found before the failure are kept. Prefer safetensors for any file that is not allowlisted-only.
+- On a live host, a vLLM, TGI, llama.cpp, SGLang, Triton or LMDeploy process started with a model path or repository ID marks the matching model `runtime-state=referenced-by-running-process` with `serving-process`, and the OBOM process carries `model-reference`. This reflects the start-up arguments; Ollama chooses models per request and is not matched.
 
 ### Qwen on a Linux server with NVIDIA GPUs
 
@@ -96,7 +102,7 @@ Replace `/srv/models/Qwen` with the server's actual path. For Hugging Face symli
 | PyTorch, Transformers, vLLM and CUDA package versions | Host or container SBOM when installed metadata is readable |
 | Serving process and listening sockets | `boms/obom.cdx.json` when the process and executable are observed |
 
-Training/evaluation data, licenses, upstream revision and lineage require model cards or provenance declarations. Current GPU/VRAM usage, MIG allocation and serving context need separate runtime observations.
+Training/evaluation data and lineage beyond the model card require provenance declarations. Current GPU/VRAM usage, MIG allocation and serving context need separate runtime observations.
 
 A standalone weight artifact records full-file SHA-256 and available safetensors or GGUF v2/v3 header metadata with `artifact-binding=sha256-calculated`. safetensors supplies dtype and data ranges. GGUF may supply `general.name`, `general.architecture` and `general.file_type`. Tensor data and model computations require separate validation. [safetensors format](https://github.com/safetensors/safetensors#format)
 

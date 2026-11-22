@@ -1,11 +1,15 @@
 package domainbom
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
+
+	"go.yaml.in/yaml/v3"
 )
 
 type serviceInput struct {
@@ -40,8 +44,17 @@ func (d *document) source(sum string) bool {
 	return true
 }
 func loadServices(ctx context.Context, path string, d *document) error {
-	raw, sum, err := readEvidence(ctx, path)
+	raw, sum, err := readEvidenceBytes(ctx, path)
 	if err != nil {
+		return err
+	}
+	// The source digest identifies the file as supplied; YAML is converted only for parsing.
+	if trimmed := bytes.TrimSpace(raw); len(trimmed) > 0 && trimmed[0] != '{' {
+		if raw, err = yamlJSON(raw); err != nil {
+			return err
+		}
+	}
+	if err := uniqueJSON(raw); err != nil {
 		return err
 	}
 	if !d.source(sum) {
@@ -63,7 +76,7 @@ func loadServices(ctx context.Context, path string, d *document) error {
 		}
 		input.Services = services
 	} else {
-		return fmt.Errorf("expected koda-services-1 or OpenAPI 3.x JSON")
+		return fmt.Errorf("expected koda-services-1 or OpenAPI 3.x JSON/YAML")
 	}
 	if len(input.Services) == 0 || len(input.Services) > maxItems {
 		return fmt.Errorf("service count outside supported bounds")
@@ -226,4 +239,83 @@ func openAPI(raw []byte) ([]serviceInput, error) {
 		service.Endpoints = append(service.Endpoints, s.URL)
 	}
 	return []serviceInput{service}, nil
+}
+
+// yamlJSON converts one YAML document to JSON. Numbers and timestamps keep
+// their literal text (OpenAPI "version: 1.0" stays "1.0"); booleans and nulls
+// stay typed. Duplicate keys are rejected and alias expansion is bounded.
+func yamlJSON(raw []byte) ([]byte, error) {
+	var doc, extra yaml.Node
+	decoder := yaml.NewDecoder(bytes.NewReader(raw))
+	if err := decoder.Decode(&doc); err != nil {
+		return nil, fmt.Errorf("invalid YAML service evidence")
+	}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return nil, fmt.Errorf("YAML evidence must hold one document")
+	}
+	budget := 4 * maxEvidenceBytes
+	value, err := yamlValue(&doc, 0, &budget)
+	if err != nil {
+		return nil, err
+	}
+	// HTML escaping would expand <, > and & sixfold beyond the byte budget.
+	var out bytes.Buffer
+	encoder := json.NewEncoder(&out)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(out.Bytes(), []byte("\n")), nil
+}
+
+// yamlValue converts n, charging every visited node and scalar byte against
+// budget. Aliases are charged on each use, which bounds expansion by output size.
+func yamlValue(n *yaml.Node, depth int, budget *int) (any, error) {
+	if *budget -= 1 + len(n.Value); depth > 64 || *budget < 0 {
+		return nil, fmt.Errorf("YAML nesting or alias expansion exceeds limit")
+	}
+	switch n.Kind {
+	case yaml.DocumentNode:
+		if len(n.Content) != 1 {
+			return nil, fmt.Errorf("YAML evidence must hold one document")
+		}
+		return yamlValue(n.Content[0], depth, budget)
+	case yaml.AliasNode:
+		return yamlValue(n.Alias, depth+1, budget)
+	case yaml.MappingNode:
+		out := make(map[string]any, len(n.Content)/2)
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			key := n.Content[i].Value
+			if _, dup := out[key]; dup {
+				return nil, fmt.Errorf("duplicate YAML key")
+			}
+			value, err := yamlValue(n.Content[i+1], depth+1, budget)
+			if err != nil {
+				return nil, err
+			}
+			out[key] = value
+		}
+		return out, nil
+	case yaml.SequenceNode:
+		out := make([]any, 0, len(n.Content))
+		for _, c := range n.Content {
+			value, err := yamlValue(c, depth+1, budget)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, value)
+		}
+		return out, nil
+	}
+	switch n.ShortTag() {
+	case "!!null":
+		return nil, nil
+	case "!!bool":
+		var b bool
+		if err := n.Decode(&b); err != nil {
+			return nil, fmt.Errorf("invalid YAML boolean")
+		}
+		return b, nil
+	}
+	return n.Value, nil
 }

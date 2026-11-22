@@ -534,6 +534,7 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 	var inventory *sbom.SBOM
 	var observed []reconcile.Component
 	var discoveries []domainbom.ModelDiscovery
+	var serviceDiscoveries []domainbom.ServiceDiscovery
 	var combined collect.DirectoryInventory
 	var catalogIssues, javascriptIssues, tempExcluded bool
 	var integrity collect.IntegrityResult
@@ -583,6 +584,14 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 			issues = append(issues, found.Issues...)
 			discoveries = append(discoveries, found)
 			finishPhase("modelDiscovery")
+			services, serviceErr := domainbom.DiscoverServices(ctx, plan, scope.id)
+			if serviceErr != nil {
+				record("failed")
+				return fail("service-discovery", serviceErr)
+			}
+			issues = append(issues, services.Issues...)
+			serviceDiscoveries = append(serviceDiscoveries, services)
+			finishPhase("serviceDiscovery")
 		}
 		if image == "" {
 			buildEvidence.admit(plan)
@@ -765,8 +774,14 @@ func runScan(parent context.Context, args []string, onComplete scanCompletion) i
 		if domainDocs == nil {
 			domainDocs = map[string][]byte{}
 		}
+		if !multiple && image == "" && target == "/" {
+			domainbom.MarkServingModels(discoveries, contextData.ProcessLinks)
+		}
 		if err := domainbom.AddDiscoveredModels(ctx, domainDocs, discoveries, cyclonedx17); err != nil {
 			return fail("model-discovery", err)
+		}
+		if err := domainbom.AddDiscoveredServices(ctx, domainDocs, serviceDiscoveries, cyclonedx17); err != nil {
+			return fail("service-discovery", err)
 		}
 		if err := completeDomainProfiles(domainDocs, cyclonedx17); err != nil {
 			return fail("domain-bom", err)

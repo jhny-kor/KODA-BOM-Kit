@@ -104,7 +104,8 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		issue(out, "incomplete", "proc", "process directory entry limit reached")
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out, os.Getpid()), owned: map[uint64]bool{}, budget: maxSocketFDs}
+	connections := map[uint64]model.Connection{}
+	owners := socketOwner{ctx: ctx, root: root, out: out, sockets: listeningSockets(root, out, os.Getpid(), connections), connections: connections, owned: map[uint64]bool{}, budget: maxSocketFDs}
 	defer func() { out.UnattributedSockets = owners.unattributed() }()
 	count := 0
 	for _, entry := range entries {
@@ -133,7 +134,8 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		if exe == "" || blocked(exe, denied) {
 			continue
 		}
-		link := model.ProcessLink{PID: pid, Executable: exe, ExecutableDeleted: executableDeleted, ListeningSockets: owners.process(prefix)}
+		link := model.ProcessLink{PID: pid, Executable: exe, ExecutableDeleted: executableDeleted}
+		link.ListeningSockets, link.OutboundConnections = owners.process(prefix)
 		if data, err := readBounded(root, prefix+"/maps"); err == nil {
 			link.Libraries = parseMaps(string(data), denied)
 			link.FilesystemComparable = sameProcessFilesystem(root, prefix)
@@ -146,6 +148,7 @@ func collectRuntime(ctx context.Context, root *os.Root, out *model.Context, deni
 		}
 		if data, err := readBounded(root, prefix+"/cmdline"); err == nil {
 			link.InstallHints = parseInstallHints(string(data), denied)
+			link.ModelReferences = parseModelReferences(string(data), denied)
 		}
 		out.ProcessLinks = append(out.ProcessLinks, link)
 	}
@@ -164,13 +167,6 @@ func parseModules(data string) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-func safeRuntimePath(p string) string {
-	p = strings.TrimSuffix(p, " (deleted)")
-	if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, "\x00\r\n") {
-		return ""
-	}
-	return strings.TrimPrefix(path.Clean(p), "/")
 }
 func parseMaps(data string, denied []string) []string {
 	seen := map[string]bool{}
