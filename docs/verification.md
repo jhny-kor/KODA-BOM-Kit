@@ -110,7 +110,7 @@ python3 tests/oracle-vm/validate.py /path/to/actual-uek-run/results \
 
 The Oracle runner uses QEMU system TCG, 4 GiB RAM, two virtual CPUs and a custom static PID 1, with no guest network or disk. It verifies uname, proc release, actual loop module loading and installed versus running kernels. Ubuntu tests boot `6.8.0-47-generic` with authenticated Ubuntu Base and kernel packages. GRUB, UEFI/Secure Boot, complete systemd boot, enforcing SELinux, physical drivers and production services require separate tests. An Oracle container checks user space and RPM data while sharing its host kernel.
 
-[Oracle VM](../tests/oracle-vm/README.md) · [Ubuntu VM](../tests/ubuntu-vm/README.md)
+[Oracle VM](tests/oracle-vm/README.md) · [Ubuntu VM](tests/ubuntu-vm/README.md)
 
 ## Syscalls, resource limits and downstream analysis
 

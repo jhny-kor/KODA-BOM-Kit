@@ -58,6 +58,10 @@ def main():
         stage = Path(directory)
         subprocess.run([sys.executable, NAV, '--stage', stage], check=True)
         errors = []
+        outside_docs = {p.relative_to(stage) for p in stage.rglob('*.md')
+                        if not p.is_relative_to(stage / 'docs')}
+        if outside_docs != {Path('README.md')}:
+            errors.append(f'Expected only README.md outside docs/, found {sorted(map(str, outside_docs))}')
         count = 0
         for family in nav.FAMILIES:
             for lang in nav.LANGUAGES:

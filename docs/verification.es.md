@@ -110,7 +110,7 @@ python3 tests/oracle-vm/validate.py /path/to/actual-uek-run/results \
 
 El ejecutor Oracle usa QEMU system TCG, 4 GiB, dos CPU y un PID 1 estático propio, sin red ni disco del invitado. Comprueba uname, proc, carga real de loop y núcleos instalados y activos. Ubuntu arranca `6.8.0-47-generic` desde paquetes autenticados. GRUB, UEFI/Secure Boot, systemd completo, SELinux enforcing, controladores físicos y servicios requieren pruebas adicionales. Un contenedor Oracle comparte el núcleo del anfitrión.
 
-[Oracle VM](../tests/oracle-vm/README.es.md) · [Ubuntu VM](../tests/ubuntu-vm/README.es.md)
+[Oracle VM](tests/oracle-vm/README.es.md) · [Ubuntu VM](tests/ubuntu-vm/README.es.md)
 
 ## Llamadas al sistema, recursos y análisis posterior
 

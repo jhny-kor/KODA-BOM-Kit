@@ -150,7 +150,7 @@ def main():
         '종료 코드 0=완전 수집, 3=부분 수집, 2=실패. 결과 폴더 전체를 보관합니다.\n'
         'Ubuntu 24.04.1 6.8.0-47 및 Oracle 8.2 RHCK/UEK 실제 커널 VM으로 최종 바이너리 검증.\n'
         '구독 클라이언트의 실제 패치 적용 시험과 CVE 판정은 수행하지 않았습니다.\n'
-        '실행 파일 SHA-256: ' + binary_sha + '\n상세 사용법 README.ko.md, docs/air-gapped.ko.md, 검증 VERIFICATION.json\n')
+        '실행 파일 SHA-256: ' + binary_sha + '\n상세 사용법 docs/README.ko.md, docs/air-gapped.ko.md, 검증 VERIFICATION.json\n')
     checks = {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob('*')) if p.is_file() and p.name != 'SHA256SUMS'}
     (stage / 'SHA256SUMS').write_text(''.join(f'{sha}  {name}\n' for name, sha in checks.items()))
     final = stage.with_name(stage.name + '-verified')

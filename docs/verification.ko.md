@@ -222,7 +222,7 @@ sudo ./collect-livepatch-status.sh /var/tmp/koda-sbom-results --max-files 0 --ti
 ## Ubuntu·라이브패치 검증
 
 Ubuntu 24.04.1/`6.8.0-47-generic` 실제 커널 검증 절차는
-[`tests/ubuntu-vm/README.ko.md`](../tests/ubuntu-vm/README.ko.md)에 있습니다.
+[`docs/tests/ubuntu-vm/README.ko.md`](tests/ubuntu-vm/README.ko.md)에 있습니다.
 Ubuntu CD 서명키로 인증한 Base rootfs와 서명된 Ubuntu Snapshot 인덱스의 커널 DEB를 사용하며,
 원본 DEB를 unpack한 시험용 사용자 공간을 custom initramfs로 부팅합니다.
 독립 uname·proc release·실제 `dummy` 모듈 로드와 수집 결과를 비교하고,

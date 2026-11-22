@@ -110,7 +110,7 @@ python3 tests/oracle-vm/validate.py /path/to/actual-uek-run/results \
 
 Oracle runner 使用 QEMU system TCG、4 GiB 記憶體、2 個虛擬 CPU 和專用靜態 PID 1，來賓無網絡或磁盤。檢查 uname、proc、實際加載的 loop 模塊、已安裝與運行內核。Ubuntu 從已認證資料啓動 `6.8.0-47-generic`。GRUB、UEFI/Secure Boot、完整 systemd 啓動、SELinux enforcing、物理驅動及生產服務需另行驗證。Oracle 容器共享宿主內核，只能驗證其用戶空間和 RPM 資料。
 
-[Oracle VM](../tests/oracle-vm/README.zh-hant.md) · [Ubuntu VM](../tests/ubuntu-vm/README.zh-hant.md)
+[Oracle VM](tests/oracle-vm/README.zh-hant.md) · [Ubuntu VM](tests/ubuntu-vm/README.zh-hant.md)
 
 ## 系統調用、資源限制與後續分析
 

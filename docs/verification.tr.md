@@ -110,7 +110,7 @@ python3 tests/oracle-vm/validate.py /path/to/actual-uek-run/results \
 
 Oracle çalıştırıcısı QEMU system TCG, 4 GiB, iki CPU ve özel statik PID 1 kullanır. Konuk ağ/disk içermez. uname, proc, gerçek loop yüklemesi ve kurulu/çalışan çekirdekleri denetler. Ubuntu doğrulanmış paketlerle `6.8.0-47-generic` başlatır. GRUB, UEFI/Secure Boot, tam systemd, SELinux enforcing, fiziksel sürücüler ve üretim servisleri ek test ister. Oracle konteyneri ana makine çekirdeğini paylaşır.
 
-[Oracle VM](../tests/oracle-vm/README.tr.md) · [Ubuntu VM](../tests/ubuntu-vm/README.tr.md)
+[Oracle VM](tests/oracle-vm/README.tr.md) · [Ubuntu VM](tests/ubuntu-vm/README.tr.md)
 
 ## Sistem çağrıları, kaynaklar ve sonraki analiz
 

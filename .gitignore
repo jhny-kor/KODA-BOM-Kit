@@ -1,5 +1,6 @@
 /dist/
 /reports/
+/docs/.omc/
 *.test
 __pycache__/
 .omx/

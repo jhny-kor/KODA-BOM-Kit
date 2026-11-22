@@ -110,7 +110,7 @@ python3 tests/oracle-vm/validate.py /path/to/actual-uek-run/results \
 
 Oracle runner dùng QEMU system TCG, RAM 4 GiB, hai CPU và PID 1 tĩnh riêng, không có mạng/đĩa khách. Kiểm tra uname, proc, nạp loop thực, nhân cài đặt và đang chạy. Ubuntu khởi động `6.8.0-47-generic` bằng gói đã xác thực. GRUB, UEFI/Secure Boot, systemd đầy đủ, SELinux enforcing, driver vật lý và dịch vụ sản xuất cần thử riêng. Container Oracle chia sẻ nhân máy chủ.
 
-[Oracle VM](../tests/oracle-vm/README.vi.md) · [Ubuntu VM](../tests/ubuntu-vm/README.vi.md)
+[Oracle VM](tests/oracle-vm/README.vi.md) · [Ubuntu VM](tests/ubuntu-vm/README.vi.md)
 
 ## Lời gọi hệ thống, tài nguyên và phân tích sau đó
 

@@ -110,7 +110,7 @@ python3 tests/oracle-vm/validate.py /path/to/actual-uek-run/results \
 
 Oracle ใช้ QEMU system TCG, RAM 4 GiB, CPU สองตัว และ PID 1 เฉพาะ โดย guest ไม่มีเครือข่ายหรือดิสก์ ตรวจ uname, proc, การโหลด loop และเคอร์เนลที่ติดตั้ง/กำลังรัน Ubuntu บูต `6.8.0-47-generic` จากแพ็กเกจที่รับรองแล้ว GRUB, UEFI/Secure Boot, systemd เต็มรูปแบบ, SELinux enforcing ไดรเวอร์จริง และบริการจริงต้องทดสอบเพิ่ม container Oracle ใช้เคอร์เนลร่วมกับ host
 
-[Oracle VM](../tests/oracle-vm/README.th.md) · [Ubuntu VM](../tests/ubuntu-vm/README.th.md)
+[Oracle VM](tests/oracle-vm/README.th.md) · [Ubuntu VM](tests/ubuntu-vm/README.th.md)
 
 ## System call ทรัพยากร และการวิเคราะห์
 

@@ -18,12 +18,12 @@ LANGUAGES = {
     'tr': ('Türkçe', 57),
 }
 FAMILIES = (
-    'README', 'THIRD_PARTY_NOTICES',
+    'README', 'docs/THIRD_PARTY_NOTICES',
     'docs/air-gapped', 'docs/collector-guide', 'docs/asset-inventory',
     'docs/additional-bom', 'docs/support-matrix', 'docs/verification',
-    'docs/verification-results', 'internal/assetimport/README',
-    'internal/platforminventory/README', 'internal/products/README',
-    'tests/oracle-vm/README', 'tests/ubuntu-vm/README',
+    'docs/verification-results', 'docs/internal/assetimport/README',
+    'docs/internal/platforminventory/README', 'docs/internal/products/README',
+    'docs/tests/oracle-vm/README', 'docs/tests/ubuntu-vm/README',
 )
 BADGES = Path('docs/badges')
 START = '<!-- koda-doc-nav -->'
@@ -34,6 +34,8 @@ def edition(family, lang):
     # Preserve links to the original Korean test report.
     if family == 'docs/verification-results' and lang == 'ko':
         return Path('docs/검증결과.ko.md')
+    if family == 'README' and lang != 'en':
+        return Path(f'docs/README.{lang}.md')
     suffix = '' if lang == 'en' else '.' + lang
     return Path(f'{family}{suffix}.md')
 

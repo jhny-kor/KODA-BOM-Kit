@@ -4,4 +4,4 @@ The original author of KODA BOM Kit is jhny-kor.
 The official repository is https://github.com/jhny-kor/KODA-BOM-Kit
 
 KODA BOM Kit is licensed under the Apache License, Version 2.0. See LICENSE.
-See THIRD_PARTY_NOTICES.md for attribution of bundled third-party components.
+See docs/THIRD_PARTY_NOTICES.md for attribution of bundled third-party components.

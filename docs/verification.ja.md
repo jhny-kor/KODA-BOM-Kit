@@ -110,7 +110,7 @@ python3 tests/oracle-vm/validate.py /path/to/actual-uek-run/results \
 
 Oracle runner は QEMU system TCG、メモリー 4 GiB、CPU 2 個、専用 PID 1 を使用し、ゲストのネットワークとディスクを持ちません。uname、proc、loop モジュール、インストール済みと稼働中のカーネルを検査します。Ubuntu は認証した資料から `6.8.0-47-generic` を起動します。GRUB、UEFI/Secure Boot、systemd 全体、SELinux enforcing、実機ドライバー、運用サービスは別途検証します。Oracle コンテナーはホストカーネルを共有します。
 
-[Oracle VM](../tests/oracle-vm/README.ja.md) · [Ubuntu VM](../tests/ubuntu-vm/README.ja.md)
+[Oracle VM](tests/oracle-vm/README.ja.md) · [Ubuntu VM](tests/ubuntu-vm/README.ja.md)
 
 ## システムコール、資源制限、後続分析
 
