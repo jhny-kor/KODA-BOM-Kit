@@ -130,14 +130,14 @@ Windows PowerShell에서 위 마지막 명령은 `.\koda-bom.exe platform-invent
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context`와 `--kev`는 선택입니다. 컨텍스트를 사용하면 같은 수집 디렉터리의 `SHA256SUMS`에서 SBOM과 컨텍스트를 검증합니다. KEV는 결과 우선순위에 사용할 정보를 표시합니다. 평가는 실행 시 제공한 권고와 수집 당시 증적을 기준으로 합니다.
+`--advisories`, `--context`, `--kev`는 선택입니다. 컨텍스트를 사용하면 같은 수집 디렉터리의 `SHA256SUMS`에서 SBOM과 컨텍스트를 검증합니다. KEV는 결과 우선순위에 사용할 정보를 표시합니다. 평가는 실행 시 제공한 권고와 수집 당시 증적을 기준으로 합니다.
 
 권고 파일에는 아래 형식이나 **정확한 영향 버전과 PURL을 가진 OSV**, **정확한 제품 식별자와 무조건부 상태를 가진 CSAF 2.0**을 사용할 수 있습니다. OSV 범위, CSAF의 제품 조합·정책 조건 등 지원되지 않는 표현은 대조를 중단하고 이유를 반환합니다. 공급사 조치 문구와 장비 조건은 출처를 확인해 명시 규칙으로 작성할 수 있습니다.
 
@@ -166,6 +166,17 @@ Windows PowerShell에서 위 마지막 명령은 `.\koda-bom.exe platform-invent
 Linux 배포판 패키지는 릴리스가 포함된 distro 식별자와 정확한 버전을 사용합니다. SBOM의 버전 필드와 PURL 버전 정보가 충돌하면 `review_required`를 기록합니다. RPM의 별도 epoch 표기는 이를 반영해 비교합니다. 한 번의 대조에 정확 버전 항목은 최대 100만 개를 사용하며, 상한을 초과하면 처리를 중단하고 이유를 반환합니다. 명시 규칙의 지원 종료는 `supportEndsAt`에 날짜를 기록하며, 버전 비교는 지원되는 소프트웨어 생태계에 한해 `affectedSemver`를 사용할 수 있습니다. 교체 파일이나 저장 상태가 확인되면 활성화 검토 상태로 나타납니다. 권고에 없는 버전이나 미확인 장비는 검토 대상으로 봅니다.
 
 Linux 물리 서버와 Windows 운영 장비에서는 장비 권고 및 각 제조사 인벤토리를 대조해 범위를 확인해야 합니다. macOS·Windows 네이티브 기능은 OS·하드웨어와 설치 앱 중심이며, 장치가 보고하지 않는 버전이나 앱 내부 의존성은 추가 증적이 필요합니다.
+
+결과의 `risks` 배열에는 수집기가 BOM에 기록한 위험 항목이 출처 `KODA collection evidence`로 나옵니다. 권고 파일이 필요 없고, 권고 대조 결과인 `findings`와 따로 기록합니다. `sbom.cdx.json`과 `sbom.spdx.json`에는 암호 위험이 있고, 병합본 `bom.cdx.json`에는 AI-BOM과 OBOM 위험이 더 들어 있습니다. `bom.cdx.json`에서는 호스트 패키지를 다시 가리키는 OBOM 노드를 권고 대조에서 빼고, 실행 중인 컨테이너의 패키지는 해당 OBOM 노드로 대조하지만, 프로세스가 사용하는 패키지만 포함됩니다. 컨테이너 전체 인벤토리는 `containers/<name>/sbom.cdx.json`으로 대조하세요. `risk_observed`는 기록된 증적이 그 상태를 보여 준다는 뜻이고, `review_required`는 그 상태를 배제하지 못했다는 뜻입니다.
+
+| 결과 ID | 상태 | 기록된 증적 |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | 2048비트 미만 RSA 또는 DSA를 쓰는 인증서나 SSH 호스트 키 |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | MD5 또는 SHA-1로 서명한 인증서(수집기가 자체 서명으로 확인한 인증서 제외) |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | TLS 1.2 미만 프로토콜을 허용하는 설정 또는 LEGACY 시스템 암호 정책 |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | 모델 파일이나 모델 디렉터리 체크포인트의 pickle이 코드를 실행할 수 있는 호출 대상을 가져옴 |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickle이 허용 목록 밖의 모듈을 가져오거나 검사가 끝나지 않음 |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | 선언된 방화벽 규칙이 허용하는 호스트의 loopback 밖 수신 소켓. 출발지가 제한된 규칙, 평가하지 못한 규칙, 활성 방화벽 선언이 없는 경우(`none-observed`)는 검토 필요 |
 
 ## TCP 접속 관측
 

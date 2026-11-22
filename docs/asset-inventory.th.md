@@ -129,14 +129,14 @@
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context` และ `--kev` เป็นตัวเลือก เมื่อใช้ context จะตรวจทั้ง SBOM และ context กับ `SHA256SUMS` ของชุดเก็บนั้น KEV เพิ่มข้อมูลจัดลำดับความสำคัญ อินพุตที่รองรับคือกฎชัดเจนด้านล่าง OSV ที่ระบุรุ่น/PURL ที่ได้รับผลกระทบแบบตรงตัว และ CSAF 2.0 ที่ระบุ product ID ตรงตัว/สถานะไม่มีเงื่อนไข ช่วงรุ่นหรือเงื่อนไข/ชุดผลิตภัณฑ์ที่ไม่รองรับจะหยุดการประเมินพร้อมเหตุผล
+`--advisories`, `--context` และ `--kev` เป็นตัวเลือก เมื่อใช้ context จะตรวจทั้ง SBOM และ context กับ `SHA256SUMS` ของชุดเก็บนั้น KEV เพิ่มข้อมูลจัดลำดับความสำคัญ อินพุตที่รองรับคือกฎชัดเจนด้านล่าง OSV ที่ระบุรุ่น/PURL ที่ได้รับผลกระทบแบบตรงตัว และ CSAF 2.0 ที่ระบุ product ID ตรงตัว/สถานะไม่มีเงื่อนไข ช่วงรุ่นหรือเงื่อนไข/ชุดผลิตภัณฑ์ที่ไม่รองรับจะหยุดการประเมินพร้อมเหตุผล
 
 ```json
 {
@@ -161,6 +161,17 @@
 ```
 
 ใช้ distro ID เฉพาะ release และรุ่นแพ็กเกจตรงตัว รุ่น SBOM/PURL ขัดแย้งกันให้ `review_required` พิจารณา RPM epoch ด้วย แต่ละรอบจำกัด 1,000,000 รายการรุ่นตรงตัว กฎชัดเจนรองรับ `supportEndsAt` และ `affectedSemver` สำหรับระบบนิเวศซอฟต์แวร์ที่รองรับ ไฟล์ที่ถูกแทน/เฟิร์มแวร์ที่จัดเก็บจะกระตุ้นการทบทวนการเปิดใช้งาน ทรัพย์สินไม่ทราบชนิดและรุ่นที่ไม่อยู่ในประกาศต้องทบทวน ตรวจอุปกรณ์ Linux/Windows จริงเทียบกับบัญชีผู้ผลิต บัญชีรายการ Windows/macOS แบบเนทีฟเน้น OS ฮาร์ดแวร์ และแอปที่ติดตั้ง
+
+อาร์เรย์ `risks` ของรายงานแสดงความเสี่ยงที่ตัวเก็บข้อมูลบันทึกไว้ใน BOM โดยมีแหล่งที่มาเป็น `KODA collection evidence` ซึ่งไม่ต้องใช้ไฟล์ประกาศช่องโหว่และแยกจาก `findings` ของประกาศช่องโหว่ `sbom.cdx.json` และ `sbom.spdx.json` มีความเสี่ยงด้านการเข้ารหัส ส่วน `bom.cdx.json` ที่รวมแล้วมีความเสี่ยงของ AI-BOM และ OBOM เพิ่มเติม ใน `bom.cdx.json` ประกาศช่องโหว่จะข้ามโหนด OBOM ที่ซ้ำแพ็กเกจของโฮสต์ ส่วนแพ็กเกจของคอนเทนเนอร์ที่กำลังทำงานจะจับคู่ผ่านโหนด OBOM ของคอนเทนเนอร์นั้น ซึ่งครอบคลุมเฉพาะแพ็กเกจที่โปรเซสใช้ หากต้องการรายการทั้งหมดของคอนเทนเนอร์ให้ประเมิน `containers/<name>/sbom.cdx.json` `risk_observed` หมายถึงหลักฐานที่บันทึกแสดงสภาพนั้น ส่วน `review_required` หมายถึงยังตัดสภาพนั้นออกไม่ได้
+
+| รหัสผลการตรวจ | สถานะ | หลักฐานที่บันทึก |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | ใบรับรองหรือคีย์โฮสต์ SSH ที่ใช้ RSA ต่ำกว่า 2048 บิตหรือ DSA |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | ใบรับรองที่ลงนามด้วย MD5 หรือ SHA-1 ยกเว้นใบรับรองที่ตัวเก็บข้อมูลยืนยันแล้วว่าลงนามด้วยตนเอง |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | การตั้งค่าที่อนุญาตโปรโตคอลต่ำกว่า TLS 1.2 หรือนโยบายการเข้ารหัสของระบบแบบ LEGACY |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | pickle ในไฟล์โมเดลหรือใน checkpoint ของไดเรกทอรีโมเดลนำเข้า callable ที่รันโค้ดได้ |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickle นำเข้าโมดูลนอกรายการที่อนุญาต หรือการตรวจไม่ครบถ้วน |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | ตัวรอรับของโฮสต์นอก loopback ที่กฎไฟร์วอลล์ที่ประกาศไว้อนุญาต ส่วนแหล่งที่ถูกจำกัด กฎที่ประเมินไม่ได้ หรือไม่มีการประกาศไฟร์วอลล์ที่ใช้งานอยู่ (`none-observed`) ต้องตรวจทาน |
 
 ## การสังเกตการเข้าถึง TCP
 

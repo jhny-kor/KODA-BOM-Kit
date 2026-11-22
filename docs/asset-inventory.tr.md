@@ -129,14 +129,14 @@ Yeni duyurularla arşivlenmiş sonuçları yeniden değerlendirin.
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context`/`--kev` isteğe bağlıdır. Bağlam kullanımı SBOM ve bağlamı `SHA256SUMS` ile doğrular. KEV öncelik bilgisi ekler. Açık kurallar, tam sürüm/PURL içeren OSV, tam ürün ID/koşulsuz durum içeren CSAF 2.0 desteklenir. Desteklenmeyen aralık, koşul veya birleşimler gerekçeyle durdurulur.
+`--advisories`/`--context`/`--kev` isteğe bağlıdır. Bağlam kullanımı SBOM ve bağlamı `SHA256SUMS` ile doğrular. KEV öncelik bilgisi ekler. Açık kurallar, tam sürüm/PURL içeren OSV, tam ürün ID/koşulsuz durum içeren CSAF 2.0 desteklenir. Desteklenmeyen aralık, koşul veya birleşimler gerekçeyle durdurulur.
 
 ```json
 {
@@ -161,6 +161,17 @@ Yeni duyurularla arşivlenmiş sonuçları yeniden değerlendirin.
 ```
 
 Dağıtım sürümlü distro kimliği ve tam paket sürümü kullanın. SBOM/PURL çelişkisi `review_required` üretir. RPM epoch dikkate alınır. Çalıştırma başına en fazla 1.000.000 tam sürüm girdisi. Kurallar `supportEndsAt` ve desteklenen ekosistemlerde `affectedSemver` kabul eder. Değiştirilen dosya/saklanan firmware etkinleştirme incelemesi, bilinmeyen varlık/duyuruda olmayan sürüm ek inceleme gerektirir. Fiziksel Linux ve Windows aygıtlarını üretici envanteriyle karşılaştırın. Yerel Windows/macOS envanteri OS, donanım ve kurulu uygulamalara odaklanır.
+
+Raporun `risks` dizisi, toplayıcının BOM'a kaydettiği riskleri `KODA collection evidence` kaynağıyla listeler; bunlar için duyuru dosyası gerekmez ve duyuru `findings` kayıtlarından ayrı tutulur. `sbom.cdx.json` ve `sbom.spdx.json` kriptografik riskleri taşır; birleştirilmiş `bom.cdx.json` ayrıca AI-BOM ve OBOM risklerini ekler. `bom.cdx.json` içinde duyurular, ana makine paketini tekrarlayan OBOM düğümlerini atlar; çalışan konteynerlerin paketleri kendi OBOM düğümleri üzerinden eşleştirilir; bu düğümler yalnızca süreçlerin kullandığı paketleri kapsar. Bir konteynerin tam envanteri için `containers/<name>/sbom.cdx.json` dosyasını değerlendirin. `risk_observed`, kayıtlı kanıtın durumu gösterdiği; `review_required`, durumun dışlanamadığı anlamına gelir.
+
+| Bulgu ID | Durum | Kayıtlı kanıt |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | 2048 bitten kısa RSA veya DSA kullanan sertifika ya da SSH ana makine anahtarı |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | MD5 veya SHA-1 ile imzalanmış sertifika (toplayıcının kendinden imzalı olarak doğruladıkları hariç) |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | TLS 1.2'den eski protokollere izin veren yapılandırma veya LEGACY sistem şifreleme politikası |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | Model dosyasındaki veya bir model dizininin checkpoint'indeki pickle, kod çalıştırabilen çağrılabilirleri içe aktarır |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | Pickle izin listesi dışındaki modülleri içe aktarır veya inceleme tamamlanmamıştır |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Bildirilen güvenlik duvarı kurallarının kabul ettiği, loopback dışındaki ana makine dinleyicisi; kısıtlı kaynaklar, değerlendirilemeyen kurallar veya etkin güvenlik duvarı bildiriminin olmaması (`none-observed`) inceleme gerektirir |
 
 ## TCP gözlemleri
 

@@ -129,14 +129,14 @@ PKCS#12/HSM/KMSの公開メタデータは `--asset-evidence` で取り込みま
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context`・`--kev` は任意です。コンテキスト指定時は同じ収集の `SHA256SUMS` でSBOMとcontextを検証します。KEVは優先度情報です。明示ルール、正確な影響版/PURLを持つOSV、正確な製品ID/無条件状態のCSAF 2.0に対応します。未対応範囲・条件・製品組合せは理由を返して停止します。
+`--advisories`・`--context`・`--kev` は任意です。コンテキスト指定時は同じ収集の `SHA256SUMS` でSBOMとcontextを検証します。KEVは優先度情報です。明示ルール、正確な影響版/PURLを持つOSV、正確な製品ID/無条件状態のCSAF 2.0に対応します。未対応範囲・条件・製品組合せは理由を返して停止します。
 
 ```json
 {
@@ -161,6 +161,17 @@ PKCS#12/HSM/KMSの公開メタデータは `--asset-evidence` で取り込みま
 ```
 
 リリース付きdistro IDと正確な版を使用します。SBOM/PURLの版矛盾は `review_required`。RPM epochも考慮します。1回最大1,000,000件の正確版。`supportEndsAt` と対応エコシステムの `affectedSemver` を利用できます。置換ファイル・保存済みファームウェアは有効化レビュー、不明資産・勧告外の版は追加確認が必要です。Linux物理機・Windows機器はメーカー情報と照合します。Windows/macOSネイティブ収集はOS・機器・インストールアプリ中心です。
+
+レポートの `risks` 配列には、コレクターがBOMに記録したリスクがソース `KODA collection evidence` として載ります。勧告ファイルは不要で、勧告の `findings` とは分けて記録します。`sbom.cdx.json` と `sbom.spdx.json` には暗号のリスクが含まれ、統合版 `bom.cdx.json` にはさらにAI-BOMとOBOMのリスクが加わります。`bom.cdx.json` では、ホストのパッケージを繰り返すOBOMノードを勧告照合から除き、実行中コンテナのパッケージはそのOBOMノードで照合しますが、対象はプロセスが使うパッケージに限られます。コンテナの全インベントリは `containers/<name>/sbom.cdx.json` で照合してください。`risk_observed` は記録された証跡がその状態を示すこと、`review_required` はその状態を否定できなかったことを表します。
+
+| 検出ID | 状態 | 記録された証跡 |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | 2048ビット未満のRSAまたはDSAを使う証明書・SSHホスト鍵 |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | MD5またはSHA-1で署名された証明書（コレクターが自己署名と確認したものを除く） |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | TLS 1.2未満のプロトコルを許可する設定、またはLEGACYのシステム暗号ポリシー |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | モデルファイル、またはモデルディレクトリのチェックポイントにあるpickleが、コードを実行できる呼び出し可能オブジェクトをインポート |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickleが許可リスト外のモジュールをインポート、または検査が未完了 |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | 宣言されたファイアウォールルールが許可する、ループバック以外のホストの待受。送信元が限定されたルール、評価できなかったルール、有効なファイアウォール宣言がない場合（`none-observed`）は確認が必要 |
 
 ## TCP到達性の観測
 

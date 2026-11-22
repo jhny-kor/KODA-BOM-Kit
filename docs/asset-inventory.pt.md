@@ -129,14 +129,14 @@ Reavalie resultados arquivados com novos avisos.
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context`/`--kev` são opcionais. Contexto verifica SBOM e contexto via `SHA256SUMS`. KEV acrescenta prioridade. Aceita regras explícitas, OSV com versões/PURL exatos, CSAF 2.0 com IDs exatos/status incondicional. Intervalos, condições ou combinações sem suporte interrompem a avaliação com motivo.
+`--advisories`/`--context`/`--kev` são opcionais. Contexto verifica SBOM e contexto via `SHA256SUMS`. KEV acrescenta prioridade. Aceita regras explícitas, OSV com versões/PURL exatos, CSAF 2.0 com IDs exatos/status incondicional. Intervalos, condições ou combinações sem suporte interrompem a avaliação com motivo.
 
 ```json
 {
@@ -161,6 +161,17 @@ Reavalie resultados arquivados com novos avisos.
 ```
 
 Use distro com release e versões exatas. Conflitos SBOM/PURL geram `review_required`. Considera epoch RPM. Máximo 1.000.000 entradas exatas por execução. Regras aceitam `supportEndsAt` e `affectedSemver` em ecossistemas compatíveis. Arquivos substituídos/firmware armazenado exigem revisão de ativação. Ativos desconhecidos/versões fora dos avisos exigem revisão. Compare Linux físico/Windows com o inventário do fabricante. Inventário nativo Windows/macOS concentra-se em OS, hardware e aplicações instaladas.
+
+O array `risks` do relatório lista os riscos que o coletor registrou no BOM, com origem `KODA collection evidence`; eles não exigem arquivo de avisos e ficam separados dos `findings` de avisos. `sbom.cdx.json` e `sbom.spdx.json` contêm os riscos criptográficos, e o `bom.cdx.json` combinado acrescenta os de AI-BOM e OBOM. Em `bom.cdx.json`, os avisos ignoram os nós OBOM que repetem um pacote do host; pacotes de contêineres em execução são comparados por meio de seus nós OBOM, que cobrem apenas os pacotes usados por seus processos. Avalie `containers/<name>/sbom.cdx.json` para o inventário completo de um contêiner. `risk_observed` indica que a evidência registrada mostra a condição; `review_required`, que ela não pôde ser descartada.
+
+| ID da constatação | Status | Evidência registrada |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | Certificado ou chave de host SSH com RSA abaixo de 2048 bits, ou DSA |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | Certificado assinado com MD5 ou SHA-1, exceto quando o coletor o verificou como autoassinado |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | Configuração que permite protocolos anteriores ao TLS 1.2, ou a política criptográfica de sistema LEGACY |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | O pickle de um arquivo de modelo, ou de um checkpoint de um diretório de modelo, importa chamáveis que podem executar código |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | O pickle importa módulos fora da lista permitida, ou a inspeção ficou incompleta |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Escuta do host fora do loopback aceita pelas regras de firewall declaradas; origens restritas, regras não avaliadas ou a ausência de declaração de firewall ativa (`none-observed`) exigem revisão |
 
 ## Observações TCP
 

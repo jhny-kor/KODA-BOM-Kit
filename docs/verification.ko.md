@@ -80,7 +80,7 @@ python3 tests/validate_outputs.py /path/to/scan-result
 | 실행 중 파일 | `internal/hostcontext`, `internal/collect`: 삭제·교체 파일, 비교 가능한 파일시스템과 패키지 소유 관계, 재시작 검토 근거 |
 | Python·이미지 | `.pyz`·`.pex`의 실제 METADATA, 손상된 항목의 부분 수집, archive SHA-256과 이미지 digest |
 | 플랫폼 | `internal/platforminventory`: macOS·Windows 자료 파싱과 수집 범위 표시 |
-| 오프라인 상관분석 | `internal/assessment`: 정확한 버전 규칙, 지원 OSV·CSAF 부분집합, 선택 KEV, SBOM과 컨텍스트 체크섬 연결 |
+| 오프라인 상관분석 | `internal/assessment`: 정확한 버전 규칙, 지원 OSV·CSAF 부분집합, 선택 KEV, SBOM과 컨텍스트 체크섬 연결, BOM에 기록된 위험 항목(`risks`) |
 | 형식 호환성 | `internal/collect/output_test.go`: 고정 라이선스 목록, 1.6 대체 표현과 1.7 표현, 표준 출력 보존 |
 | 호스트 식별·포트 | `internal/hardware/identity_test.go`, `internal/hostcontext/sockets*_test.go`, `internal/collect/host_annotations_test.go`: 해시·공용 기본값 제외, `/proc/net` 파싱, 실제 소켓의 프로세스 연결, SBOM 속성 |
 | 컨테이너 | `internal/containers`: 가짜 procfs로 Docker·containerd(Kubernetes)·sandbox 제외·mountinfo 대조·안전한 폴더 이름. `internal/localfs/rootfs_links_test.go`: 컨테이너 root의 절대 링크 해석 |
@@ -107,8 +107,8 @@ docker run --rm --privileged --pid=host -v /var/lib/docker:/var/lib/docker:ro,rs
 
 fixture 통과는 실제 BMC·펌웨어·OT 장비, Windows 실행 또는 모든 공급사 advisory 형식의
 지원 증거가 아닙니다. Linux 컨테이너의 장비 속성도 컨테이너에서 관측 가능한 범위로
-기록합니다. `assess`는 사용자가 제공한 로컬 규칙과 관측값의 상관분석이며 자동 패치나
-취약점 조치 완료 확인을 수행하지 않습니다.
+기록합니다. `assess`는 사용자가 제공한 로컬 규칙과 관측값의 상관분석에 수집기가 BOM에 기록한
+위험 항목을 더해 보여 주며, 자동 패치나 취약점 조치 완료 확인은 수행하지 않습니다.
 
 ## .NET·Ruby 배포본 비교
 

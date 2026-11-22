@@ -129,14 +129,14 @@ Reassess archived results with new advisory files through the same binary.
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context` and `--kev` are optional. Context use verifies both SBOM and context against the collection's `SHA256SUMS`. KEV adds prioritization information. Supported inputs are explicit rules below, OSV with exact affected versions/PURLs, and CSAF 2.0 with exact product IDs/unconditional status. Unsupported version ranges or conditional/product-combination expressions stop assessment with a reason.
+`--advisories`, `--context` and `--kev` are optional. Context use verifies both SBOM and context against the collection's `SHA256SUMS`. KEV adds prioritization information. Supported inputs are explicit rules below, OSV with exact affected versions/PURLs, and CSAF 2.0 with exact product IDs/unconditional status. Unsupported version ranges or conditional/product-combination expressions stop assessment with a reason.
 
 ```json
 {
@@ -161,6 +161,17 @@ Reassess archived results with new advisory files through the same binary.
 ```
 
 Use release-specific distro IDs and exact package versions. SBOM/PURL version conflicts yield `review_required`. RPM epoch is considered. The maximum is 1,000,000 exact-version entries per run. Explicit rules support `supportEndsAt` and, for supported software ecosystems, `affectedSemver`. Replaced files/stored firmware trigger activation review. Unknown assets and versions absent from advisories require review. Verify physical Linux and Windows equipment against vendor inventory. Native Windows/macOS inventory focuses on OS, hardware and installed applications.
+
+The report's `risks` array lists the risks that the collector recorded in the BOM, with source `KODA collection evidence`. They need no advisory file and are kept apart from advisory `findings`. `sbom.cdx.json` and `sbom.spdx.json` carry the cryptographic risks, and the merged `bom.cdx.json` adds the AI-BOM and OBOM risks. In `bom.cdx.json`, advisories skip the OBOM nodes that repeat a host package; packages of running containers are matched through their OBOM nodes, which cover only the packages their processes use. Assess `containers/<name>/sbom.cdx.json` for a container's full inventory. `risk_observed` means the recorded evidence shows the condition; `review_required` means it could not be ruled out.
+
+| Finding ID | Status | Recorded evidence |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | Certificate or SSH host key using RSA below 2048 bits, or DSA |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | Certificate signed with MD5 or SHA-1, unless the collector verified it as self-signed |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | Configuration that allows protocols below TLS 1.2, or the LEGACY system crypto policy |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | Pickle in a model file, or in a checkpoint of a model directory, imports callables that can run code |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | Pickle imports modules outside the allowlist, or inspection was incomplete |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Host listener beyond loopback that declared firewall rules accept; restricted sources, rules that could not be evaluated, or no active firewall declaration (`none-observed`) need review |
 
 ## TCP reachability observations
 

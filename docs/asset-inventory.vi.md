@@ -129,14 +129,14 @@ Dùng cùng tệp thực thi để đánh giá lại kết quả đã lưu với
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context` và `--kev` là tùy chọn. Khi dùng ngữ cảnh, cả SBOM và tệp ngữ cảnh được đối chiếu với `SHA256SUMS` của lần thu thập. KEV bổ sung thông tin ưu tiên. Hỗ trợ quy tắc tường minh bên dưới, OSV với phiên bản/PURL bị ảnh hưởng chính xác và CSAF 2.0 với ID sản phẩm chính xác cùng trạng thái vô điều kiện. Nếu gặp khoảng phiên bản hoặc biểu thức điều kiện/tổ hợp sản phẩm không hỗ trợ, việc đánh giá dừng và ghi lý do.
+`--advisories`, `--context` và `--kev` là tùy chọn. Khi dùng ngữ cảnh, cả SBOM và tệp ngữ cảnh được đối chiếu với `SHA256SUMS` của lần thu thập. KEV bổ sung thông tin ưu tiên. Hỗ trợ quy tắc tường minh bên dưới, OSV với phiên bản/PURL bị ảnh hưởng chính xác và CSAF 2.0 với ID sản phẩm chính xác cùng trạng thái vô điều kiện. Nếu gặp khoảng phiên bản hoặc biểu thức điều kiện/tổ hợp sản phẩm không hỗ trợ, việc đánh giá dừng và ghi lý do.
 
 ```json
 {
@@ -161,6 +161,17 @@ Dùng cùng tệp thực thi để đánh giá lại kết quả đã lưu với
 ```
 
 Dùng ID bản phân phối tương ứng với bản phát hành và phiên bản gói chính xác. Nếu phiên bản trong SBOM mâu thuẫn với PURL, kết quả là `review_required`. Có xét epoch của RPM. Mỗi lần chạy xử lý đến 1.000.000 mục phiên bản chính xác. Quy tắc tường minh hỗ trợ `supportEndsAt` và `affectedSemver` đối với hệ sinh thái phần mềm được hỗ trợ. Tệp bị thay thế hoặc phần sụn mới được lưu cần xem xét việc kích hoạt. Cần rà soát tài sản chưa rõ hoặc phiên bản ngoài khuyến cáo. Đối chiếu máy Linux/Windows vật lý với danh mục của nhà sản xuất. Kiểm kê gốc trên Windows/macOS tập trung vào hệ điều hành, phần cứng và ứng dụng đã cài.
+
+Mảng `risks` của báo cáo liệt kê các rủi ro mà bộ thu thập đã ghi trong BOM, với nguồn `KODA collection evidence`; các rủi ro này không cần tệp khuyến cáo và được tách khỏi `findings` của khuyến cáo. `sbom.cdx.json` và `sbom.spdx.json` chứa rủi ro mật mã, còn `bom.cdx.json` hợp nhất có thêm rủi ro AI-BOM và OBOM. Trong `bom.cdx.json`, khuyến cáo bỏ qua các nút OBOM lặp lại gói của máy chủ; gói của container đang chạy được đối chiếu qua nút OBOM của chúng, vốn chỉ bao gồm các gói mà tiến trình của container sử dụng. Hãy đánh giá `containers/<name>/sbom.cdx.json` để có toàn bộ danh mục của container. `risk_observed` nghĩa là bằng chứng đã ghi cho thấy tình trạng đó; `review_required` nghĩa là chưa thể loại trừ.
+
+| ID phát hiện | Trạng thái | Bằng chứng đã ghi |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | Chứng chỉ hoặc khóa máy chủ SSH dùng RSA dưới 2048 bit, hoặc DSA |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | Chứng chỉ ký bằng MD5 hoặc SHA-1, trừ khi bộ thu thập đã xác minh đó là chứng chỉ tự ký |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | Cấu hình cho phép giao thức dưới TLS 1.2, hoặc chính sách mật mã hệ thống LEGACY |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | Pickle trong tệp mô hình, hoặc trong checkpoint của thư mục mô hình, nhập các đối tượng gọi được có thể chạy mã |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | Pickle nhập mô-đun ngoài danh sách cho phép, hoặc việc kiểm tra chưa hoàn tất |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Cổng lắng nghe của máy chủ ngoài loopback được quy tắc tường lửa khai báo chấp nhận; nguồn bị giới hạn, quy tắc không đánh giá được hoặc không có khai báo tường lửa đang hoạt động (`none-observed`) cần xem xét |
 
 ## Quan sát khả năng kết nối TCP
 

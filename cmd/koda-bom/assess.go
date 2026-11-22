@@ -17,12 +17,16 @@ import (
 func assessEvidence(args []string) int {
 	flags := flag.NewFlagSet("assess", flag.ContinueOnError)
 	sbom := flags.String("sbom", "", "collected CycloneDX or SPDX JSON")
-	advisories := flags.String("advisories", "", "local advisory rules JSON, exact-version OSV or CSAF 2.0 JSON")
+	advisories := flags.String("advisories", "", "optional local advisory rules JSON, exact-version OSV or CSAF 2.0 JSON")
 	contextFile := flags.String("context", "", "context.json from the same collection result")
 	kev := flags.String("kev", "", "optional local CISA KEV JSON catalog")
 	output := flags.String("output", "", "new assessment JSON path")
 	timeout := flags.Duration("timeout", 5*time.Minute, "maximum assessment time")
-	if flags.Parse(args) != nil || flags.NArg() != 0 || *sbom == "" || *advisories == "" || *output == "" || *timeout < 0 {
+	if flags.Parse(args) != nil || flags.NArg() != 0 || *sbom == "" || *output == "" || *timeout < 0 {
+		return 2
+	}
+	if emptyFlag(flags, "advisories") {
+		fmt.Fprintln(os.Stderr, "--advisories needs a file; omit it to report only the risks recorded in the SBOM")
 		return 2
 	}
 	parent, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -39,6 +43,13 @@ func assessEvidence(args []string) int {
 	}
 	fmt.Println(*output)
 	return 0
+}
+
+// emptyFlag reports a flag given with an empty value, such as an unset shell
+// variable. Omitting --advisories is valid; passing it empty is a mistake.
+func emptyFlag(flags *flag.FlagSet, name string) (empty bool) {
+	flags.Visit(func(f *flag.Flag) { empty = empty || f.Name == name && f.Value.String() == "" })
+	return empty
 }
 
 // Publish a complete report with no overwrite, even if concurrent runs use

@@ -1,4 +1,5 @@
-// Package assessment correlates observations with an explicitly supplied offline rule set.
+// Package assessment correlates observations with an explicitly supplied
+// offline rule set and reports the risks the collector recorded in the BOM.
 package assessment
 
 import (
@@ -75,10 +76,10 @@ type Finding struct {
 
 type Report struct {
 	Schema           string    `json:"schema"`
-	AdvisoriesAt     string    `json:"advisoriesAt"`
+	AdvisoriesAt     string    `json:"advisoriesAt,omitempty"`
 	AnalyzedAt       string    `json:"analyzedAt"`
 	SBOMSHA256       string    `json:"sbomSha256"`
-	AdvisoriesSHA256 string    `json:"advisoriesSha256"`
+	AdvisoriesSHA256 string    `json:"advisoriesSha256,omitempty"`
 	ContextSHA256    string    `json:"contextSha256,omitempty"`
 	KEVSHA256        string    `json:"kevSha256,omitempty"`
 	KEVDate          string    `json:"kevDate,omitempty"`
@@ -86,30 +87,80 @@ type Report struct {
 	RulesEvaluated   int       `json:"rulesEvaluated"`
 	UnmatchedRules   int       `json:"unmatchedRules"`
 	Findings         []Finding `json:"findings"`
+	// Risks recorded by the collector, kept apart from advisory findings.
+	Risks []Finding `json:"risks"`
 }
 
 type component struct {
 	model.Asset
 	parentRef string
+	props     []property // CycloneDX properties as recorded
+	repeat    bool       // OBOM node repeating a host package of the inventory
 }
+
+func (c *component) prop(name string) string {
+	for _, p := range c.props {
+		if p.Name == name {
+			return p.Value
+		}
+	}
+	return ""
+}
+
+// markRepeats flags the OBOM nodes of a merged BOM that repeat a host package
+// of the inventory, so advisories match each host package once. Nodes of
+// running containers stay: their packages appear nowhere else in the BOM.
+// It returns the number of components advisories are compared with.
+func markRepeats(components []component) int {
+	host, installed := "", map[string]bool{}
+	for i := range components {
+		c := &components[i]
+		if c.prop("koda:obom:role") == "host" {
+			host = c.ID
+		}
+		if c.PURL != "" && c.prop("koda:obom:scope") == "" {
+			installed[c.PURL] = true
+		}
+	}
+	compared := len(components)
+	for i := range components {
+		c := &components[i]
+		c.repeat = host != "" && installed[c.PURL] && c.prop("koda:obom:scope") == host
+		if c.repeat {
+			compared--
+		}
+	}
+	return compared
+}
+
+type property struct{ Name, Value string }
 
 type cdxComponent struct {
-	Ref          string                         `json:"bom-ref"`
-	Type         string                         `json:"type"`
-	Name         string                         `json:"name"`
-	Version      string                         `json:"version"`
-	CPE          string                         `json:"cpe"`
-	PURL         string                         `json:"purl"`
-	Manufacturer struct{ Name string }          `json:"manufacturer"`
-	Components   []cdxComponent                 `json:"components"`
-	Properties   []struct{ Name, Value string } `json:"properties"`
+	Ref          string                `json:"bom-ref"`
+	Type         string                `json:"type"`
+	Name         string                `json:"name"`
+	Version      string                `json:"version"`
+	CPE          string                `json:"cpe"`
+	PURL         string                `json:"purl"`
+	Manufacturer struct{ Name string } `json:"manufacturer"`
+	Components   []cdxComponent        `json:"components"`
+	Properties   []property            `json:"properties"`
 }
 
-func parseComponents(raw []byte) ([]component, error) {
+// service is a top-level CycloneDX service. Services are read only for the
+// risk signals they carry; advisory rules select components.
+type service struct {
+	Ref        string     `json:"bom-ref"`
+	Name       string     `json:"name"`
+	Properties []property `json:"properties"`
+}
+
+func parseComponents(raw []byte) ([]component, []service, error) {
 	var doc struct {
 		BOMFormat   string         `json:"bomFormat"`
 		SPDXVersion string         `json:"spdxVersion"`
 		Components  []cdxComponent `json:"components"`
+		Services    []service      `json:"services"`
 		Packages    []struct {
 			Ref     string `json:"SPDXID"`
 			Name    string
@@ -123,9 +174,10 @@ func parseComponents(raw []byte) ([]component, error) {
 		} `json:"packages"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("read SBOM structure: %w", err)
+		return nil, nil, fmt.Errorf("read SBOM structure: %w", err)
 	}
 	var out []component
+	var services []service
 	switch {
 	case doc.BOMFormat == "CycloneDX":
 		pending := doc.Components
@@ -151,8 +203,9 @@ func parseComponents(raw []byte) ([]component, error) {
 					}
 				}
 			}
-			out = append(out, component{Asset: a, parentRef: a.ParentID})
+			out = append(out, component{Asset: a, parentRef: a.ParentID, props: row.Properties})
 		}
+		services = doc.Services
 	case doc.SPDXVersion == "SPDX-2.3":
 		for _, row := range doc.Packages {
 			if strings.HasPrefix(row.Ref, "SPDXRef-DocumentRoot-") {
@@ -161,7 +214,7 @@ func parseComponents(raw []byte) ([]component, error) {
 			a := model.Asset{ID: row.Ref, Kind: strings.ReplaceAll(strings.ToLower(row.Purpose), "_", "-"), Name: row.Name, Version: row.Version}
 			if evidence, ok := strings.CutPrefix(row.Comment, "koda:asset:"); ok {
 				if err := json.Unmarshal([]byte(evidence), &a); err != nil || a.Name != row.Name || a.Version != row.Version || a.ID == "" {
-					return nil, errors.New("invalid SPDX asset evidence")
+					return nil, nil, errors.New("invalid SPDX asset evidence")
 				}
 			}
 			refConflict := false
@@ -176,14 +229,14 @@ func parseComponents(raw []byte) ([]component, error) {
 				}
 			}
 			if refConflict {
-				return nil, errors.New("conflicting SPDX component identity")
+				return nil, nil, errors.New("conflicting SPDX component identity")
 			}
 			out = append(out, component{Asset: a, parentRef: a.ParentID})
 		}
 	default:
-		return nil, errors.New("expected CycloneDX or SPDX 2.3 SBOM JSON")
+		return nil, nil, errors.New("expected CycloneDX or SPDX 2.3 SBOM JSON")
 	}
-	return out, nil
+	return out, services, nil
 }
 
 const maxInput = 64 << 20
@@ -213,14 +266,18 @@ func readInput(path string) ([]byte, string, error) {
 
 // EvaluateFiles binds the result to the bytes actually read. The caller decides
 // whether imported rule and context provenance are appropriate for its assets.
+// Without advisories the report holds only the risk signals recorded in the SBOM.
 func EvaluateFiles(ctx context.Context, sbom, advisories, contextFile, kevFile string) (Report, error) {
 	raw, digest, err := readInput(sbom)
 	if err != nil {
 		return Report{}, fmt.Errorf("SBOM: %w", err)
 	}
-	rulesRaw, rulesDigest, err := readInput(advisories)
-	if err != nil {
-		return Report{}, fmt.Errorf("advisories: %w", err)
+	var rulesRaw []byte
+	var rulesDigest string
+	if advisories != "" {
+		if rulesRaw, rulesDigest, err = readInput(advisories); err != nil {
+			return Report{}, fmt.Errorf("advisories: %w", err)
+		}
 	}
 	var contextData model.Context
 	var contextDigest string
@@ -284,41 +341,27 @@ func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Conte
 	if err := ctx.Err(); err != nil {
 		return Report{}, err
 	}
-	components, err := parseComponents(raw)
+	components, services, err := parseComponents(raw)
 	if err != nil {
 		return Report{}, err
 	}
+	compared := markRepeats(components)
 	var rules Rules
-	var envelope struct {
-		Schema   string `json:"schema"`
-		Document struct {
-			Version string `json:"csaf_version"`
-		} `json:"document"`
+	if rulesRaw != nil {
+		if rules, err = parseRules(ctx, rulesRaw); err != nil {
+			return Report{}, err
+		}
+		if compared > 10_000_000/len(rules.Rules) {
+			return Report{}, errors.New("assessment exceeds 10 million rule comparisons")
+		}
 	}
-	_ = json.Unmarshal(rulesRaw, &envelope)
-	switch {
-	case envelope.Schema == "koda-advisory-rules-v1":
-		err = json.Unmarshal(rulesRaw, &rules)
-	case envelope.Document.Version != "":
-		rules, err = parseCSAF(ctx, rulesRaw)
-	default:
-		rules, err = parseOSV(ctx, rulesRaw)
-	}
+	risks, err := riskFindings(components, services)
 	if err != nil {
-		return Report{}, fmt.Errorf("invalid advisory input: %w", err)
-	}
-	if len(rules.Rules) == 0 || len(rules.Rules) > 4096 {
-		return Report{}, errors.New("expected koda-advisory-rules-v1 with 1–4096 rules")
-	}
-	if _, err := time.Parse(time.RFC3339, rules.PublishedAt); err != nil {
-		return Report{}, errors.New("advisory publishedAt must use RFC3339")
+		return Report{}, err
 	}
 	now := time.Now().UTC()
 	report := Report{Schema: "koda-assessment-v1", AdvisoriesAt: rules.PublishedAt, AnalyzedAt: now.Format(time.RFC3339),
-		ComponentCount: len(components), Findings: []Finding{}}
-	if len(components) > 10_000_000/len(rules.Rules) {
-		return Report{}, errors.New("assessment exceeds 10 million rule comparisons")
-	}
+		ComponentCount: len(components), Findings: []Finding{}, Risks: risks}
 	remainingVersions := maxExactVersions
 	remainingVersionOutput := maxInput
 	byRef := map[string]model.Asset{}
@@ -363,7 +406,7 @@ func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Conte
 				if err := ctx.Err(); err != nil {
 					return Report{}, err
 				}
-				if matches(*rule.Component, c.Asset, byRef[c.parentRef]) {
+				if !c.repeat && matches(*rule.Component, c.Asset, byRef[c.parentRef]) {
 					// Each finding repeats the rule's fixed versions in the output.
 					remainingVersionOutput -= versions.fixedBytes
 					if remainingVersionOutput < 0 {
@@ -383,10 +426,42 @@ func evaluate(ctx context.Context, raw, rulesRaw []byte, contextData model.Conte
 			report.UnmatchedRules++
 		}
 	}
-	slices.SortStableFunc(report.Findings, func(a, b Finding) int {
+	byIdentity := func(a, b Finding) int {
 		return cmp.Or(cmp.Compare(a.ID, b.ID), cmp.Compare(a.ComponentRef, b.ComponentRef), cmp.Compare(a.ComponentName, b.ComponentName), cmp.Compare(a.ObservedVersion, b.ObservedVersion))
-	})
+	}
+	slices.SortStableFunc(report.Findings, byIdentity)
+	slices.SortStableFunc(report.Risks, byIdentity)
 	return report, nil
+}
+
+func parseRules(ctx context.Context, rulesRaw []byte) (Rules, error) {
+	var rules Rules
+	var err error
+	var envelope struct {
+		Schema   string `json:"schema"`
+		Document struct {
+			Version string `json:"csaf_version"`
+		} `json:"document"`
+	}
+	_ = json.Unmarshal(rulesRaw, &envelope)
+	switch {
+	case envelope.Schema == "koda-advisory-rules-v1":
+		err = json.Unmarshal(rulesRaw, &rules)
+	case envelope.Document.Version != "":
+		rules, err = parseCSAF(ctx, rulesRaw)
+	default:
+		rules, err = parseOSV(ctx, rulesRaw)
+	}
+	if err != nil {
+		return Rules{}, fmt.Errorf("invalid advisory input: %w", err)
+	}
+	if len(rules.Rules) == 0 || len(rules.Rules) > 4096 {
+		return Rules{}, errors.New("expected koda-advisory-rules-v1 with 1–4096 rules")
+	}
+	if _, err := time.Parse(time.RFC3339, rules.PublishedAt); err != nil {
+		return Rules{}, errors.New("advisory publishedAt must use RFC3339")
+	}
+	return rules, nil
 }
 
 func validateRule(rule Rule) (*semver.Constraints, error) {

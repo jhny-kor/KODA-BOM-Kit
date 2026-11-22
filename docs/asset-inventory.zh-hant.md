@@ -129,14 +129,14 @@ X.509、公開密鑰、算法生成 `cryptographic-asset`。候選簽發者關�
 
 ```sh
 ./koda-bom assess \
-  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --sbom ./reports/COLLECTION/bom.cdx.json \
   --context ./reports/COLLECTION/context.json \
   --advisories ./advisory-rules.json \
   --kev ./known_exploited_vulnerabilities.json \
   --output ./assessment.json
 ```
 
-`--context`、`--kev` 可選。使用context時對照本次 `SHA256SUMS` 驗證SBOM和上下文。KEV提供優先級信息。支持下方顯式規則、精確受影響版本/PURL的OSV、精確產品ID/無條件狀態的CSAF 2.0。未支持的範圍、條件或產品組合會停止並說明原因。
+`--advisories`、`--context`、`--kev` 可選。使用context時對照本次 `SHA256SUMS` 驗證SBOM和上下文。KEV提供優先級信息。支持下方顯式規則、精確受影響版本/PURL的OSV、精確產品ID/無條件狀態的CSAF 2.0。未支持的範圍、條件或產品組合會停止並說明原因。
 
 ```json
 {
@@ -161,6 +161,17 @@ X.509、公開密鑰、算法生成 `cryptographic-asset`。候選簽發者關�
 ```
 
 使用包含發行版本的distro ID和精確包版本。SBOM/PURL版本衝突為 `review_required`，考慮RPM epoch。每次最多1,000,000條精確版本。顯式規則支持 `supportEndsAt` 和受支持生態的 `affectedSemver`。替換文件/存儲固件需要激活復核，未知設備/公告外版本需人工審查。物理Linux和Windows設備須核對廠商清單。Windows/macOS原生採集主要覆蓋OS、硬件、已安裝應用。
+
+報告的 `risks` 數組以來源 `KODA collection evidence` 列出採集器已記錄在BOM中的風險。這些風險無需安全公告文件，並與安全公告的 `findings` 分開。`sbom.cdx.json` 和 `sbom.spdx.json` 包含密碼學風險，合併的 `bom.cdx.json` 還包含AI-BOM和OBOM風險。在 `bom.cdx.json` 中，安全公告跳過重複主機軟體包的OBOM節點，運行中容器的軟體包則通過其OBOM節點匹配，但僅覆蓋其進程使用的軟體包。容器的完整清單請評估 `containers/<name>/sbom.cdx.json`。`risk_observed` 表示記錄的證據顯示該狀況；`review_required` 表示無法排除該狀況。
+
+| 發現ID | 狀態 | 記錄的證據 |
+|---|---|---|
+| `KODA-RISK-RSA-KEY-BELOW-2048`, `KODA-RISK-DSA-KEY` | `risk_observed` | 使用低於2048位RSA或DSA的證書或SSH主機密鑰 |
+| `KODA-RISK-MD5-SIGNATURE`, `KODA-RISK-SHA1-SIGNATURE` | `risk_observed` | 使用MD5或SHA-1簽名的證書（採集器確認為自簽名的除外） |
+| `KODA-RISK-LEGACY-TLS-ALLOWED`, `KODA-RISK-LEGACY-CRYPTO-POLICY` | `risk_observed` | 允許低於TLS 1.2協議的配置，或LEGACY系統加密策略 |
+| `KODA-RISK-PICKLE-DANGEROUS-IMPORTS` | `risk_observed` | 模型文件或模型目錄檢查點中的pickle導入了可執行代碼的可調用對象 |
+| `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickle導入了允許列表之外的模塊，或檢查未完成 |
+| `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | 聲明的防火牆規則允許的非環回主機監聽；來源受限、無法評估的規則或沒有有效防火牆聲明（`none-observed`）時需要複核 |
 
 ## TCP可達性觀察
 
