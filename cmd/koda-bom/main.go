@@ -34,7 +34,7 @@ import (
 	"koda.local/security-sbom-linux/internal/staticjs"
 )
 
-var version = "0.1.7-dev"
+var version = "0.1.8"
 var revision = "uncommitted"
 var builtAt = "unknown"
 

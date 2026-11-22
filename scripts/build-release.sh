@@ -65,7 +65,7 @@ if test -n "$go_pin" && test "$go_sha256" != "$go_pin"; then
 fi
 # Use the account's cache location even when HOME was changed by a shell profile.
 build_home="$(run_python -c 'import os, pwd; print(pwd.getpwuid(os.geteuid()).pw_dir)')"
-release_version="${VERSION:-0.1.7}"
+release_version="${VERSION:-0.1.8}"
 release_stamp="${BUILD_TIMESTAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
 built_at="${BUILD_AT:-${release_stamp:0:4}-${release_stamp:4:2}-${release_stamp:6:2}T${release_stamp:9:2}:${release_stamp:11:2}:${release_stamp:13:2}Z}"
 if ! [[ "$release_version" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || ! [[ "$release_stamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then

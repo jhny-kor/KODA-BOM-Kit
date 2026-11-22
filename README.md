@@ -6,7 +6,7 @@ KODA BOM은 폐쇄망에서 **실행 파일 하나로 소프트웨어와 하드�
 
 ## 현재 소스에서 실행
 
-Linux x86_64·ARM64에서 실행 파일은 `koda-bom`입니다. 현재 소스의 개발 버전은 `0.1.7-dev`입니다.
+Linux x86_64·ARM64에서 실행 파일은 `koda-bom`입니다. 현재 버전은 `0.1.8`입니다.
 
 ```sh
 sudo ./koda-bom
@@ -34,27 +34,28 @@ AI 모델과 가중치는 수집 범위에서 발견한 자료를 기록합니�
 
 2026-11-21 Daybreak 점검의 12건을 조치했습니다. 배포 빌드 설정, 파일 수집 범위, 이미지·아카이브 처리, 오프라인 권고 대조가 대상입니다. Linux amd64에서 단일 실행 파일의 하드웨어·소프트웨어 수집과 동시 출력을 다시 확인했습니다. [항목별 조치와 회귀 결과](docs/검증결과.ko.md#2026-11-21-daybreak-12건-조치-검증)
 
-## 기존 0.1.7 배포본 반입 후 실행
+## 0.1.8 폐쇄망 배포본 반입 후 실행
 
-빌드 PC의 `dist/`에서 만든 `koda-sbom-linux-amd64-0.1.7-<UTC일시>-<소스식별자>.tar.gz`와 같은 이름의 `.sha256`을 반입합니다. 0.1.7 배포본은 아래 [새 수집 항목](#서버-보안-관리-정보)을 포함하며, 0.1.5처럼 실제 커널 VM 검증 보고서(`VERIFICATION.json`)를 동봉한 `-verified` 묶음은 아닙니다. 검증한 범위와 미검증 범위는 [검증 결과 기록](docs/검증결과.ko.md)을 확인하세요.
+Linux x86_64(amd64) 서버에는 `koda-bom-linux-amd64-0.1.8-<UTC일시>-<소스식별자>.tar.gz`와 같은 이름의 `.tar.gz.sha256`을 함께 반입합니다. 외부 PC에서 두 첨부파일을 내려받습니다. [KODA-BOM-Kit 0.1.8 공식 릴리스](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+
+두 파일을 같은 작업 폴더에 두고 압축파일, 압축 해제한 파일 순서로 체크섬을 확인합니다. 아래 명령은 두 검사가 통과하면 버전을 출력하고 호스트 수집을 시작합니다.
 
 ```bash
-set -- koda-sbom-linux-amd64-0.1.7-*.tar.gz
+set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
 if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
-  echo "0.1.7 압축파일 한 개가 있는 폴더에서 실행하세요."
+  echo "0.1.8 압축파일 한 개가 있는 폴더에서 실행하세요."
 else
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
   tar -xzf "${pkg}.tar.gz" &&
   cd "$pkg" &&
-  sha256sum -c SHA256SUMS
+  sha256sum -c SHA256SUMS &&
+  ./koda-bom version &&
+  sudo ./koda-bom
 fi
 ```
 
-```bash
-./koda-sbom doctor
-sudo ./koda-sbom scan --output-dir /var/tmp/koda-sbom-results --asset-tag "$(hostname)" --max-files 0 --timeout 0
-```
+결과는 `bom-output/` 아래 새 수집 폴더에 저장됩니다. `bom.cdx.json` 병합본과 `boms/`의 개별 BOM 7종을 확인합니다. AI-BOM 파일명은 `aibom.cdx.json`입니다. 배포본에는 `LICENSE`, 원저자 `jhny-kor`와 공식 저장소를 표기한 `NOTICE`, 외부 구성요소의 라이선스 자료가 포함됩니다. 실행 검증 범위는 릴리스 설명과 [검증 안내](docs/verification.ko.md)를 확인하세요.
 
 ## 0.1.5 검증 배포본 반입 후 실행
 
@@ -533,10 +534,10 @@ CycloneDX와 SPDX에는 수집 대상 유형, 구성요소 수, 사용자가 설
 
 ```bash
 # 현재 소스의 Linux x86_64 배포용 압축파일 생성
-VERSION=0.1.7-dev ./scripts/build-release.sh
+VERSION=0.1.8 ./scripts/build-release.sh
 
 # 별도로 검증한 Go 설치본과 미리 반입한 모듈 캐시로 빌드
-VERSION=0.1.7-dev GOPROXY=off ./scripts/build-release.sh \
+VERSION=0.1.8 GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 
 # Linux ARM64용 단일 바이너리 빌드
