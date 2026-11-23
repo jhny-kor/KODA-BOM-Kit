@@ -80,7 +80,7 @@ func TestFirewallDeclarations(t *testing.T) {
 		"etc/default/ufw":                    "DEFAULT_INPUT_POLICY=\"DROP\"\n",
 	}, nil)
 	var out model.Context
-	collectFirewall(context.Background(), root, &out, nil)
+	collectFirewall(context.Background(), root, &out, false, nil)
 	want := []model.FirewallDeclaration{
 		{Framework: "iptables", Path: "etc/sysconfig/iptables", DefaultInputPolicy: "DROP", AllowedInbound: []string{"tcp/22", "tcp/5432 restricted", "tcp/6000-6010 restricted"}},
 		{Framework: "ufw", Path: "etc/ufw/user.rules", DefaultInputPolicy: "DROP", AllowedInbound: []string{"tcp/8080", "tcp/22"}, State: "disabled", UnresolvedRules: 1},
@@ -101,7 +101,7 @@ func TestFirewallDefaultsAndIncludeLoop(t *testing.T) {
 	}, nil)
 	var out model.Context
 	start := time.Now()
-	collectFirewall(context.Background(), root, &out, nil)
+	collectFirewall(context.Background(), root, &out, false, nil)
 	if time.Since(start) > 5*time.Second {
 		t.Fatal("self-including nftables configuration was not bounded")
 	}
@@ -131,12 +131,80 @@ func TestFirewallProtocolWideAndStateRules(t *testing.T) {
 			"table ip c { chain input { type filter hook input priority 20; policy accept; tcp dport 2222 accept; } }\n",
 	}, nil)
 	var out model.Context
-	collectFirewall(context.Background(), root, &out, nil)
+	collectFirewall(context.Background(), root, &out, false, nil)
 	want := []model.FirewallDeclaration{
 		{Framework: "iptables", Path: "etc/sysconfig/iptables", DefaultInputPolicy: "DROP", AllowedInbound: []string{"tcp/all", "all"}},
 		{Framework: "nftables", Path: "etc/nftables.conf", DefaultInputPolicy: "DROP", AllowedInbound: []string{"udp/all", "all", "tcp/2222"}},
 	}
 	if !reflect.DeepEqual(out.Firewall, want) {
 		t.Fatalf("got  %+v\nwant %+v", out.Firewall, want)
+	}
+}
+
+// Stock RHEL enables firewalld and ships nftables.conf with nftables.service
+// disabled. A masked unit never loads; without a unit file the declaration stands.
+func TestFirewallWhoseUnitIsNotEnabledIsInactive(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"etc/firewalld/firewalld.conf":             "DefaultZone=public\n",
+		"usr/lib/firewalld/zones/public.xml":       `<?xml version="1.0"?><zone><service name="ssh"/></zone>`,
+		"usr/lib/firewalld/services/ssh.xml":       `<?xml version="1.0"?><service><port protocol="tcp" port="22"/></service>`,
+		"etc/sysconfig/nftables.conf":              "#include \"/etc/nftables/main.nft\"\n",
+		"etc/sysconfig/iptables":                   "*filter\n:INPUT DROP [0:0]\nCOMMIT\n",
+		"etc/iptables/rules.v4":                    "*filter\n:INPUT DROP [0:0]\nCOMMIT\n",
+		"usr/lib/systemd/system/firewalld.service": "[Service]\nExecStart=/usr/sbin/firewalld --nofork\n",
+		"usr/lib/systemd/system/nftables.service":  "[Service]\nType=oneshot\n",
+		"usr/lib/systemd/system/iptables.service":  "[Service]\nType=oneshot\n",
+	}, nil)
+	for link, target := range map[string]string{
+		"etc/systemd/system/multi-user.target.wants/firewalld.service": "/usr/lib/systemd/system/firewalld.service",
+		"etc/systemd/system/iptables.service":                          "/dev/null",
+	} {
+		full := filepath.Join(root.Name(), link)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, full); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var out model.Context
+	collectServices(root, &out, false, nil)
+	collectFirewall(context.Background(), root, &out, false, nil)
+	states := map[string]string{}
+	for _, d := range out.Firewall {
+		states[d.Path] = d.State
+	}
+	want := map[string]string{
+		"usr/lib/firewalld/zones/public.xml": "",
+		"etc/sysconfig/nftables.conf":        "not-enabled",
+		"etc/sysconfig/iptables":             "not-enabled",
+		"etc/iptables/rules.v4":              "",
+	}
+	if !reflect.DeepEqual(states, want) {
+		t.Fatalf("got %v want %v", states, want)
+	}
+	// On a live host a unit with running processes counts as loaded even when not enabled.
+	running := filepath.Join(root.Name(), "sys/fs/cgroup/system.slice/nftables.service/cgroup.procs")
+	if err := os.MkdirAll(filepath.Dir(running), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(running, []byte("4242\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var live model.Context
+	collectServices(root, &live, true, nil)
+	collectFirewall(context.Background(), root, &live, true, nil)
+	for _, d := range live.Firewall {
+		if d.Path == "etc/sysconfig/nftables.conf" && d.State != "" {
+			t.Fatalf("a running unit is active: %+v", d)
+		}
+	}
+	// Past the enabled-unit limit enablement is unknown, so nothing is marked.
+	full := model.Context{EnabledServices: make([]model.Service, maxServices)}
+	collectFirewall(context.Background(), root, &full, false, nil)
+	for _, d := range full.Firewall {
+		if d.State != "" {
+			t.Fatalf("enablement unknown past the limit: %+v", d)
+		}
 	}
 }

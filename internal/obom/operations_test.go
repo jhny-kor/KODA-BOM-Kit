@@ -92,6 +92,7 @@ func TestFirewallAcceptsOrdering(t *testing.T) {
 		{[]model.FirewallDeclaration{{DefaultInputPolicy: "DROP", UnresolvedRules: 1}}, "undetermined"},
 		{[]model.FirewallDeclaration{{State: "disabled", DefaultInputPolicy: "DROP"}}, "none-observed"},
 		{nil, "none-observed"},
+		{[]model.FirewallDeclaration{{State: "not-enabled", DefaultInputPolicy: "DROP"}}, "none-observed"},
 	}
 	for _, tt := range tests {
 		if got := firewallAccepts(tt.d, "tcp6", 5432); got != tt.want {

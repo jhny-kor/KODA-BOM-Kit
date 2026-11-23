@@ -297,7 +297,7 @@ func firewallAccepts(declarations []model.FirewallDeclaration, protocol string, 
 	protocol = strings.TrimSuffix(protocol, "6")
 	active, restricted, policyAccept, unknown := false, false, false, false
 	for _, d := range declarations {
-		if d.State == "disabled" {
+		if d.State == "disabled" || d.State == "not-enabled" {
 			continue
 		}
 		active = true

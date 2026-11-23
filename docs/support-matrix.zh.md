@@ -50,7 +50,7 @@
 | 监听套接字 | 同命名空间TCP LISTEN/绑定UDP和进程FD。仅绑定无法确认防火墙可达性，无归属项为 `unattributedSockets` |
 | 外部连接 | 按进程和远程端点汇总本地端口不是监听端口的ESTABLISHED TCP，最多16,384个套接字。从固定本地端口连向对方临时端口的连接视为已接受的连接。只看到采集时打开的连接，仅限主机进程。连接到本主机监听端口的连接会关联到该监听套接字及其所属进程 |
 | 计划任务 | `/etc/crontab`、`/etc/cron.d`、用户crontab、`cron.{hourly,daily,weekly,monthly}` 脚本，以及已启用systemd定时器的 `On*` 计划。只记录程序绝对路径，丢弃参数 |
-| 防火墙 | iptables-save文件（RHEL/Debian/ufw）、firewalld默认区域及其服务定义、nftables input hook链和字面include。这些是文件声明，不读取内核已加载的规则。没有policy的base chain视为接受，`ENABLED=no` 的ufw记为 `disabled`。仅环回、已建立状态和否定规则不视为开放端口，协议范围的TCP/UDP接受视为开放该协议全部端口。主机网络命名空间中的非环回监听套接字带有 `firewall-declared`：`accept-declared`、`accept-declared-restricted`、`policy-accept-declared`、`no-accept-declared`、`undetermined`，未读取到有效声明时为 `none-observed`。容器套接字位于各自的网络命名空间，不带此值。容器通过NAT发布的端口经过FORWARD规则，不予评估 |
+| 防火墙 | iptables-save文件（RHEL/Debian/ufw）、firewalld默认区域及其服务定义、nftables input hook链和字面include。这些是文件声明，不读取内核已加载的规则。没有policy的base chain视为接受，`ENABLED=no` 的ufw记为 `disabled`，systemd单元已安装但既未启用也未运行或已被屏蔽的框架记为 `not-enabled`，两者都不视为生效。仅环回、已建立状态和否定规则不视为开放端口，协议范围的TCP/UDP接受视为开放该协议全部端口。主机网络命名空间中的非环回监听套接字带有 `firewall-declared`：`accept-declared`、`accept-declared-restricted`、`policy-accept-declared`、`no-accept-declared`、`undetermined`，未读取到有效声明时为 `none-observed`。容器套接字位于各自的网络命名空间，不带此值。容器通过NAT发布的端口经过FORWARD规则，不予评估 |
 | 设置/重启 | SELinux、AppArmor、lockdown、FIPS、允许启动参数、内核 `y`/`m`、重启请求、运行模块、较新同系列内核。需解释观察结果，无信号不足以证明无需重启 |
 | SSH | 全局配置声明，排除 `Match`，不计算 `Include` 生效优先级 |
 | taint/模块 | `kernel.tainted`、`/proc/modules` 标志和sysfs version/srcversion |

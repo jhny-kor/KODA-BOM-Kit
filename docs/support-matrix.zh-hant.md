@@ -50,7 +50,7 @@
 | 監聽套接字 | 同命名空間TCP LISTEN/綁定UDP和進程FD。僅綁定無法確認防火牆可達性，無歸屬項為 `unattributedSockets` |
 | 外部連接 | 按進程和遠程端點彙總本地端口不是監聽端口的ESTABLISHED TCP，最多16,384個套接字。從固定本地端口連向對方臨時端口的連接視為已接受的連接。只看到採集時打開的連接，僅限主機進程。連接到本主機監聽端口的連接會關聯到該監聽套接字及其所屬進程 |
 | 計劃任務 | `/etc/crontab`、`/etc/cron.d`、用戶crontab、`cron.{hourly,daily,weekly,monthly}` 腳本，以及已啓用systemd定時器的 `On*` 計劃。只記錄程序絕對路徑，丟棄參數 |
-| 防火牆 | iptables-save文件（RHEL/Debian/ufw）、firewalld默認區域及其服務定義、nftables input hook鏈和字面include。這些是文件聲明，不讀取內核已加載的規則。沒有policy的base chain視為接受，`ENABLED=no` 的ufw記為 `disabled`。僅環回、已建立狀態和否定規則不視為開放端口，協議範圍的TCP/UDP接受視為開放該協議全部端口。主機網絡命名空間中的非環回監聽套接字帶有 `firewall-declared`：`accept-declared`、`accept-declared-restricted`、`policy-accept-declared`、`no-accept-declared`、`undetermined`，未讀取到有效聲明時為 `none-observed`。容器套接字位於各自的網絡命名空間，不帶此值。容器通過NAT發布的端口經過FORWARD規則，不予評估 |
+| 防火牆 | iptables-save文件（RHEL/Debian/ufw）、firewalld默認區域及其服務定義、nftables input hook鏈和字面include。這些是文件聲明，不讀取內核已加載的規則。沒有policy的base chain視為接受，`ENABLED=no` 的ufw記為 `disabled`，systemd單元已安裝但既未啟用也未運行或已被屏蔽的框架記為 `not-enabled`，兩者都不視為生效。僅環回、已建立狀態和否定規則不視為開放端口，協議範圍的TCP/UDP接受視為開放該協議全部端口。主機網絡命名空間中的非環回監聽套接字帶有 `firewall-declared`：`accept-declared`、`accept-declared-restricted`、`policy-accept-declared`、`no-accept-declared`、`undetermined`，未讀取到有效聲明時為 `none-observed`。容器套接字位於各自的網絡命名空間，不帶此值。容器通過NAT發布的端口經過FORWARD規則，不予評估 |
 | 設置/重啓 | SELinux、AppArmor、lockdown、FIPS、允許啓動參數、內核 `y`/`m`、重啓請求、運行模塊、較新同系列內核。需解釋觀察結果，無信號不足以證明無需重啓 |
 | SSH | 全局配置聲明，排除 `Match`，不計算 `Include` 生效優先級 |
 | taint/模塊 | `kernel.tainted`、`/proc/modules` 標誌和sysfs version/srcversion |

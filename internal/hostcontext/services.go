@@ -28,10 +28,7 @@ var listenValue = regexp.MustCompile(`^[A-Za-z0-9_.:\[\]/@%-]{1,128}$`)
 // "stopped" socket-activated service still listens through its socket.
 // allowed, when not nil, limits unit file reads to the caller's scan plan.
 func collectServices(root *os.Root, out *model.Context, live bool, allowed map[string]bool) {
-	dirs := unitDirs
-	if !live {
-		dirs = []string{"etc/systemd/system", "usr/lib/systemd/system", "lib/systemd/system"}
-	}
+	dirs := serviceDirs(live)
 	enabled := map[string]map[string]bool{} // unit -> targets
 	for _, dir := range dirs {
 		f, err := openNoFollow(root, dir)
@@ -122,6 +119,14 @@ func collectServices(root *os.Root, out *model.Context, live bool, allowed map[s
 		}
 		out.EnabledServices = append(out.EnabledServices, service)
 	}
+}
+
+// serviceDirs lists unit directories; /run applies only to a live host.
+func serviceDirs(live bool) []string {
+	if live {
+		return unitDirs
+	}
+	return []string{"etc/systemd/system", "usr/lib/systemd/system", "lib/systemd/system"}
 }
 
 // readUnit returns the unit file used for unit (a template file for an

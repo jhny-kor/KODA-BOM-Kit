@@ -102,7 +102,7 @@ func collect(ctx context.Context, root string, live bool, paths []string, listed
 	}
 	collectServices(confined, &out, live, allowed)
 	collectScheduledJobs(confined, &out, allowed)
-	collectFirewall(ctx, confined, &out, allowed)
+	collectFirewall(ctx, confined, &out, live, allowed)
 	if live {
 		collectRuntime(ctx, confined, &out, denied)
 	}

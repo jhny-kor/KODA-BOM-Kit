@@ -80,7 +80,8 @@ type FirewallDeclaration struct {
 	Path               string   `json:"path"`
 	DefaultInputPolicy string   `json:"defaultInputPolicy,omitempty"`
 	AllowedInbound     []string `json:"allowedInbound,omitempty"` // "tcp/22", "udp/53", "all"; " restricted" when limited by source or interface
-	// State is "disabled" when the framework's own configuration turns it off.
+	// State is "disabled" when the framework's own configuration turns it off, or
+	// "not-enabled" when its systemd unit is installed but neither enabled nor running.
 	State string `json:"state,omitempty"`
 	// UnresolvedRules counts accept rules too complex to summarize (negation, sets, variables).
 	UnresolvedRules int `json:"unresolvedRules,omitempty"`

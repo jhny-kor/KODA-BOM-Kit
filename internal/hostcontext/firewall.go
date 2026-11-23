@@ -23,7 +23,23 @@ var iptablesFiles = map[string]string{
 	"etc/ufw/user.rules": "ufw", "etc/ufw/user6.rules": "ufw",
 }
 
-func collectFirewall(ctx context.Context, root *os.Root, out *model.Context, allowed map[string]bool) {
+// firewallUnits names the systemd unit that loads an iptables file at boot;
+// firewalld, nftables and ufw load through a unit named after the framework.
+var firewallUnits = map[string]string{
+	"etc/sysconfig/iptables": "iptables.service", "etc/sysconfig/ip6tables": "ip6tables.service",
+	"etc/iptables/rules.v4": "netfilter-persistent.service", "etc/iptables/rules.v6": "netfilter-persistent.service",
+}
+
+func firewallUnit(d model.FirewallDeclaration) string {
+	if unit, ok := firewallUnits[d.Path]; ok {
+		return unit
+	}
+	return d.Framework + ".service"
+}
+
+// collectFirewall reads after collectServices, whose enabled units decide
+// whether each declaration is loaded at boot.
+func collectFirewall(ctx context.Context, root *os.Root, out *model.Context, live bool, allowed map[string]bool) {
 	read := func(p string) []byte {
 		if allowed != nil && !allowed[p] {
 			return nil
@@ -60,6 +76,27 @@ func collectFirewall(ctx context.Context, root *os.Root, out *model.Context, all
 			d := model.FirewallDeclaration{Framework: "nftables", Path: p}
 			parseNftables(ctx, data, read, &d, 0, map[string]bool{p: true})
 			out.Firewall = append(out.Firewall, d)
+		}
+	}
+	// A framework whose unit is installed but neither enabled nor running, or
+	// is masked, does not load its rules (RHEL ships nftables.conf with the
+	// unit disabled next to firewalld). Without the unit file, the declaration
+	// stands, as it does when the enabled-unit limit left enablement unknown.
+	if len(out.EnabledServices) >= maxServices {
+		return
+	}
+	enabled := map[string]bool{}
+	for _, s := range out.EnabledServices {
+		enabled[s.Unit] = true
+	}
+	for i := range out.Firewall {
+		d := &out.Firewall[i]
+		unit := firewallUnit(*d)
+		if d.State != "" || enabled[unit] || live && serviceRunning(root, unit) {
+			continue
+		}
+		if file, _, masked := readUnit(root, serviceDirs(live), unit, allowed); file != "" || masked {
+			d.State = "not-enabled"
 		}
 	}
 }
