@@ -8,6 +8,7 @@ independently of the exporter's reference hashing implementation.
 
 import argparse
 from collections import Counter, defaultdict
+import ipaddress
 import json
 from pathlib import Path
 import sys
@@ -47,6 +48,44 @@ def socket_label(socket):
     return f"{address}:{socket['port']}"
 
 
+def address(value):
+    try:
+        return ipaddress.ip_address(value)
+    except ValueError:
+        return None
+
+
+def firewall_verdict(declarations, protocol, port):
+    """Summarize how active firewall declarations treat one inbound port."""
+    protocol = protocol.removesuffix("6")
+    active = restricted = policy_accept = unknown = False
+    for declaration in declarations:
+        if declaration.get("state") in ("disabled", "not-enabled"):
+            continue
+        active = True
+        policy = declaration.get("defaultInputPolicy", "")
+        policy_accept = policy_accept or policy == "ACCEPT"
+        unknown = unknown or not policy or declaration.get("unresolvedRules", 0) > 0
+        for entry in declaration.get("allowedInbound", []):
+            spec, _, qualifier = entry.partition(" ")
+            match = spec == "all"
+            name, slash, ports = spec.partition("/")
+            if slash and name == protocol:
+                low, dash, high = ports.partition("-")
+                high = high if dash else low
+                match = ports == "all" or (low.isdigit() and high.isdigit() and int(low) <= port <= int(high))
+            if match and not qualifier:
+                return "accept-declared"
+            restricted = restricted or match
+    if not active:
+        return "none-observed"
+    if policy_accept:
+        return "policy-accept-declared"
+    if restricted:
+        return "accept-declared-restricted"
+    return "undetermined" if unknown else "no-accept-declared"
+
+
 def annotation_key(value):
     protocol, endpoint = value.split("/", 1)
     endpoint, scope = endpoint.rsplit(" (", 1)
@@ -80,6 +119,9 @@ class Verifier:
         self.expected_edges = defaultdict(set)
         self.checked = {self.host_ref}
         self.counts = Counter()
+        self.firewall = []
+        self.listeners = []
+        self.connections = []
 
     def one(self, candidates, description):
         candidates = list(candidates)
@@ -126,6 +168,12 @@ class Verifier:
         require(node.get("endpoints") == [protocol + "://" + socket_label(socket)],
                 "listener endpoint differs from observed bind")
         require(prop(node, "owner") == ("" if owner else "unknown"), "listener ownership status changed")
+        # Host declarations govern only the host network namespace.
+        verdict = ""
+        if scope == self.host_ref and socket["bindScope"] != "loopback":
+            verdict = firewall_verdict(self.firewall, socket["protocol"], socket["port"])
+        require(prop(node, "firewall-declared") == verdict, "listener firewall verdict differs from declarations")
+        self.listeners.append((scope, node["bom-ref"], owner, socket["protocol"], socket["address"], socket["port"]))
         self.edge(scope, node["bom-ref"])
         self.edge(node["bom-ref"], owner)
         self.counts[category + "_endpoints"] += 1
@@ -173,9 +221,46 @@ class Verifier:
                     "executable package owner differs from source")
             for socket in record.get("listeningSockets", []):
                 self.listener(scope, ref, socket, bool(executable_package), category)
+            require(values(node, PREFIX + "model-reference") == record.get("modelReferences", []),
+                    "process model references differ from source")
+            for connection in record.get("outboundConnections", []):
+                self.connections.append((scope, ref, connection))
             self.counts[category + "_processes"] += 1
             if not comparable:
                 self.counts["noncomparable_processes"] += 1
+
+    def resolve_connections(self):
+        """An outbound connection reaches a listener of the same scope when it
+        targets that bind address, or an all-interfaces listener from a loopback
+        or own-address peer; a process reaching its own listener adds no edge.
+        Other endpoints are remote services shared by the processes using them."""
+        for scope, owner, connection in self.connections:
+            remote = address(connection["remoteAddress"])
+            local = remote is not None and (remote.is_loopback or connection.get("remoteScope") == "local-host")
+            matched = False
+            for listener_scope, ref, listener_owner, protocol, bind_address, port in self.listeners:
+                if listener_scope != scope or port != connection["remotePort"] or not protocol.startswith("tcp"):
+                    continue
+                bind = address(bind_address)
+                if remote is not None and bind is not None and (bind == remote or (bind.is_unspecified and local)):
+                    matched = True
+                    if listener_owner != owner:
+                        self.edge(owner, ref)
+            if matched:
+                self.counts["local_connections"] += 1
+                continue
+            label = socket_label({"address": connection["remoteAddress"], "port": connection["remotePort"]})
+            node = self.one((node for node in self.services
+                             if prop(node, "scope") == scope
+                             and prop(node, "observation") == "outbound-connection"
+                             and node["name"] == connection["protocol"] + " " + label), "outbound endpoint")
+            for key, expected in [("remote-address", connection["remoteAddress"]),
+                                  ("remote-port", str(connection["remotePort"])),
+                                  ("remote-scope", connection.get("remoteScope", ""))]:
+                require(prop(node, key) == expected, "outbound endpoint differs from source")
+            require(node.get("endpoints") == [connection["protocol"] + "://" + label], "outbound endpoint address differs")
+            self.edge(owner, node["bom-ref"])
+            self.counts["outbound_connections"] += 1
 
     def legacy_container(self, scope, directory, child):
         owners, executable_names = defaultdict(list), defaultdict(set)
@@ -246,10 +331,12 @@ class Verifier:
                                ("kernel-flavor", context.get("kernelFlavor")),
                                ("loaded-modules", context.get("loadedModules")),
                                ("settings", context.get("settings")),
-                               ("livepatch", context.get("livepatch"))]:
+                               ("livepatch", context.get("livepatch")),
+                               ("firewall-declarations", context.get("firewall"))]:
             actual = prop(self.host, name)
             if expected is not None and expected != "":
                 require(actual and json.loads(actual) == expected, "host runtime context differs")
+        self.firewall = context.get("firewall", [])
         self.processes(self.host_ref, context.get("processLinks", []), "host")
         for socket in context.get("unattributedSockets", []):
             self.listener(self.host_ref, "", socket, False, "host")
@@ -261,10 +348,22 @@ class Verifier:
             require(prop(node, "state") == unit.get("state", ""), "systemd unit state differs")
             require(prop(node, "executable") == unit.get("executable", ""), "systemd executable differs")
             require(values(node, PREFIX + "declared-listen") == unit.get("listen", []), "systemd declaration differs")
+            require(values(node, PREFIX + "declared-schedule") == unit.get("schedule", []), "timer schedule differs")
             require(not node.get("endpoints"), "declared systemd listen was promoted to an observed endpoint")
             self.edge(self.host_ref, node["bom-ref"])
             self.edge(node["bom-ref"], self.package(self.host_ref, {"purl": unit.get("purl", "")}))
             self.counts["enabled_units"] += 1
+        for job in context.get("scheduledJobs", []):
+            at = job["source"] + (":" + str(job["line"]) if job.get("line", 0) > 0 else "")
+            node = self.one((node for node in self.services
+                             if prop(node, "scope") == self.host_ref
+                             and prop(node, "observation") == "scheduled-job"
+                             and prop(node, "declared-at") == at), "scheduled job")
+            require(node["name"] == "cron " + at, "scheduled job name differs")
+            for key in ("schedule", "user", "executable"):
+                require(prop(node, key) == job.get(key, ""), "scheduled job differs from source")
+            self.edge(self.host_ref, node["bom-ref"])
+            self.counts["scheduled_jobs"] += 1
         for record in collection.get("containers", []) + collection.get("images", []):
             node = self.one((node for node in self.components
                              if node.get("type") == "container"
@@ -302,6 +401,7 @@ class Verifier:
                         in values(self.metadata, PREFIX + "legacy-container-runtime"), "legacy evidence limits missing")
                 self.legacy_container(ref, directory, child)
                 self.counts["legacy_containers"] += 1
+        self.resolve_connections()
         runtime_refs = {ref for ref, node in self.nodes.items()
                         if ref == self.host_ref or prop(node, "scope")}
         require(runtime_refs == self.checked, "unexpected or unverified runtime graph nodes")
@@ -336,7 +436,8 @@ def main():
     fields = ["containers", "modern_containers", "legacy_containers", "containers_without_runtime",
               "disabled_or_unknown_containers", "host_processes", "container_processes",
               "legacy_listening_executables", "runtime_files", "noncomparable_processes", "enabled_units",
-              "host_endpoints", "container_endpoints", "unknown_owner_endpoints",
+              "host_endpoints", "container_endpoints", "unknown_owner_endpoints", "scheduled_jobs",
+              "outbound_connections", "local_connections",
               "host_package_backed_endpoints", "container_package_backed_endpoints",
               "verified_nodes", "verified_relationships"]
     # Deliberately omit source paths, host names, identifiers, and bind addresses.
