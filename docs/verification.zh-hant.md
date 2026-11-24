@@ -68,6 +68,7 @@ python3 tests/directory_integration.py --stage "$stage"
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-測試涵蓋嵌套 Java、pyz/pex、Go/Rust、安裝來源、目錄邊界、供應商雜湊、PURL 和依賴。Linux 測試資料涵蓋套接字、容器、韌體解析、服務、設置、完整性及證書。AIX 測試檢查 Oracle Home、Listener 和 OPatch。物理 BMC/NIC/OT、真實 Kubernetes 存儲及已訂閱補丁客戶端需要現場證據。
+測試涵蓋嵌套 Java、pyz/pex、Go/Rust、安裝來源、目錄邊界、供應商雜湊、PURL 和依賴。Linux 測試資料涵蓋套接字、容器、韌體解析、服務、設置、完整性及證書。AIX 測試檢查 Oracle Home、Listener 和 OPatch。物理 BMC/NIC/OT、真實 Kubernetes 存儲及已訂閱補丁客戶端需要現場證據。 GitHub Actions（`.github/workflows/ci.yml`）會在每次推送到 `main` 和每個拉取請求時執行格式檢查、所有建置目標的 vet、Go 測試、發布防護、二進位檢查以及上述無需上游快取的容器測試；僅文件變更由 `docs.yml` 檢查。發布建置、依賴快取的上游測試和 VM 驗證仍在建置主機上執行。
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

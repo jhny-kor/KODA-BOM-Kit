@@ -68,6 +68,7 @@ Komutları son dağıtımın açılmış haliyle çalıştırın. Ağı kesmeden
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-Testler iç içe Java, pyz/pex, Go/Rust, kurulum kaynağı, dizin sınırları, tedarikçi özeti, PURL ve bağımlılıkları kapsar. Linux örnekleri soket, konteyner, firmware, servis, ayar, bütünlük ve sertifikaları sınar. AIX örnekleri Oracle Home, Listener ve OPatch'i doğrular. Fiziksel BMC/NIC/OT, gerçek Kubernetes depolaması ve abonelikli yama istemcileri kendi ortam kanıtlarını gerektirir.
+Testler iç içe Java, pyz/pex, Go/Rust, kurulum kaynağı, dizin sınırları, tedarikçi özeti, PURL ve bağımlılıkları kapsar. Linux örnekleri soket, konteyner, firmware, servis, ayar, bütünlük ve sertifikaları sınar. AIX örnekleri Oracle Home, Listener ve OPatch'i doğrular. Fiziksel BMC/NIC/OT, gerçek Kubernetes depolaması ve abonelikli yama istemcileri kendi ortam kanıtlarını gerektirir. GitHub Actions (`.github/workflows/ci.yml`), `main` dalına her gönderimde ve her pull request'te biçim denetimini, tüm derleme hedefleri için vet'i, Go testlerini, sürüm korumalarını, ikili denetimini ve yukarıdaki, üst kaynak önbelleği gerektirmeyen konteyner testlerini çalıştırır; yalnızca belge değişikliklerini `docs.yml` denetler. Sürüm derlemeleri, önbellek gerektiren üst kaynak testleri ve VM denetimleri derleme makinesinde çalışmaya devam eder.
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

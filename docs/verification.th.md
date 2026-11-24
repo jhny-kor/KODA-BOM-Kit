@@ -68,6 +68,7 @@ python3 tests/directory_integration.py --stage "$stage"
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-ครอบคลุม Java ซ้อน, pyz/pex, Go/Rust แหล่งติดตั้ง ขอบเขต แฮชผู้ขาย PURL และความสัมพันธ์ ชุดข้อมูล Linux ตรวจ socket, container, firmware, service การตั้งค่า ความสมบูรณ์ และใบรับรอง ส่วน AIX ตรวจ Oracle Home, Listener และ OPatch อุปกรณ์ BMC/NIC/OT จริง Kubernetes จริง และไคลเอนต์แพตช์แบบสมัครสมาชิกต้องมีหลักฐานจากสภาพแวดล้อมนั้น
+ครอบคลุม Java ซ้อน, pyz/pex, Go/Rust แหล่งติดตั้ง ขอบเขต แฮชผู้ขาย PURL และความสัมพันธ์ ชุดข้อมูล Linux ตรวจ socket, container, firmware, service การตั้งค่า ความสมบูรณ์ และใบรับรอง ส่วน AIX ตรวจ Oracle Home, Listener และ OPatch อุปกรณ์ BMC/NIC/OT จริง Kubernetes จริง และไคลเอนต์แพตช์แบบสมัครสมาชิกต้องมีหลักฐานจากสภาพแวดล้อมนั้น GitHub Actions (`.github/workflows/ci.yml`) รันการตรวจรูปแบบ vet ของทุกเป้าหมายการบิลด์ การทดสอบ Go ตัวป้องกันการรีลีส การตรวจไบนารี และชุดทดสอบคอนเทนเนอร์ข้างต้นที่ไม่ต้องใช้แคชต้นทาง ทุกครั้งที่พุชไป `main` และทุก pull request ส่วนการเปลี่ยนเฉพาะเอกสารตรวจด้วย `docs.yml` การบิลด์รีลีส ชุดทดสอบที่ใช้แคชต้นทาง และการตรวจบน VM ยังรันบนเครื่องบิลด์
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

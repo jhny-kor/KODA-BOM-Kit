@@ -68,6 +68,7 @@ Exécutez les commandes sur la distribution finale extraite. Préparez les cache
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-Les tests couvrent Java imbriqué, pyz/pex, Go/Rust, provenance, limites de répertoires, empreintes fournisseur, PURL et dépendances. Les cas Linux couvrent sockets, conteneurs, firmware, services, réglages, intégrité et certificats. Les cas AIX vérifient Oracle Home, Listener et OPatch. Les équipements BMC/NIC/OT, le stockage Kubernetes réel et les clients de correctifs sous abonnement nécessitent des preuves de terrain.
+Les tests couvrent Java imbriqué, pyz/pex, Go/Rust, provenance, limites de répertoires, empreintes fournisseur, PURL et dépendances. Les cas Linux couvrent sockets, conteneurs, firmware, services, réglages, intégrité et certificats. Les cas AIX vérifient Oracle Home, Listener et OPatch. Les équipements BMC/NIC/OT, le stockage Kubernetes réel et les clients de correctifs sous abonnement nécessitent des preuves de terrain. GitHub Actions (`.github/workflows/ci.yml`) exécute à chaque push sur `main` et à chaque pull request le formatage, vet pour chaque cible de compilation, les tests Go, les garde-fous de publication, le contrôle du binaire et les suites conteneur ci-dessus qui ne demandent pas de cache amont ; `docs.yml` vérifie les modifications de documentation seule. Les builds de publication, les suites à cache amont et les vérifications en VM restent sur l'hôte de compilation.
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

@@ -68,6 +68,7 @@ Chạy các lệnh trên bản phát hành cuối đã giải nén. Chuẩn bị
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-Các phép thử bao gồm Java lồng nhau, pyz/pex, Go/Rust, nguồn cài đặt, ranh giới thư mục, băm nhà cung cấp, PURL và phụ thuộc. Mẫu Linux kiểm tra socket, container, firmware, dịch vụ, cấu hình, toàn vẹn và chứng chỉ. Mẫu AIX kiểm tra Oracle Home, Listener và OPatch. Thiết bị BMC/NIC/OT, lưu trữ Kubernetes thực và máy khách vá có thuê bao cần bằng chứng tại môi trường riêng.
+Các phép thử bao gồm Java lồng nhau, pyz/pex, Go/Rust, nguồn cài đặt, ranh giới thư mục, băm nhà cung cấp, PURL và phụ thuộc. Mẫu Linux kiểm tra socket, container, firmware, dịch vụ, cấu hình, toàn vẹn và chứng chỉ. Mẫu AIX kiểm tra Oracle Home, Listener và OPatch. Thiết bị BMC/NIC/OT, lưu trữ Kubernetes thực và máy khách vá có thuê bao cần bằng chứng tại môi trường riêng. GitHub Actions (`.github/workflows/ci.yml`) chạy định dạng, vet cho mọi đích build, kiểm thử Go, chốt chặn phát hành, kiểm tra tệp thực thi và các bộ kiểm thử container ở trên không cần bộ nhớ đệm thượng nguồn mỗi lần đẩy lên `main` và mỗi pull request; `docs.yml` kiểm tra thay đổi chỉ có tài liệu. Bản dựng phát hành, bộ kiểm thử dùng bộ nhớ đệm thượng nguồn và kiểm tra VM vẫn chạy trên máy build.
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

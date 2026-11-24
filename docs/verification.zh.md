@@ -68,6 +68,7 @@ python3 tests/directory_integration.py --stage "$stage"
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-测试涵盖嵌套 Java、pyz/pex、Go/Rust、安装来源、目录边界、供应商哈希、PURL 和依赖。Linux 测试数据涵盖套接字、容器、固件解析、服务、设置、完整性及证书。AIX 测试检查 Oracle Home、Listener 和 OPatch。物理 BMC/NIC/OT、真实 Kubernetes 存储及已订阅补丁客户端需要现场证据。
+测试涵盖嵌套 Java、pyz/pex、Go/Rust、安装来源、目录边界、供应商哈希、PURL 和依赖。Linux 测试数据涵盖套接字、容器、固件解析、服务、设置、完整性及证书。AIX 测试检查 Oracle Home、Listener 和 OPatch。物理 BMC/NIC/OT、真实 Kubernetes 存储及已订阅补丁客户端需要现场证据。 GitHub Actions（`.github/workflows/ci.yml`）会在每次推送到 `main` 和每个拉取请求时运行格式检查、所有构建目标的 vet、Go 测试、发布防护、二进制检查以及上述无需上游缓存的容器测试；仅文档变更由 `docs.yml` 检查。发布构建、依赖缓存的上游测试和 VM 验证仍在构建主机上运行。
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

@@ -1,0 +1,90 @@
+name: CI
+
+# Documentation-only changes run the lighter docs workflow instead.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Every commit on main keeps its own result; superseded pull request runs stop.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  go:
+    name: Go format, vet and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l cmd internal)
+          test -z "$unformatted" || { echo "$unformatted"; exit 1; }
+      - name: Vet every build target
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+            GOOS=${target%/*} GOARCH=${target#*/} go vet ./...
+          done
+      - name: Test
+        run: go test -count=1 ./...
+
+  integration:
+    name: CLI and BOM integration
+    needs: go
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install schema validator
+        run: python -m pip install 'jsonschema>=4,<5'
+      - name: Build a stage the way the release does
+        run: |
+          stage="$RUNNER_TEMP/stage"
+          mkdir "$stage"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 go build -mod=readonly -trimpath -buildvcs=false \
+            -ldflags "-s -w -X main.revision=$GITHUB_SHA" -o "$stage/koda-bom" ./cmd/koda-bom
+          install -m 0755 scripts/scan-directory.sh "$stage/scan-directory.sh"
+          echo "STAGE=$stage" >> "$GITHUB_ENV"
+      - name: Release guards, binary and documentation checks
+        run: |
+          python tests/release_guards.py
+          python tests/check_binary.py "$STAGE/koda-bom"
+          python scripts/docs-navigation.py --check
+          python tests/documentation_links.py
+      - name: Domain BOM integration
+        run: python tests/domain_bom_integration.py --binary "$STAGE/koda-bom"
+      - name: Pull test images
+        run: |
+          docker pull --platform linux/amd64 alpine:3.21
+          docker pull --platform linux/amd64 debian:bookworm-slim
+      # Collectors in the containers write root- or nobody-owned 0600 results
+      # into bind mounts, so the checks read them as root.
+      - name: Container integration
+        run: |
+          as_root() { sudo env "PATH=$PATH" "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" PYTHONDONTWRITEBYTECODE=1 "$@"; }
+          as_root python tests/docker_integration.py --binary "$STAGE/koda-bom"
+          as_root python tests/directory_integration.py --stage "$STAGE"
+          as_root python tests/default_bom_integration.py --binary "$STAGE/koda-bom" --docker-platform linux/amd64
+          as_root python tests/bomset_integration.py --binary "$STAGE/koda-bom" --docker-platform linux/amd64
+          as_root python tests/runtime_smoke_integration.py --binary "$STAGE/koda-bom" --docker-platform linux/amd64

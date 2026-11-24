@@ -68,6 +68,7 @@ Run these commands against the extracted final release. Prepare the required ups
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-The suite checks nested Java archives, Python pyz/pex metadata, Go/Rust binaries, installed package provenance, directory boundaries, supplier artifact hashes, PURLs and dependencies. Linux fixtures cover sockets, containers, firmware parsing, service state, security settings, integrity and certificates. AIX fixtures verify Oracle Homes, Listener evidence and OPatch IDs. Synthetic fixtures establish parser behavior. Physical BMC, NIC, OT devices, Kubernetes storage and active subscription patch clients require their own environment evidence.
+The suite checks nested Java archives, Python pyz/pex metadata, Go/Rust binaries, installed package provenance, directory boundaries, supplier artifact hashes, PURLs and dependencies. Linux fixtures cover sockets, containers, firmware parsing, service state, security settings, integrity and certificates. AIX fixtures verify Oracle Homes, Listener evidence and OPatch IDs. Synthetic fixtures establish parser behavior. Physical BMC, NIC, OT devices, Kubernetes storage and active subscription patch clients require their own environment evidence. GitHub Actions (`.github/workflows/ci.yml`) runs formatting, vet for every build target, Go tests, release guards, the binary check and the container suites above except those needing upstream caches on each push to `main` and each pull request; `docs.yml` checks documentation-only changes. Release builds, cached upstream suites and VM checks still run on the build host.
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

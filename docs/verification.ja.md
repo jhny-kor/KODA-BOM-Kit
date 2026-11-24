@@ -68,6 +68,7 @@ python3 tests/directory_integration.py --stage "$stage"
 ```bash
 python3 tests/default_bom_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/bomset_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
+python3 tests/runtime_smoke_integration.py --binary "$stage/koda-bom" --docker-platform linux/amd64
 python3 tests/domain_bom_integration.py --binary "$stage/koda-bom"
 python3 tests/dotnet_ruby_integration.py --stage "$stage" --cache /path/to/upstream-cache
 python3 tests/go_rust_binary_integration.py --stage "$stage" --go /path/to/go
@@ -79,7 +80,7 @@ python3 tests/detailed_sbom_integration.py --stage "$stage"
 python3 tests/livepatch_integration.py --stage "$stage"
 ```
 
-試験は Java の入れ子、pyz/pex、Go/Rust、パッケージ出所、範囲、供給者のハッシュ、PURL と関係を確認します。Linux fixture はソケット、コンテナー、ファームウェア、サービス、設定、整合性、証明書を対象にします。AIX fixture は Oracle Home、Listener、OPatch を確認します。物理 BMC/NIC/OT、実際の Kubernetes ストレージ、契約済みパッチクライアントには現場の証拠が必要です。
+試験は Java の入れ子、pyz/pex、Go/Rust、パッケージ出所、範囲、供給者のハッシュ、PURL と関係を確認します。Linux fixture はソケット、コンテナー、ファームウェア、サービス、設定、整合性、証明書を対象にします。AIX fixture は Oracle Home、Listener、OPatch を確認します。物理 BMC/NIC/OT、実際の Kubernetes ストレージ、契約済みパッチクライアントには現場の証拠が必要です。 GitHub Actions（`.github/workflows/ci.yml`）は `main` へのプッシュとプルリクエストごとに、書式、全ビルド対象の vet、Go テスト、リリースガード、バイナリ検査、上流キャッシュを要しない上記コンテナ試験を実行します。文書だけの変更は `docs.yml` が確認します。リリースビルド、キャッシュを使う上流試験、VM 検証は引き続きビルド端末で実行します。
 
 [tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
 

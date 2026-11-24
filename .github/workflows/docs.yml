@@ -1,0 +1,29 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', '**/*.md', 'scripts/docs-navigation.py', 'tests/documentation_links.py']
+  pull_request:
+    paths: ['docs/**', '**/*.md', 'scripts/docs-navigation.py', 'tests/documentation_links.py']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    name: Documentation navigation and links
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Check navigation and links in every edition
+        run: |
+          python scripts/docs-navigation.py --check
+          python tests/documentation_links.py

@@ -279,6 +279,8 @@ Linux amd64 빌드 호스트에서 직접 확인하려면 `python3 tests/integra
 Oracle 컨테이너 검증은 `docker pull --platform linux/amd64 oraclelinux:8.2`로
 이미지를 준비한 뒤 `python3 tests/oracle82.py --binary "$stage/koda-bom"`으로 실행합니다.
 
+GitHub Actions(`.github/workflows/ci.yml`)는 `main` 푸시와 풀 리퀘스트마다 형식·모든 빌드 대상의 vet·Go 테스트, 배포 가드, 바이너리 검사, 상위 캐시가 필요 없는 컨테이너 통합 검사(`docker_integration.py`, `directory_integration.py`, `default_bom_integration.py`, `bomset_integration.py`, `domain_bom_integration.py`, `runtime_smoke_integration.py`)를 실행합니다. 문서만 바뀐 경우는 `docs.yml`이 확인합니다. 배포 빌드, 상위 캐시가 필요한 검사, VM 검증은 계속 빌드 PC에서 실행합니다.
+
 검증용 Python·Docker·jsonschema는 빌드 PC에서만 사용합니다. 배포 실행 파일은 이 프로그램들에 의존하지 않습니다. 표준 스키마는 `tests/schemas`에 버전 고정해 두며 검증 시 외부 참조를 다운로드하지 않습니다.
 
 `trusted_go_sha256`에는 검증된 Go 설치본의 실행 파일 SHA-256을 지정합니다. 캐시만으로 빌드하려면 모듈 아카이브를 미리 준비하고 `GOPROXY=off`를 설정합니다. 배포 QA와 최종 포장은 `python3 -O` 또는 `PYTHONOPTIMIZE`로 검사를 끄는 실행을 거부합니다.
