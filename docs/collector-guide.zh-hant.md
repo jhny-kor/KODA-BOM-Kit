@@ -15,7 +15,7 @@
   <a href="collector-guide.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
@@ -115,7 +115,7 @@ python3 scripts/compare-sbom-inventory.py \
 建置主機需要 Go 與 Python 3。此版本使用 Go 1.26.11。使用其他 Go 時需提供已驗證的執行檔及 SHA-256。離線建置需要事先填妥的模組快取。發行封存檔適用於 Linux amd64，原始碼也能建置 Linux ARM64 執行檔。建置資訊寫入 `release.json`。
 
 ```sh
-VERSION=0.1.8 GOPROXY=off ./scripts/build-release.sh \
+VERSION=0.1.9 GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-bom ./cmd/koda-bom
 ```

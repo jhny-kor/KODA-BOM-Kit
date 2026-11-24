@@ -15,21 +15,21 @@
   <a href="air-gapped.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 は Linux x86_64 (amd64)、カーネル 3.2 以降向けです。公式リリースのアーカイブと対応する `.tar.gz.sha256` を搬入します。対象サーバーに Go・Python・Docker・jq の追加インストールは不要です。NOTICE に jhny-kor と公式リポジトリーを記載しています。
+KODA BOM Kit 0.1.9 は Linux x86_64 (amd64)、カーネル 3.2 以降向けです。公式リリースのアーカイブと対応する `.tar.gz.sha256` を搬入します。対象サーバーに Go・Python・Docker・jq の追加インストールは不要です。NOTICE に jhny-kor と公式リポジトリーを記載しています。
 
-[リリース 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[リリース 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 検証と展開
 
 同一版のアーカイブ 1 個とチェックサムを実行可能なローカルディレクトリーに置きます。展開前にアーカイブ、展開後に内部ファイルを確認します。チェックサムは転送時の内容を検証します。信頼した公式リリースから入手してください。noexec の USB からは実行可能なローカル領域へコピーします。
 
 ```bash
-set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
 if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
@@ -38,7 +38,7 @@ if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   sha256sum -c SHA256SUMS &&
   ./koda-bom version
 else
-  echo 'Expected exactly one KODA BOM Kit 0.1.8 archive.' >&2
+  echo 'Expected exactly one KODA BOM Kit 0.1.9 archive.' >&2
 fi
 ```
 

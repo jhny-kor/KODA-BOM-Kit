@@ -15,21 +15,21 @@
   <a href="air-gapped.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 có gói Linux x86_64 (amd64), nhân 3.2 trở lên. Chuyển gói và `.tar.gz.sha256` tương ứng từ bản phát hành chính thức. Máy đích không cần cài Go, Python, Docker hoặc jq. NOTICE ghi jhny-kor và kho chính thức.
+KODA BOM Kit 0.1.9 có gói Linux x86_64 (amd64), nhân 3.2 trở lên. Chuyển gói và `.tar.gz.sha256` tương ứng từ bản phát hành chính thức. Máy đích không cần cài Go, Python, Docker hoặc jq. NOTICE ghi jhny-kor và kho chính thức.
 
-[Phát hành 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Phát hành 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## Xác minh và giải nén
 
 Đặt đúng một gói khớp và checksum trong thư mục cục bộ cho phép chạy. Kiểm tra gói trước khi giải nén, rồi kiểm tra tệp bên trong. Checksum xác minh byte đã chuyển. Dùng nguồn phát hành chính thức đáng tin. USB noexec cần sao chép sang hệ thống tệp cho phép thực thi.
 
 ```bash
-set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
 if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
@@ -38,7 +38,7 @@ if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   sha256sum -c SHA256SUMS &&
   ./koda-bom version
 else
-  echo 'Expected exactly one KODA BOM Kit 0.1.8 archive.' >&2
+  echo 'Expected exactly one KODA BOM Kit 0.1.9 archive.' >&2
 fi
 ```
 

@@ -15,21 +15,21 @@
   <a href="air-gapped.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 폐쇄망 배포본은 Linux x86_64(amd64), 커널 3.2 이상용입니다. 공식 릴리스의 압축파일과 짝이 맞는 `.tar.gz.sha256`을 반입합니다. 대상 서버에 Go·Python·Docker·jq를 추가 설치할 필요가 없습니다. NOTICE에는 원저자 jhny-kor와 공식 저장소가 기록됩니다.
+KODA BOM Kit 0.1.9 폐쇄망 배포본은 Linux x86_64(amd64), 커널 3.2 이상용입니다. 공식 릴리스의 압축파일과 짝이 맞는 `.tar.gz.sha256`을 반입합니다. 대상 서버에 Go·Python·Docker·jq를 추가 설치할 필요가 없습니다. NOTICE에는 원저자 jhny-kor와 공식 저장소가 기록됩니다.
 
-[릴리스 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[릴리스 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 검증과 압축 해제
 
 같은 버전 압축파일 한 개와 체크섬을 실행 가능한 서버 로컬 폴더에 둡니다. 압축 해제 전에 아카이브를, 해제 후 내부 파일을 확인합니다. 체크섬은 전달된 바이트를 검증하므로 신뢰한 공식 릴리스에서 받습니다. USB가 noexec라면 실행 가능한 로컬 파일시스템으로 복사합니다.
 
 ```bash
-set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
 if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
@@ -38,7 +38,7 @@ if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   sha256sum -c SHA256SUMS &&
   ./koda-bom version
 else
-  echo 'Expected exactly one KODA BOM Kit 0.1.8 archive.' >&2
+  echo 'Expected exactly one KODA BOM Kit 0.1.9 archive.' >&2
 fi
 ```
 

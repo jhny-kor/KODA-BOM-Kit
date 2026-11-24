@@ -15,7 +15,7 @@
   <strong>Türkçe</strong>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
   <a href="support-matrix.tr.md"><img src="badges/linux.svg" alt="Linux amd64"></a>
 </p>
@@ -24,7 +24,7 @@
 <p align="center"><strong>Tek bir çevrimdışı çalıştırılabilir dosyayla bir Linux makinesindeki yazılım, donanım ve çalışma zamanı verilerini toplayın. KODA BOM Kit yedi CycloneDX malzeme listesi, bunların birleşik sürümünü ve SPDX biçiminde bir yazılım envanteri üretir.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><b>v0.1.8 sürümünü indir</b></a> ·
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><b>v0.1.9 sürümünü indir</b></a> ·
   İlk yazar <a href="https://github.com/jhny-kor">jhny-kor</a> ·
   <a href="https://github.com/jhny-kor/KODA-BOM-Kit">Resmî depo</a>
 </p>
@@ -36,7 +36,7 @@ Linux amd64 arşivini ve ona karşılık gelen SHA-256 dosyasını indirin. Her 
 ```sh
 (
   set -eu
-  set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+  set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
   test "$#" -eq 1 && test -f "$1" || exit 1
   sha256sum -c "$1.sha256"
   tar -xzf "$1"
@@ -67,7 +67,7 @@ Listeleri yeniden birleştirmek için bildirim, ilişki ve sağlama toplamı dos
 
 ```sh
 (
-  cd koda-bom-linux-amd64-0.1.8-*/ || exit 1
+  cd koda-bom-linux-amd64-0.1.9-*/ || exit 1
   run_dir='/path/printed/by/koda-bom'
   ./koda-bom bom-merge --set "$run_dir/boms" --output-dir ./merged
 )

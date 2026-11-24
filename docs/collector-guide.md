@@ -15,7 +15,7 @@
   <a href="collector-guide.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
@@ -115,7 +115,7 @@ Set `run_dir` to the result path printed by the collector. The exit codes are 0 
 The release build uses Go and Python 3 on the build host. Go 1.26.11 was used for this release. Use a verified Go binary and SHA-256 for an alternate toolchain. Offline builds require a populated module cache. The release archive targets Linux amd64, and the source also builds for Linux ARM64. Build provenance is written to `release.json`.
 
 ```sh
-VERSION=0.1.8 GOPROXY=off ./scripts/build-release.sh \
+VERSION=0.1.9 GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-bom ./cmd/koda-bom
 ```

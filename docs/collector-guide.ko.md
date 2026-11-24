@@ -15,7 +15,7 @@
   <a href="collector-guide.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
@@ -471,10 +471,10 @@ CycloneDX와 SPDX에는 수집 대상 유형, 구성요소 수, 사용자가 설
 
 ```bash
 # 현재 소스의 Linux x86_64 배포용 압축파일 생성
-VERSION=0.1.8 ./scripts/build-release.sh
+VERSION=0.1.9 ./scripts/build-release.sh
 
 # 별도로 검증한 Go 설치본과 미리 반입한 모듈 캐시로 빌드
-VERSION=0.1.8 GOPROXY=off ./scripts/build-release.sh \
+VERSION=0.1.9 GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 
 # Linux ARM64용 단일 바이너리 빌드

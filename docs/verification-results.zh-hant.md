@@ -15,14 +15,14 @@
   <a href="verification-results.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-本頁記錄 KODA BOM Kit 及舊版本的驗證日期、構建雜湊、環境、部分結果與未驗證範圍。當前 0.1.8 的壓縮包、雜湊及運行範圍以官方發佈條目為準。新可執行檔案需要對應的測試證據。
+本頁記錄 KODA BOM Kit 及舊版本的驗證日期、構建雜湊、環境、部分結果與未驗證範圍。當前 0.1.9 的壓縮包、雜湊及運行範圍以官方發佈條目為準。新可執行檔案需要對應的測試證據。
 
-[發行版 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[發行版 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 2026-11-21 — 拆分與合併
 

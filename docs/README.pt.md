@@ -15,7 +15,7 @@
   <a href="README.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
   <a href="support-matrix.pt.md"><img src="badges/linux.svg" alt="Linux amd64"></a>
 </p>
@@ -24,7 +24,7 @@
 <p align="center"><strong>Colete dados de software, hardware e operação de um host Linux com um único executável offline. O KODA BOM Kit gera sete listas de materiais CycloneDX, uma lista consolidada e um inventário de software em SPDX.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><b>Baixar v0.1.8</b></a> ·
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><b>Baixar v0.1.9</b></a> ·
   Autor original <a href="https://github.com/jhny-kor">jhny-kor</a> ·
   <a href="https://github.com/jhny-kor/KODA-BOM-Kit">Repositório oficial</a>
 </p>
@@ -36,7 +36,7 @@ Baixe o pacote para Linux amd64 e o arquivo SHA-256 correspondente. Transfira am
 ```sh
 (
   set -eu
-  set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+  set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
   test "$#" -eq 1 && test -f "$1" || exit 1
   sha256sum -c "$1.sha256"
   tar -xzf "$1"
@@ -67,7 +67,7 @@ Para consolidar as listas novamente, copie todo o diretório `boms/`, incluindo 
 
 ```sh
 (
-  cd koda-bom-linux-amd64-0.1.8-*/ || exit 1
+  cd koda-bom-linux-amd64-0.1.9-*/ || exit 1
   run_dir='/path/printed/by/koda-bom'
   ./koda-bom bom-merge --set "$run_dir/boms" --output-dir ./merged
 )

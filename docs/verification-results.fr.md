@@ -15,14 +15,14 @@
   <a href="verification-results.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-Ces comptes rendus datés de KODA BOM Kit et des anciennes versions précisent empreinte, environnement, résultats partiels et points non vérifiés. La publication officielle 0.1.8 identifie archive, somme et périmètre. Chaque nouveau binaire exige ses propres tests.
+Ces comptes rendus datés de KODA BOM Kit et des anciennes versions précisent empreinte, environnement, résultats partiels et points non vérifiés. La publication officielle 0.1.9 identifie archive, somme et périmètre. Chaque nouveau binaire exige ses propres tests.
 
-[Publication 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Publication 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 2026-11-21 — séparation et fusion
 

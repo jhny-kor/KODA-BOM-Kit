@@ -15,14 +15,14 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 publishes an offline Linux amd64 archive and SHA-256 checksum. Identify each tested executable by its exact SHA-256 and execution environment. Linux host collection targets x86_64 and ARM64. Docker/OCI archive collection targets linux/amd64 images. macOS and Windows platform inventory uses fixed read-only OS commands. Windows execution remains unverified. Historical VM results apply to their recorded builds.
+KODA BOM Kit 0.1.9 publishes an offline Linux amd64 archive and SHA-256 checksum. Identify each tested executable by its exact SHA-256 and execution environment. Linux host collection targets x86_64 and ARM64. Docker/OCI archive collection targets linux/amd64 images. macOS and Windows platform inventory uses fixed read-only OS commands. Windows execution remains unverified. Historical VM results apply to their recorded builds.
 
-[Release 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Release 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## Output formats and integrity
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 The suite checks nested Java archives, Python pyz/pex metadata, Go/Rust binaries, installed package provenance, directory boundaries, supplier artifact hashes, PURLs and dependencies. Linux fixtures cover sockets, containers, firmware parsing, service state, security settings, integrity and certificates. AIX fixtures verify Oracle Homes, Listener evidence and OPatch IDs. Synthetic fixtures establish parser behavior. Physical BMC, NIC, OT devices, Kubernetes storage and active subscription patch clients require their own environment evidence. GitHub Actions (`.github/workflows/ci.yml`) runs formatting, vet for every build target, Go tests, release guards, the binary check and the container suites above except those needing upstream caches on each push to `main` and each pull request; `docs.yml` checks documentation-only changes. Release builds, cached upstream suites and VM checks still run on the build host.
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## Linux kernels and VM reproduction
 

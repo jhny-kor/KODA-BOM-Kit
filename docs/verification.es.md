@@ -15,14 +15,14 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 distribuye un archivo sin conexión para Linux amd64 y su SHA-256. Identifique el ejecutable probado mediante su hash exacto y el entorno. La recopilación Linux admite x86_64 y ARM64. Los archivos Docker/OCI se examinan como linux/amd64. El inventario básico de macOS y Windows usa comandos fijos de solo lectura. La ejecución en Windows sigue sin verificar. Los resultados históricos corresponden a sus compilaciones.
+KODA BOM Kit 0.1.9 distribuye un archivo sin conexión para Linux amd64 y su SHA-256. Identifique el ejecutable probado mediante su hash exacto y el entorno. La recopilación Linux admite x86_64 y ARM64. Los archivos Docker/OCI se examinan como linux/amd64. El inventario básico de macOS y Windows usa comandos fijos de solo lectura. La ejecución en Windows sigue sin verificar. Los resultados históricos corresponden a sus compilaciones.
 
-[Publicación 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Publicación 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## Formatos e integridad
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 Las pruebas cubren Java anidado, pyz/pex, Go/Rust, procedencia, límites de directorios, hashes del proveedor, PURL y dependencias. Los casos Linux cubren sockets, contenedores, firmware, servicios, configuración, integridad y certificados. Los casos AIX verifican Oracle Home, Listener y OPatch. BMC/NIC/OT físicos, almacenamiento Kubernetes real y clientes de parches con suscripción necesitan evidencia de su entorno. GitHub Actions (`.github/workflows/ci.yml`) ejecuta en cada push a `main` y en cada pull request el formato, vet para cada destino de compilación, las pruebas de Go, las protecciones de publicación, la comprobación del binario y las suites de contenedor anteriores que no requieren cachés externas; `docs.yml` comprueba los cambios solo de documentación. Las compilaciones de publicación, las suites con cachés externas y las comprobaciones en VM siguen en el equipo de compilación.
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## Núcleos Linux y reproducción de VM
 

@@ -15,15 +15,15 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-## 0.1.8 현재 검증 범위
+## 0.1.9 현재 검증 범위
 
-KODA BOM Kit의 현재 소스 버전은 `0.1.8`입니다. Linux amd64 폐쇄망 배포본의 압축파일과 SHA-256
-체크섬은 [공식 릴리스](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)에서
+KODA BOM Kit의 현재 소스 버전은 `0.1.9`입니다. Linux amd64 폐쇄망 배포본의 압축파일과 SHA-256
+체크섬은 [공식 릴리스](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)에서
 받습니다. 반입·압축 해제·실행 명령은 [폐쇄망 실행 안내](air-gapped.ko.md)에 있습니다.
 각 배포본의 실행 파일 SHA-256과 실행 환경은 해당 릴리스 설명에서 확인합니다.
 [검증 결과 기록](검증결과.ko.md)과 아래 0.1.5 이하 배포·VM 절차는 해당 버전의 이력입니다.

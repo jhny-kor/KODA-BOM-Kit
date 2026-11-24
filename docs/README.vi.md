@@ -15,7 +15,7 @@
   <a href="README.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
   <a href="support-matrix.vi.md"><img src="badges/linux.svg" alt="Linux amd64"></a>
 </p>
@@ -24,7 +24,7 @@
 <p align="center"><strong>Thu thập thông tin phần mềm, phần cứng và bằng chứng vận hành của máy Linux bằng một tệp thực thi ngoại tuyến. KODA BOM Kit tạo bảy bảng kê thành phần CycloneDX, một bảng kê hợp nhất và một danh mục phần mềm theo định dạng SPDX.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><b>Tải v0.1.8</b></a> ·
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><b>Tải v0.1.9</b></a> ·
   Tác giả gốc <a href="https://github.com/jhny-kor">jhny-kor</a> ·
   <a href="https://github.com/jhny-kor/KODA-BOM-Kit">Kho mã chính thức</a>
 </p>
@@ -36,7 +36,7 @@ Tải gói nén Linux amd64 cùng tệp SHA-256 tương ứng. Chép cả hai v�
 ```sh
 (
   set -eu
-  set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+  set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
   test "$#" -eq 1 && test -f "$1" || exit 1
   sha256sum -c "$1.sha256"
   tar -xzf "$1"
@@ -67,7 +67,7 @@ Một bảng kê có thể trống nếu máy chủ không có bằng chứng t�
 
 ```sh
 (
-  cd koda-bom-linux-amd64-0.1.8-*/ || exit 1
+  cd koda-bom-linux-amd64-0.1.9-*/ || exit 1
   run_dir='/path/printed/by/koda-bom'
   ./koda-bom bom-merge --set "$run_dir/boms" --output-dir ./merged
 )

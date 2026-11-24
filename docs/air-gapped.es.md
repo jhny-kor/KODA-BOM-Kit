@@ -15,21 +15,21 @@
   <a href="air-gapped.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 ofrece un archivo para Linux x86_64 (amd64), núcleo 3.2 o posterior. Transfiera el archivo y su `.tar.gz.sha256` desde la publicación oficial. El servidor no necesita instalar Go, Python, Docker ni jq. NOTICE identifica a jhny-kor y el repositorio oficial.
+KODA BOM Kit 0.1.9 ofrece un archivo para Linux x86_64 (amd64), núcleo 3.2 o posterior. Transfiera el archivo y su `.tar.gz.sha256` desde la publicación oficial. El servidor no necesita instalar Go, Python, Docker ni jq. NOTICE identifica a jhny-kor y el repositorio oficial.
 
-[Publicación 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Publicación 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## Verificar y extraer
 
 Coloque un único archivo coincidente y su checksum en un directorio local ejecutable. Verifique el archivo antes de extraer y los ficheros internos después. La suma verifica los bytes transferidos. Obtenga el paquete de la publicación oficial de confianza. Copie desde USB noexec a un sistema de archivos ejecutable.
 
 ```bash
-set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
 if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
@@ -38,7 +38,7 @@ if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   sha256sum -c SHA256SUMS &&
   ./koda-bom version
 else
-  echo 'Expected exactly one KODA BOM Kit 0.1.8 archive.' >&2
+  echo 'Expected exactly one KODA BOM Kit 0.1.9 archive.' >&2
 fi
 ```
 

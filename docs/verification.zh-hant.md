@@ -15,14 +15,14 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 提供 Linux amd64 離線壓縮包和 SHA-256 校驗檔案。用可執行檔案的精確雜湊及運行環境識別驗證對象。Linux 主機採集面向 x86_64 和 ARM64，Docker/OCI 歸檔採集面向 linux/amd64。macOS 和 Windows 資產清單使用固定的唯讀系統命令。Windows 實際運行尚未驗證。歷史 VM 結果對應各自記錄的構建。
+KODA BOM Kit 0.1.9 提供 Linux amd64 離線壓縮包和 SHA-256 校驗檔案。用可執行檔案的精確雜湊及運行環境識別驗證對象。Linux 主機採集面向 x86_64 和 ARM64，Docker/OCI 歸檔採集面向 linux/amd64。macOS 和 Windows 資產清單使用固定的唯讀系統命令。Windows 實際運行尚未驗證。歷史 VM 結果對應各自記錄的構建。
 
-[發行版 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[發行版 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 輸出格式與完整性
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 測試涵蓋嵌套 Java、pyz/pex、Go/Rust、安裝來源、目錄邊界、供應商雜湊、PURL 和依賴。Linux 測試資料涵蓋套接字、容器、韌體解析、服務、設置、完整性及證書。AIX 測試檢查 Oracle Home、Listener 和 OPatch。物理 BMC/NIC/OT、真實 Kubernetes 存儲及已訂閱補丁客戶端需要現場證據。 GitHub Actions（`.github/workflows/ci.yml`）會在每次推送到 `main` 和每個拉取請求時執行格式檢查、所有建置目標的 vet、Go 測試、發布防護、二進位檢查以及上述無需上游快取的容器測試；僅文件變更由 `docs.yml` 檢查。發布建置、依賴快取的上游測試和 VM 驗證仍在建置主機上執行。
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## Linux 內核與 VM 復現
 

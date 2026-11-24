@@ -15,21 +15,21 @@
   <a href="air-gapped.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 离线包面向 Linux x86_64 (amd64)、内核 3.2 及以上。从官方发布下载压缩包和配套 `.tar.gz.sha256`。目标服务器无需新增 Go、Python、Docker 或 jq。NOTICE 标注 jhny-kor 和官方仓库。
+KODA BOM Kit 0.1.9 离线包面向 Linux x86_64 (amd64)、内核 3.2 及以上。从官方发布下载压缩包和配套 `.tar.gz.sha256`。目标服务器无需新增 Go、Python、Docker 或 jq。NOTICE 标注 jhny-kor 和官方仓库。
 
-[发布 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[发布 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 校验与解压
 
 将唯一匹配的压缩包和校验文件放在可执行的本地目录。解压前检查归档，解压后检查内部文件。校验和确认传输字节，来源应为可信官方发布。USB 的 noexec 挂载需要复制到允许执行的本地文件系统。
 
 ```bash
-set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
 if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
@@ -38,7 +38,7 @@ if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   sha256sum -c SHA256SUMS &&
   ./koda-bom version
 else
-  echo 'Expected exactly one KODA BOM Kit 0.1.8 archive.' >&2
+  echo 'Expected exactly one KODA BOM Kit 0.1.9 archive.' >&2
 fi
 ```
 

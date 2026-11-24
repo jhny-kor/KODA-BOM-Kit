@@ -15,7 +15,7 @@
   <a href="docs/README.tr.md"><img src="docs/badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="docs/badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="docs/badges/release.svg" alt="v0.1.9"></a>
   <a href="LICENSE"><img src="docs/badges/license.svg" alt="Apache-2.0"></a>
   <a href="docs/support-matrix.md"><img src="docs/badges/linux.svg" alt="Linux amd64"></a>
 </p>
@@ -24,7 +24,7 @@
 <p align="center"><strong>Collect a Linux host’s software, hardware and operating evidence with one offline executable. KODA BOM Kit writes seven CycloneDX bills of materials, a merged BOM and an SPDX software inventory.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><b>Download v0.1.8</b></a> ·
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><b>Download v0.1.9</b></a> ·
   Original author <a href="https://github.com/jhny-kor">jhny-kor</a> ·
   <a href="https://github.com/jhny-kor/KODA-BOM-Kit">Official repository</a>
 </p>
@@ -36,7 +36,7 @@ Download the Linux amd64 archive and its matching SHA-256 file. Transfer both to
 ```sh
 (
   set -eu
-  set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+  set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
   test "$#" -eq 1 && test -f "$1" || exit 1
   sha256sum -c "$1.sha256"
   tar -xzf "$1"
@@ -67,7 +67,7 @@ To merge again, copy the entire `boms/` directory, including its manifest, relat
 
 ```sh
 (
-  cd koda-bom-linux-amd64-0.1.8-*/ || exit 1
+  cd koda-bom-linux-amd64-0.1.9-*/ || exit 1
   run_dir='/path/printed/by/koda-bom'
   ./koda-bom bom-merge --set "$run_dir/boms" --output-dir ./merged
 )

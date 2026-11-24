@@ -15,14 +15,14 @@
   <strong>Türkçe</strong>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8, çevrimdışı Linux amd64 arşivi ve SHA-256 dosyası sağlar. Test edilen çalıştırılabilir dosyayı tam özeti ve ortamıyla tanımlayın. Linux toplama x86_64 ve ARM64, Docker/OCI arşivleri linux/amd64 içindir. macOS ve Windows envanteri sabit salt okunur sistem komutları kullanır. Windows üzerinde çalıştırma henüz doğrulanmamıştır. Eski VM sonuçları ilgili derlemelere aittir.
+KODA BOM Kit 0.1.9, çevrimdışı Linux amd64 arşivi ve SHA-256 dosyası sağlar. Test edilen çalıştırılabilir dosyayı tam özeti ve ortamıyla tanımlayın. Linux toplama x86_64 ve ARM64, Docker/OCI arşivleri linux/amd64 içindir. macOS ve Windows envanteri sabit salt okunur sistem komutları kullanır. Windows üzerinde çalıştırma henüz doğrulanmamıştır. Eski VM sonuçları ilgili derlemelere aittir.
 
-[Yayın 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Yayın 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## Çıktı biçimleri ve bütünlük
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 Testler iç içe Java, pyz/pex, Go/Rust, kurulum kaynağı, dizin sınırları, tedarikçi özeti, PURL ve bağımlılıkları kapsar. Linux örnekleri soket, konteyner, firmware, servis, ayar, bütünlük ve sertifikaları sınar. AIX örnekleri Oracle Home, Listener ve OPatch'i doğrular. Fiziksel BMC/NIC/OT, gerçek Kubernetes depolaması ve abonelikli yama istemcileri kendi ortam kanıtlarını gerektirir. GitHub Actions (`.github/workflows/ci.yml`), `main` dalına her gönderimde ve her pull request'te biçim denetimini, tüm derleme hedefleri için vet'i, Go testlerini, sürüm korumalarını, ikili denetimini ve yukarıdaki, üst kaynak önbelleği gerektirmeyen konteyner testlerini çalıştırır; yalnızca belge değişikliklerini `docs.yml` denetler. Sürüm derlemeleri, önbellek gerektiren üst kaynak testleri ve VM denetimleri derleme makinesinde çalışmaya devam eder.
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## Linux çekirdekleri ve VM tekrarları
 

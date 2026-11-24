@@ -15,21 +15,21 @@
   <a href="air-gapped.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 สำหรับ Linux x86_64 (amd64) เคอร์เนล 3.2 ขึ้นไป นำแพ็กเกจและ `.tar.gz.sha256` ที่ตรงกันจากรุ่นทางการเข้ามา ไม่ต้องติดตั้ง Go, Python, Docker หรือ jq เพิ่มบนเป้าหมาย NOTICE ระบุ jhny-kor และคลังทางการ
+KODA BOM Kit 0.1.9 สำหรับ Linux x86_64 (amd64) เคอร์เนล 3.2 ขึ้นไป นำแพ็กเกจและ `.tar.gz.sha256` ที่ตรงกันจากรุ่นทางการเข้ามา ไม่ต้องติดตั้ง Go, Python, Docker หรือ jq เพิ่มบนเป้าหมาย NOTICE ระบุ jhny-kor และคลังทางการ
 
-[รุ่นเผยแพร่ 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[รุ่นเผยแพร่ 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## ตรวจสอบและแตกไฟล์
 
 วางแพ็กเกจที่ตรงกันเพียงหนึ่งไฟล์และเช็กซัมในโฟลเดอร์ที่รันได้ ตรวจแพ็กเกจก่อนแตกและไฟล์ภายในหลังแตก เช็กซัมตรวจไบต์ที่ถ่ายโอน ให้ใช้แหล่งทางการที่เชื่อถือได้ USB แบบ noexec ต้องคัดลอกไปพื้นที่ที่รันได้
 
 ```bash
-set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
 if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   pkg=${1%.tar.gz}
   sha256sum -c "${pkg}.tar.gz.sha256" &&
@@ -38,7 +38,7 @@ if [ "$#" -eq 1 ] && [ -f "$1" ]; then
   sha256sum -c SHA256SUMS &&
   ./koda-bom version
 else
-  echo 'Expected exactly one KODA BOM Kit 0.1.8 archive.' >&2
+  echo 'Expected exactly one KODA BOM Kit 0.1.9 archive.' >&2
 fi
 ```
 

@@ -15,14 +15,14 @@
   <a href="verification-results.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-Estos registros de KODA BOM Kit y versiones anteriores incluyen fecha, hash, entorno, resultados parciales y áreas pendientes. La publicación oficial 0.1.8 identifica el archivo, checksum y alcance. Cada nuevo ejecutable requiere sus propias pruebas.
+Estos registros de KODA BOM Kit y versiones anteriores incluyen fecha, hash, entorno, resultados parciales y áreas pendientes. La publicación oficial 0.1.9 identifica el archivo, checksum y alcance. Cada nuevo ejecutable requiere sus propias pruebas.
 
-[Publicación 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Publicación 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 2026-11-21 — separación y combinación
 

@@ -15,14 +15,14 @@
   <a href="verification-results.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit と旧版の検証記録です。各結果はビルドハッシュ、環境、部分収集と未検証範囲を伴います。現行版 0.1.8 のアーカイブ、チェックサム、実行範囲は公式リリースで確認します。新しいバイナリにはそのバイナリの検証が必要です。
+KODA BOM Kit と旧版の検証記録です。各結果はビルドハッシュ、環境、部分収集と未検証範囲を伴います。現行版 0.1.9 のアーカイブ、チェックサム、実行範囲は公式リリースで確認します。新しいバイナリにはそのバイナリの検証が必要です。
 
-[リリース 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[リリース 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 2026-11-21 — 分割と結合
 

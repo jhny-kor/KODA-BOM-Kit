@@ -15,14 +15,14 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 は Linux amd64 用のオフライン配布アーカイブと SHA-256 を提供します。実行ファイルのハッシュと試験環境で検証対象を特定してください。Linux ホスト収集は x86_64 と ARM64、Docker/OCI アーカイブは linux/amd64 が対象です。macOS・Windows の基本資産収集は OS の固定読み取り専用コマンドを使用します。Windows での実行は未検証です。過去の VM 結果は記録されたビルドに対応します。
+KODA BOM Kit 0.1.9 は Linux amd64 用のオフライン配布アーカイブと SHA-256 を提供します。実行ファイルのハッシュと試験環境で検証対象を特定してください。Linux ホスト収集は x86_64 と ARM64、Docker/OCI アーカイブは linux/amd64 が対象です。macOS・Windows の基本資産収集は OS の固定読み取り専用コマンドを使用します。Windows での実行は未検証です。過去の VM 結果は記録されたビルドに対応します。
 
-[リリース 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[リリース 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 出力形式と整合性
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 試験は Java の入れ子、pyz/pex、Go/Rust、パッケージ出所、範囲、供給者のハッシュ、PURL と関係を確認します。Linux fixture はソケット、コンテナー、ファームウェア、サービス、設定、整合性、証明書を対象にします。AIX fixture は Oracle Home、Listener、OPatch を確認します。物理 BMC/NIC/OT、実際の Kubernetes ストレージ、契約済みパッチクライアントには現場の証拠が必要です。 GitHub Actions（`.github/workflows/ci.yml`）は `main` へのプッシュとプルリクエストごとに、書式、全ビルド対象の vet、Go テスト、リリースガード、バイナリ検査、上流キャッシュを要しない上記コンテナ試験を実行します。文書だけの変更は `docs.yml` が確認します。リリースビルド、キャッシュを使う上流試験、VM 検証は引き続きビルド端末で実行します。
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## Linux カーネルと VM 再現
 

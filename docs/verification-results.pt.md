@@ -15,14 +15,14 @@
   <a href="verification-results.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-Os registros do KODA BOM Kit e versões antigas incluem data, hash, ambiente, resultados parciais e áreas pendentes. A publicação oficial 0.1.8 identifica arquivo, checksum e escopo. Cada novo binário requer suas próprias provas.
+Os registros do KODA BOM Kit e versões antigas incluem data, hash, ambiente, resultados parciais e áreas pendentes. A publicação oficial 0.1.9 identifica arquivo, checksum e escopo. Cada novo binário requer suas próprias provas.
 
-[Publicação 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Publicação 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 2026-11-21 — divisão e mesclagem
 

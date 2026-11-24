@@ -15,14 +15,14 @@
   <a href="verification-results.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-These are dated records for KODA BOM Kit and its earlier releases. Exact build hashes, environments, partial results and untested areas remain part of each record. The current release is 0.1.8. Its official release entry identifies the archive, checksum and execution scope. Earlier successful tests do not validate a newly built executable.
+These are dated records for KODA BOM Kit and its earlier releases. Exact build hashes, environments, partial results and untested areas remain part of each record. The current release is 0.1.9. Its official release entry identifies the archive, checksum and execution scope. Earlier successful tests do not validate a newly built executable.
 
-[Release 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Release 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 2026-11-21 — split and merge
 

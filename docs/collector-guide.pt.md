@@ -15,7 +15,7 @@
   <a href="collector-guide.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
@@ -115,7 +115,7 @@ Defina `run_dir` como o caminho exibido pelo coletor. Os códigos de saída são
 A máquina de compilação usa Go e Python 3. Esta versão foi compilada com Go 1.26.11. Para outro executável Go, forneça o caminho e o SHA-256 verificado. Uma compilação offline requer um cache de módulos preenchido. O arquivo distribuído é para Linux amd64 e o código também compila para Linux ARM64. A procedência da compilação fica em `release.json`.
 
 ```sh
-VERSION=0.1.8 GOPROXY=off ./scripts/build-release.sh \
+VERSION=0.1.9 GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-bom ./cmd/koda-bom
 ```

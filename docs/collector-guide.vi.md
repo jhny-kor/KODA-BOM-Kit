@@ -15,7 +15,7 @@
   <a href="collector-guide.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
@@ -115,7 +115,7 @@ python3 scripts/compare-sbom-inventory.py \
 Máy biên dịch cần Go và Python 3. Phiên bản này được biên dịch bằng Go 1.26.11. Nếu dùng tệp Go khác, hãy cung cấp đường dẫn và SHA-256 đã xác minh. Biên dịch ngoại tuyến yêu cầu bộ đệm mô-đun đã nạp sẵn. Gói phát hành dành cho Linux amd64, còn mã nguồn cũng biên dịch được cho Linux ARM64. Nguồn gốc bản dựng được ghi vào `release.json`.
 
 ```sh
-VERSION=0.1.8 GOPROXY=off ./scripts/build-release.sh \
+VERSION=0.1.9 GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-bom ./cmd/koda-bom
 ```

@@ -15,7 +15,7 @@
   <strong>Türkçe</strong>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
@@ -115,7 +115,7 @@ python3 scripts/compare-sbom-inventory.py \
 Derleme makinesinde Go ve Python 3 kullanılır. Bu sürüm Go 1.26.11 ile derlenmiştir. Farklı bir Go kullanıyorsanız doğrulanmış çalıştırılabilir dosyanın yolunu ve SHA-256 değerini verin. Çevrimdışı derleme için önceden doldurulmuş bir modül önbelleği gerekir. Yayımlanan arşiv Linux amd64 içindir, kaynak kod Linux ARM64 için de derlenebilir. Derleme kökeni `release.json` dosyasına yazılır.
 
 ```sh
-VERSION=0.1.8 GOPROXY=off ./scripts/build-release.sh \
+VERSION=0.1.9 GOPROXY=off ./scripts/build-release.sh \
   --go /path/to/go1.26.11/bin/go --go-sha256 "$trusted_go_sha256"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o koda-bom ./cmd/koda-bom
 ```

@@ -15,14 +15,14 @@
   <strong>Türkçe</strong>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit ve önceki sürümlerin kayıtları tarih, özet, ortam, kısmi sonuçlar ve doğrulanmayan alanları içerir. Resmi 0.1.8 yayını arşivi, sağlama toplamını ve kapsamı tanımlar. Her yeni dosya kendi testini gerektirir.
+KODA BOM Kit ve önceki sürümlerin kayıtları tarih, özet, ortam, kısmi sonuçlar ve doğrulanmayan alanları içerir. Resmi 0.1.9 yayını arşivi, sağlama toplamını ve kapsamı tanımlar. Her yeni dosya kendi testini gerektirir.
 
-[Yayın 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Yayın 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## 2026-11-21 — ayırma ve birleştirme
 

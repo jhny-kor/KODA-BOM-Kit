@@ -3,7 +3,7 @@ KODA BOM Kit 안내
 다국어 Markdown 안내: air-gapped.ko.md (한국어), air-gapped.md (English)
 안내 보완일 2026-11-22 (한국 표준시)
 
-현재 버전 0.1.8의 단일 실행 파일 사용법
+현재 버전 0.1.9의 단일 실행 파일 사용법
   ./koda-bom version
   ./koda-bom scan --output-dir ./reports
   ./koda-bom scan --output-dir ./reports --cyclonedx-17
@@ -15,17 +15,17 @@ assets.json에는 확인한 장치와 펌웨어 증거가 있는 경우 그 내�
 외부 증적 반입과 오프라인 권고 대조는 같은 폴더의 asset-inventory.ko.md를
 참조합니다.
 
-0.1.8 폐쇄망 배포본 반입
+0.1.9 폐쇄망 배포본 반입
   Linux x86_64(amd64) 서버용 배포본입니다.
   공식 릴리스에서 .tar.gz와 같은 이름의 .tar.gz.sha256 첨부파일을 받습니다.
-  https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8
+  https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9
 
 두 파일을 같은 로컬 작업 폴더에 두고 다음 명령을 실행합니다.
 두 체크섬 검사가 통과하면 버전을 출력하고 호스트 수집을 시작합니다.
 
-  set -- koda-bom-linux-amd64-0.1.8-*.tar.gz
+  set -- koda-bom-linux-amd64-0.1.9-*.tar.gz
   if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
-    echo "0.1.8 압축파일 한 개가 있는 폴더에서 실행하세요."
+    echo "0.1.9 압축파일 한 개가 있는 폴더에서 실행하세요."
   else
     pkg=${1%.tar.gz}
     sha256sum -c "${pkg}.tar.gz.sha256" &&

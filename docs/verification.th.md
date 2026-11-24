@@ -15,14 +15,14 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 มีแพ็กเกจออฟไลน์ Linux amd64 และ SHA-256 ให้ระบุไฟล์ที่ทดสอบด้วยแฮชและสภาพแวดล้อมจริง การเก็บข้อมูล Linux รองรับ x86_64 และ ARM64 ส่วน Docker/OCI ใช้ linux/amd64 การสำรวจ macOS/Windows ใช้คำสั่งอ่านอย่างเดียวที่กำหนดไว้ ยังไม่ได้ทดสอบการรันจริงบน Windows ผล VM ในอดีตใช้กับรุ่นที่บันทึกไว้
+KODA BOM Kit 0.1.9 มีแพ็กเกจออฟไลน์ Linux amd64 และ SHA-256 ให้ระบุไฟล์ที่ทดสอบด้วยแฮชและสภาพแวดล้อมจริง การเก็บข้อมูล Linux รองรับ x86_64 และ ARM64 ส่วน Docker/OCI ใช้ linux/amd64 การสำรวจ macOS/Windows ใช้คำสั่งอ่านอย่างเดียวที่กำหนดไว้ ยังไม่ได้ทดสอบการรันจริงบน Windows ผล VM ในอดีตใช้กับรุ่นที่บันทึกไว้
 
-[รุ่นเผยแพร่ 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[รุ่นเผยแพร่ 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## รูปแบบและความครบถ้วน
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 ครอบคลุม Java ซ้อน, pyz/pex, Go/Rust แหล่งติดตั้ง ขอบเขต แฮชผู้ขาย PURL และความสัมพันธ์ ชุดข้อมูล Linux ตรวจ socket, container, firmware, service การตั้งค่า ความสมบูรณ์ และใบรับรอง ส่วน AIX ตรวจ Oracle Home, Listener และ OPatch อุปกรณ์ BMC/NIC/OT จริง Kubernetes จริง และไคลเอนต์แพตช์แบบสมัครสมาชิกต้องมีหลักฐานจากสภาพแวดล้อมนั้น GitHub Actions (`.github/workflows/ci.yml`) รันการตรวจรูปแบบ vet ของทุกเป้าหมายการบิลด์ การทดสอบ Go ตัวป้องกันการรีลีส การตรวจไบนารี และชุดทดสอบคอนเทนเนอร์ข้างต้นที่ไม่ต้องใช้แคชต้นทาง ทุกครั้งที่พุชไป `main` และทุก pull request ส่วนการเปลี่ยนเฉพาะเอกสารตรวจด้วย `docs.yml` การบิลด์รีลีส ชุดทดสอบที่ใช้แคชต้นทาง และการตรวจบน VM ยังรันบนเครื่องบิลด์
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## เคอร์เนล Linux และ VM
 

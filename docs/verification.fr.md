@@ -15,14 +15,14 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 fournit une archive hors ligne Linux amd64 et son SHA-256. Identifiez le binaire testé par son empreinte exacte et son environnement. La collecte Linux vise x86_64 et ARM64, les archives Docker/OCI linux/amd64. L’inventaire macOS et Windows utilise des commandes système fixes en lecture seule. L’exécution Windows reste non vérifiée. Les résultats historiques concernent leurs propres builds.
+KODA BOM Kit 0.1.9 fournit une archive hors ligne Linux amd64 et son SHA-256. Identifiez le binaire testé par son empreinte exacte et son environnement. La collecte Linux vise x86_64 et ARM64, les archives Docker/OCI linux/amd64. L’inventaire macOS et Windows utilise des commandes système fixes en lecture seule. L’exécution Windows reste non vérifiée. Les résultats historiques concernent leurs propres builds.
 
-[Publication 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Publication 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## Formats et intégrité
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 Les tests couvrent Java imbriqué, pyz/pex, Go/Rust, provenance, limites de répertoires, empreintes fournisseur, PURL et dépendances. Les cas Linux couvrent sockets, conteneurs, firmware, services, réglages, intégrité et certificats. Les cas AIX vérifient Oracle Home, Listener et OPatch. Les équipements BMC/NIC/OT, le stockage Kubernetes réel et les clients de correctifs sous abonnement nécessitent des preuves de terrain. GitHub Actions (`.github/workflows/ci.yml`) exécute à chaque push sur `main` et à chaque pull request le formatage, vet pour chaque cible de compilation, les tests Go, les garde-fous de publication, le contrôle du binaire et les suites conteneur ci-dessus qui ne demandent pas de cache amont ; `docs.yml` vérifie les modifications de documentation seule. Les builds de publication, les suites à cache amont et les vérifications en VM restent sur l'hôte de compilation.
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## Noyaux Linux et reproduction des VM
 

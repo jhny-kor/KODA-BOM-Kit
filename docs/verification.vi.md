@@ -15,14 +15,14 @@
   <a href="verification.tr.md"><img src="badges/tr.svg" alt="Türkçe"></a>
 </p>
 <p align="center">
-  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8"><img src="badges/release.svg" alt="v0.1.8"></a>
+  <a href="https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9"><img src="badges/release.svg" alt="v0.1.9"></a>
   <a href="../LICENSE"><img src="badges/license.svg" alt="Apache-2.0"></a>
 </p>
 <!-- /koda-doc-nav -->
 
-KODA BOM Kit 0.1.8 cung cấp gói ngoại tuyến Linux amd64 và SHA-256. Xác định tệp đã kiểm tra bằng hàm băm chính xác và môi trường chạy. Thu thập Linux hỗ trợ x86_64 và ARM64, lưu trữ Docker/OCI nhắm linux/amd64. Kiểm kê macOS/Windows dùng lệnh hệ thống chỉ đọc cố định. Chạy thực tế trên Windows chưa được kiểm chứng. Kết quả VM cũ thuộc từng bản dựng đã ghi.
+KODA BOM Kit 0.1.9 cung cấp gói ngoại tuyến Linux amd64 và SHA-256. Xác định tệp đã kiểm tra bằng hàm băm chính xác và môi trường chạy. Thu thập Linux hỗ trợ x86_64 và ARM64, lưu trữ Docker/OCI nhắm linux/amd64. Kiểm kê macOS/Windows dùng lệnh hệ thống chỉ đọc cố định. Chạy thực tế trên Windows chưa được kiểm chứng. Kết quả VM cũ thuộc từng bản dựng đã ghi.
 
-[Phát hành 0.1.8](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.8)
+[Phát hành 0.1.9](https://github.com/jhny-kor/KODA-BOM-Kit/releases/tag/v0.1.9)
 
 ## Định dạng và tính toàn vẹn
 
@@ -82,7 +82,7 @@ python3 tests/livepatch_integration.py --stage "$stage"
 
 Các phép thử bao gồm Java lồng nhau, pyz/pex, Go/Rust, nguồn cài đặt, ranh giới thư mục, băm nhà cung cấp, PURL và phụ thuộc. Mẫu Linux kiểm tra socket, container, firmware, dịch vụ, cấu hình, toàn vẹn và chứng chỉ. Mẫu AIX kiểm tra Oracle Home, Listener và OPatch. Thiết bị BMC/NIC/OT, lưu trữ Kubernetes thực và máy khách vá có thuê bao cần bằng chứng tại môi trường riêng. GitHub Actions (`.github/workflows/ci.yml`) chạy định dạng, vet cho mọi đích build, kiểm thử Go, chốt chặn phát hành, kiểm tra tệp thực thi và các bộ kiểm thử container ở trên không cần bộ nhớ đệm thượng nguồn mỗi lần đẩy lên `main` và mỗi pull request; `docs.yml` kiểm tra thay đổi chỉ có tài liệu. Bản dựng phát hành, bộ kiểm thử dùng bộ nhớ đệm thượng nguồn và kiểm tra VM vẫn chạy trên máy build.
 
-[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.8/scripts)
+[tests/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests) · [tests/schemas/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/tests/schemas) · [scripts/](https://github.com/jhny-kor/KODA-BOM-Kit/blob/v0.1.9/scripts)
 
 ## Nhân Linux và tái hiện VM
 
