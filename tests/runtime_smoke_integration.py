@@ -2,8 +2,10 @@
 """Scan a prepared live Linux container, then replay its OBOM and assess its recorded risks."""
 
 import argparse
+import csv
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -116,6 +118,15 @@ def exercise(binary, platform, image):
         require(len(findings) == 1 and findings[0]["status"] == "affected_version_observed",
                 ("a host package used by running processes must match once", findings))
         report.append({"case": "advisory matches a host package once in the merged BOM"})
+
+        run(["/koda-bom", "nis-sbom", "--sbom", inside + "/sbom.cdx.json", "--organization", "SMOKE", "--output", "/work/nis.csv"])
+        with open(work / "nis.csv", encoding="utf-8-sig", newline="") as table:
+            header, *rows = csv.reader(table)
+        box = [row for row in rows if row[7] == "busybox"]
+        require(len(header) == 20 and len(box) == 1 and box[0][0] == "NIS 1.0" and box[0][10] == "alpine"
+                and box[0][14] == busybox[0] and re.fullmatch(r"SMOKE-\d{8}-000001", box[0][4]),
+                ("NIS-SBOM table lacks the busybox row", header, box))
+        report.append({"case": "NIS-SBOM 1.0 table of the collected SBOM", "rows": len(rows)})
     return report
 
 

@@ -173,6 +173,19 @@
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickle นำเข้าโมดูลนอกรายการที่อนุญาต หรือการตรวจไม่ครบถ้วน |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | ตัวรอรับของโฮสต์นอก loopback ที่กฎไฟร์วอลล์ที่ประกาศไว้อนุญาต ส่วนแหล่งที่ถูกจำกัด กฎที่ประเมินไม่ได้ หรือไม่มีการประกาศไฟร์วอลล์ที่ใช้งานอยู่ (`none-observed`) ต้องตรวจทาน |
 
+## ตาราง NIS-SBOM
+
+`nis-sbom` แปลง CycloneDX SBOM ที่เก็บได้เป็นรายการพื้นฐาน 20 รายการของ NIS-SBOM 1.0 (ตาราง 35 ของแนวทางเกาหลี "SW 공급망 보안 가이드라인 1.0") แนวทางกำหนดเฉพาะรายการและรูปแบบตาราง ไม่ได้กำหนดสคีมาไฟล์ ผลลัพธ์จึงเป็น CSV แบบ UTF-8 หนึ่งแถวต่อหนึ่งส่วนประกอบซอฟต์แวร์ แสดงเฉพาะส่วนประกอบซอฟต์แวร์ ไม่รวมฮาร์ดแวร์ ไฟล์ และสินทรัพย์เข้ารหัส
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization` และ `--sequence` (ค่าเริ่มต้น 1) ประกอบเป็น SBOM ID `EXAMPLE-YYYYMMDD-000001` ส่วน `--product`, `--product-version` และ `--author` ใช้แทนชื่อเป้าหมายที่สแกนและชื่อตัวเก็บข้อมูล ผู้จัดหาใช้ค่าที่บันทึกใน SBOM หากไม่มีจะใช้เนมสเปซของ PURL แฮชแสดงเฉพาะ SHA-256 ขึ้นไป `SBOM Type` ใช้ระยะวงจรชีวิตที่บันทึกใน SBOM หากไม่มีจะเป็น `Deployed` ส่วน `SPDX Doc. ID` และ `Component Alias` เว้นว่าง ตัวเก็บข้อมูลไม่เทียบช่องโหว่ ดังนั้น `Vul. DB` และ `Vul. Info` จึงเว้นว่างเช่นกัน ค่าที่โปรแกรมตารางคำนวณอาจรันเป็นสูตรจะมี `'` นำหน้า
+
 ## การสังเกตการเข้าถึง TCP
 
 `--network-evidence` จับคู่ผล TCP ที่วัดไว้กับซ็อกเก็ต OBOM ของโฮสต์หรือผลที่เก็บถาวร `hostField` เป็น `machineIdSha256`, `productUuidSha256` หรือ `assetTag` ที่กำหนดชัดเจน `scope` เป็น `host` หรือ ID คอนเทนเนอร์เต็ม 64 ตัว

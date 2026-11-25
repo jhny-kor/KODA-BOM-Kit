@@ -178,6 +178,19 @@ Linux 물리 서버와 Windows 운영 장비에서는 장비 권고 및 각 제�
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickle이 허용 목록 밖의 모듈을 가져오거나 검사가 끝나지 않음 |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | 선언된 방화벽 규칙이 허용하는 호스트의 loopback 밖 수신 소켓. 출발지가 제한된 규칙, 평가하지 못한 규칙, 활성 방화벽 선언이 없는 경우(`none-observed`)는 검토 필요 |
 
+## NIS-SBOM 표
+
+`nis-sbom`은 수집한 CycloneDX SBOM을 NIS-SBOM 1.0 기본항목 20개(「SW 공급망 보안 가이드라인 1.0」 표 35)로 변환합니다. 가이드라인은 항목과 표 형태만 정하고 파일 스키마는 정하지 않으므로, 결과는 소프트웨어 컴포넌트마다 한 행인 UTF-8 CSV입니다. 소프트웨어 컴포넌트만 적습니다. 하드웨어, 파일, 암호 자산은 제외합니다.
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization`과 `--sequence`(기본값 1)로 SBOM ID `EXAMPLE-YYYYMMDD-000001`을 만듭니다. `--product`, `--product-version`, `--author`는 스캔 대상 이름과 수집기 이름을 대신합니다. 공급자는 SBOM에 기록된 값을 쓰고, 없으면 PURL 네임스페이스를 씁니다. 해시는 SHA-256 이상만 적습니다. `SBOM Type`은 SBOM에 기록된 수명주기 단계를 따르고, 기록이 없으면 `Deployed`입니다. `SPDX Doc. ID`와 `Component Alias`는 비워 둡니다. 수집기는 취약점을 대조하지 않으므로 `Vul. DB`와 `Vul. Info`도 비워 둡니다. 스프레드시트가 수식으로 실행할 수 있는 값은 앞에 `'`를 붙입니다.
+
 ## TCP 접속 관측
 
 `--network-evidence`는 관리자가 이미 측정한 TCP 연결 결과를 현재 호스트 또는 보관본의 OBOM 소켓과 대조합니다. `hostField`에는 `machineIdSha256`, `productUuidSha256` 또는 명시적으로 부여한 `assetTag`를 사용합니다. `scope`는 `host` 또는 전체 64자리 컨테이너 ID입니다. 다음 예시는 지점 한 곳에서 확인한 한 차례의 연결입니다.

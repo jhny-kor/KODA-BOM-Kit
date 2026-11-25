@@ -173,6 +173,19 @@ X.509、公开密钥、算法生成 `cryptographic-asset`。候选签发者关�
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickle导入了允许列表之外的模块，或检查未完成 |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | 声明的防火墙规则允许的非环回主机监听；来源受限、无法评估的规则或没有有效防火墙声明（`none-observed`）时需要复核 |
 
+## NIS-SBOM表
+
+`nis-sbom`将收集到的CycloneDX SBOM转换为NIS-SBOM 1.0的20个基本项目（韩国《SW 공급망 보안 가이드라인 1.0》表35）。该指南只规定项目和表格形式，没有规定文件模式，因此结果是每个软件组件一行的UTF-8 CSV。只列出软件组件。硬件、文件和密码资产不包含在内。
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization`和`--sequence`（默认值1）组成SBOM ID `EXAMPLE-YYYYMMDD-000001`。`--product`、`--product-version`和`--author`用来替换扫描目标名称和收集器名称。供应商使用SBOM中记录的值，没有时使用PURL命名空间。哈希只列出SHA-256及以上。`SBOM Type`采用SBOM中记录的生命周期阶段，没有记录时为`Deployed`。`SPDX Doc. ID`和`Component Alias`保持为空。收集器不比对漏洞，因此`Vul. DB`和`Vul. Info`也保持为空。电子表格可能当作公式执行的值，前面会加上`'`。
+
 ## TCP可达性观察
 
 `--network-evidence` 将已有TCP测量与主机或存档OBOM套接字匹配。`hostField` 为 `machineIdSha256`、`productUuidSha256` 或明确分配的 `assetTag`。`scope` 为 `host` 或完整64位容器ID。

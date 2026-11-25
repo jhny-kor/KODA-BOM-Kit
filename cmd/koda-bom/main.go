@@ -120,7 +120,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  koda-bom aix-import --evidence DIR --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
 	fmt.Fprintln(os.Stderr, "  koda-bom reconcile --artifact FILE.war|FILE.ear --supplier-sbom FILE.json --output-dir DIR [--format both|cyclonedx|spdx] [--cyclonedx-17] [--timeout 30m|0]")
 	fmt.Fprintln(os.Stderr, "  koda-bom scan --target DIRECTORY --target DIRECTORY --output-dir DIR [--exclude-dir ABSOLUTE_DIRECTORY]...")
-	fmt.Fprintln(os.Stderr, "  koda-bom scan --output-dir DIR [--asset-evidence FILE]...\n  koda-bom asset-import --asset-evidence FILE [--asset-evidence FILE]... --output-dir DIR\n  koda-bom assess --sbom FILE [--advisories FILE] [--context FILE] [--kev FILE] --output FILE")
+	fmt.Fprintln(os.Stderr, "  koda-bom scan --output-dir DIR [--asset-evidence FILE]...\n  koda-bom asset-import --asset-evidence FILE [--asset-evidence FILE]... --output-dir DIR\n  koda-bom assess --sbom FILE [--advisories FILE] [--context FILE] [--kev FILE] --output FILE\n  koda-bom nis-sbom --sbom FILE.cdx.json --organization NAME --output FILE.csv [--product NAME] [--product-version VERSION] [--author NAME] [--sequence 1]")
 	fmt.Fprintln(os.Stderr, "  koda-bom platform-inventory --output-dir DIR (macOS or Windows)")
 }
 func run(args []string) int {
@@ -149,6 +149,8 @@ func run(args []string) int {
 		return exportInventory(args[1:], true)
 	case "assess":
 		return assessEvidence(args[1:])
+	case "nis-sbom":
+		return exportNISSBOM(args[1:])
 	case "validate-scan-options":
 		return validateScanOptions(args[1:])
 	case "reconcile":

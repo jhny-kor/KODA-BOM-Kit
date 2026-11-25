@@ -173,6 +173,19 @@ Mảng `risks` của báo cáo liệt kê các rủi ro mà bộ thu thập đã
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | Pickle nhập mô-đun ngoài danh sách cho phép, hoặc việc kiểm tra chưa hoàn tất |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Cổng lắng nghe của máy chủ ngoài loopback được quy tắc tường lửa khai báo chấp nhận; nguồn bị giới hạn, quy tắc không đánh giá được hoặc không có khai báo tường lửa đang hoạt động (`none-observed`) cần xem xét |
 
+## Bảng NIS-SBOM
+
+`nis-sbom` chuyển SBOM CycloneDX đã thu thập thành 20 trường cơ bản của NIS-SBOM 1.0 (Bảng 35 trong hướng dẫn của Hàn Quốc "SW 공급망 보안 가이드라인 1.0"). Hướng dẫn chỉ quy định các trường và dạng bảng, không quy định lược đồ tệp, nên kết quả là tệp CSV UTF-8 với một dòng cho mỗi thành phần phần mềm. Chỉ liệt kê thành phần phần mềm. Phần cứng, tệp và tài sản mật mã không được đưa vào.
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization` và `--sequence` (mặc định 1) tạo thành SBOM ID `EXAMPLE-YYYYMMDD-000001`. `--product`, `--product-version` và `--author` thay cho tên đích đã quét và tên công cụ thu thập. Nhà cung cấp là giá trị ghi trong SBOM, nếu không có thì dùng không gian tên của PURL. Chỉ liệt kê hàm băm SHA-256 trở lên. `SBOM Type` theo giai đoạn vòng đời ghi trong SBOM, nếu không có thì là `Deployed`. `SPDX Doc. ID` và `Component Alias` để trống. Công cụ thu thập không đối chiếu lỗ hổng, nên `Vul. DB` và `Vul. Info` cũng để trống. Giá trị mà bảng tính có thể chạy như công thức sẽ được thêm `'` ở đầu.
+
 ## Quan sát khả năng kết nối TCP
 
 `--network-evidence` đối chiếu kết quả TCP đã đo với socket OBOM hiện tại hoặc đã lưu của máy chủ. `hostField` nhận `machineIdSha256`, `productUuidSha256` hoặc `assetTag` được gán rõ ràng. `scope` là `host` hoặc ID container đầy đủ gồm 64 ký tự.

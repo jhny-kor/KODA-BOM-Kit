@@ -173,6 +173,19 @@ Raporun `risks` dizisi, toplayıcının BOM'a kaydettiği riskleri `KODA collect
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | Pickle izin listesi dışındaki modülleri içe aktarır veya inceleme tamamlanmamıştır |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Bildirilen güvenlik duvarı kurallarının kabul ettiği, loopback dışındaki ana makine dinleyicisi; kısıtlı kaynaklar, değerlendirilemeyen kurallar veya etkin güvenlik duvarı bildiriminin olmaması (`none-observed`) inceleme gerektirir |
 
+## NIS-SBOM tablosu
+
+`nis-sbom`, toplanan bir CycloneDX SBOM'u NIS-SBOM 1.0'ın 20 temel alanına dönüştürür (Kore kılavuzu "SW 공급망 보안 가이드라인 1.0", Tablo 35). Kılavuz alanları ve tablo biçimini tanımlar, dosya şeması tanımlamaz; bu nedenle sonuç, yazılım bileşeni başına bir satır içeren UTF-8 CSV dosyasıdır. Yalnızca yazılım bileşenleri listelenir. Donanım, dosyalar ve kriptografik varlıklar dahil edilmez.
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization` ve `--sequence` (varsayılan 1), SBOM kimliğini `EXAMPLE-YYYYMMDD-000001` biçiminde oluşturur. `--product`, `--product-version` ve `--author`, taranan hedefin adının ve toplayıcı adının yerine geçer. Tedarikçi, SBOM'da kayıtlı değerdir; yoksa PURL ad alanı kullanılır. Yalnızca SHA-256 veya daha güçlü özetler listelenir. `SBOM Type`, SBOM'da kayıtlı yaşam döngüsü aşamasını izler; kayıt yoksa `Deployed` olur. `SPDX Doc. ID` ve `Component Alias` boş kalır. Toplayıcı zafiyet eşleştirmesi yapmadığı için `Vul. DB` ve `Vul. Info` da boş kalır. Bir elektronik tablonun formül olarak çalıştırabileceği değerin başına `'` eklenir.
+
 ## TCP gözlemleri
 
 `--network-evidence`, önceki ölçümleri host/arşiv OBOM soketleriyle eşleştirir. `hostField`, `machineIdSha256`, `productUuidSha256` veya açıkça atanmış `assetTag` olur. `scope`, `host` veya tam 64 karakterli konteyner ID'sidir.

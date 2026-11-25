@@ -173,6 +173,19 @@ PKCS#12/HSM/KMSの公開メタデータは `--asset-evidence` で取り込みま
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | pickleが許可リスト外のモジュールをインポート、または検査が未完了 |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | 宣言されたファイアウォールルールが許可する、ループバック以外のホストの待受。送信元が限定されたルール、評価できなかったルール、有効なファイアウォール宣言がない場合（`none-observed`）は確認が必要 |
 
+## NIS-SBOM表
+
+`nis-sbom`は、収集したCycloneDX SBOMをNIS-SBOM 1.0の基本項目20個(韓国の「SW 공급망 보안 가이드라인 1.0」表35)に変換します。ガイドラインは項目と表形式だけを定め、ファイルスキーマは定めていないため、結果はソフトウェアコンポーネントごとに1行のUTF-8 CSVです。ソフトウェアコンポーネントだけを記載します。ハードウェア、ファイル、暗号資産は除外します。
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization`と`--sequence`(既定値1)でSBOM ID `EXAMPLE-YYYYMMDD-000001`を作ります。`--product`、`--product-version`、`--author`は、スキャン対象名と収集ツール名を置き換えます。供給者はSBOMに記録された値を使い、なければPURLの名前空間を使います。ハッシュはSHA-256以上だけを記載します。`SBOM Type`はSBOMに記録されたライフサイクル段階に従い、記録がなければ`Deployed`です。`SPDX Doc. ID`と`Component Alias`は空のままです。収集ツールは脆弱性を照合しないため、`Vul. DB`と`Vul. Info`も空のままです。表計算ソフトが数式として実行しうる値には、先頭に`'`を付けます。
+
 ## TCP到達性の観測
 
 `--network-evidence` は計測済みTCP結果とホスト/保存OBOMソケットを照合します。`hostField` は `machineIdSha256`、`productUuidSha256`、明示した `assetTag`。`scope` は `host` または64桁コンテナーIDです。

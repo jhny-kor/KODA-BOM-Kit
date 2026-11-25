@@ -173,6 +173,19 @@ El arreglo `risks` del informe lista los riesgos que el recolector registró en 
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | El pickle importa módulos fuera de la lista permitida, o la inspección quedó incompleta |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Escucha del host fuera de loopback que aceptan las reglas de cortafuegos declaradas; los orígenes restringidos, las reglas no evaluables o la ausencia de una declaración activa de cortafuegos (`none-observed`) requieren revisión |
 
+## Tabla NIS-SBOM
+
+`nis-sbom` convierte un SBOM CycloneDX recopilado en los 20 campos básicos de NIS-SBOM 1.0 (tabla 35 de la guía coreana «SW 공급망 보안 가이드라인 1.0»). La guía define los campos y un formato de tabla, no un esquema de archivo, por lo que el resultado es un CSV en UTF-8 con una fila por componente de software. Solo se listan componentes de software. Se omiten el hardware, los archivos y los activos criptográficos.
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization` y `--sequence` (1 por defecto) forman el ID del SBOM `EXAMPLE-YYYYMMDD-000001`. `--product`, `--product-version` y `--author` sustituyen el nombre del destino analizado y el del recopilador. El proveedor es el registrado en el SBOM o, si falta, el espacio de nombres del PURL. Solo se indican hashes SHA-256 o más fuertes. `SBOM Type` sigue la fase del ciclo de vida registrada en el SBOM y es `Deployed` si no hay ninguna. `SPDX Doc. ID` y `Component Alias` quedan vacíos. `Vul. DB` y `Vul. Info` quedan vacíos porque el recopilador no compara vulnerabilidades. Un valor que una hoja de cálculo ejecutaría como fórmula recibe un `'` inicial.
+
 ## Observaciones TCP
 
 `--network-evidence` compara mediciones previas con sockets del host/OBOM guardado. `hostField` admite `machineIdSha256`, `productUuidSha256`, `assetTag` explícito. `scope` es `host` o ID de contenedor de 64 caracteres.

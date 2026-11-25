@@ -173,6 +173,19 @@ The report's `risks` array lists the risks that the collector recorded in the BO
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | Pickle imports modules outside the allowlist, or inspection was incomplete |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Host listener beyond loopback that declared firewall rules accept; restricted sources, rules that could not be evaluated, or no active firewall declaration (`none-observed`) need review |
 
+## NIS-SBOM table
+
+`nis-sbom` converts a collected CycloneDX SBOM into the 20 basic fields of NIS-SBOM 1.0 (Table 35 of the Korean "SW 공급망 보안 가이드라인 1.0"). The guideline defines the fields and a table form, not a file schema, so the result is a UTF-8 CSV with one row per software component. Only software components are listed. Hardware, files and cryptographic assets are left out.
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization` and `--sequence` (default 1) form the SBOM ID `EXAMPLE-YYYYMMDD-000001`. `--product`, `--product-version` and `--author` replace the scanned target name and the collector name. The supplier is the one recorded in the SBOM, otherwise the PURL namespace. Only SHA-256 or stronger hashes are listed. `SBOM Type` follows the lifecycle phase recorded in the SBOM and is `Deployed` without one. `SPDX Doc. ID` and `Component Alias` stay empty. `Vul. DB` and `Vul. Info` stay empty because the collector does not match vulnerabilities. A value that a spreadsheet would run as a formula gets a leading `'`.
+
 ## TCP reachability observations
 
 `--network-evidence` matches previously measured TCP outcomes with host or archived OBOM sockets. `hostField` is `machineIdSha256`, `productUuidSha256` or an explicitly assigned `assetTag`. `scope` is `host` or a full 64-character container ID.

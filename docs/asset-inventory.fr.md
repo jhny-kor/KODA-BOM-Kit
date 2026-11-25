@@ -173,6 +173,19 @@ Le tableau `risks` du rapport liste les risques que le collecteur a enregistrés
 | `KODA-RISK-PICKLE-UNKNOWN-IMPORTS` | `review_required` | Le pickle importe des modules hors de la liste autorisée, ou l'inspection est incomplète |
 | `KODA-RISK-LISTENER-FIREWALL-ACCEPT` | `risk_observed`, `review_required` | Écoute de l'hôte hors loopback acceptée par les règles de pare-feu déclarées ; les sources restreintes, les règles non évaluées ou l'absence de déclaration de pare-feu active (`none-observed`) demandent une revue |
 
+## Tableau NIS-SBOM
+
+`nis-sbom` convertit un SBOM CycloneDX collecté en 20 champs de base NIS-SBOM 1.0 (tableau 35 du guide coréen « SW 공급망 보안 가이드라인 1.0 »). Le guide définit les champs et une forme de tableau, pas un schéma de fichier ; le résultat est donc un CSV UTF-8 avec une ligne par composant logiciel. Seuls les composants logiciels sont listés. Le matériel, les fichiers et les actifs cryptographiques sont exclus.
+
+```sh
+./koda-bom nis-sbom \
+  --sbom ./reports/COLLECTION/sbom.cdx.json \
+  --organization EXAMPLE \
+  --output ./nis-sbom.csv
+```
+
+`--organization` et `--sequence` (1 par défaut) forment l'identifiant du SBOM `EXAMPLE-YYYYMMDD-000001`. `--product`, `--product-version` et `--author` remplacent le nom de la cible analysée et celui du collecteur. Le fournisseur est celui enregistré dans le SBOM, sinon l'espace de noms du PURL. Seuls les hachages SHA-256 ou plus forts sont indiqués. `SBOM Type` suit la phase du cycle de vie enregistrée dans le SBOM et vaut `Deployed` en son absence. `SPDX Doc. ID` et `Component Alias` restent vides. `Vul. DB` et `Vul. Info` restent vides, car le collecteur ne compare pas les vulnérabilités. Une valeur qu'un tableur exécuterait comme formule reçoit un `'` initial.
+
 ## Observations TCP
 
 `--network-evidence` rapproche les mesures préexistantes des sockets de l'hôte/OBOM archivé. `hostField` accepte `machineIdSha256`, `productUuidSha256`, `assetTag` explicite. `scope` vaut `host` ou un ID conteneur complet de 64 caractères.
